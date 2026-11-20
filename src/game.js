@@ -124,18 +124,21 @@
   const inp = { left: false, right: false, up: false, down: false, fire: false };
   const touch = { on: false, id: null, lx: 0, y0: 0, y: 0, dx: 0 };
   // Fare: oyun başladığı andaki konum (0,0) kabul edilir; mx sağ/sol, my ileri/geri sapmadır
-  const mouse = { active: false, down: false, mx: 0, my: 0, sens: 0.7 };
-  // Fare hassasiyeti: 0.3 – 2.0 arası, tarayıcıda saklanır (1.0 = imleçle birebir)
-  const SENS_MIN = 0.3, SENS_MAX = 2, SENS_DEFAULT = 0.7;
-  (function () {
-    const v = parseFloat(store('bg_sens'));
-    mouse.sens = v >= SENS_MIN && v <= SENS_MAX ? v : SENS_DEFAULT;
-  })();
-  function setSens(delta) {
-    mouse.sens = clamp(Math.round((mouse.sens + delta) * 10) / 10, SENS_MIN, SENS_MAX);
-    store('bg_sens', String(mouse.sens));
+  const mouse = { active: false, down: false, mx: 0, my: 0, sens: 0.7, level: 5 };
+  // Fare hassasiyeti: 9 kademe, klavyede 1–9 ile seçilir, tarayıcıda saklanır (1.0 = imleçle birebir)
+  const SENS_LEVELS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.85, 1, 1.3, 1.7], SENS_DEFAULT = 5;
+  function setSensLevel(n) {
+    mouse.level = clamp(Math.round(n) || SENS_DEFAULT, 1, 9);
+    mouse.sens = SENS_LEVELS[mouse.level - 1];
+    store('bg_sens_lv', String(mouse.level));
     G.sensT = 1.6;
   }
+  function setSens(step) { setSensLevel(mouse.level + step); }
+  (function () {
+    const v = parseInt(store('bg_sens_lv'), 10);
+    mouse.level = v >= 1 && v <= 9 ? v : SENS_DEFAULT;
+    mouse.sens = SENS_LEVELS[mouse.level - 1];
+  })();
   const MOUSE_R = 64, MOUSE_DEAD = 12;      // ileri/geri menzili ve ölü bölge (mantıksal px)
   const KEYMAP = {
     ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
@@ -149,10 +152,12 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const m = KEYMAP[e.code];
     if (m) { keys[m] = true; e.preventDefault(); }
-    // fare hassasiyeti: her an − / +, duraklatılmışken ← / →
-    if (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract') { setSens(-0.1); e.preventDefault(); return; }
-    if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') { setSens(0.1); e.preventDefault(); return; }
-    if (G.mode === 'paused' && (m === 'left' || m === 'right')) { setSens(m === 'left' ? -0.1 : 0.1); return; }
+    // fare hassasiyeti: her an 1–9 (ya da − / +), duraklatılmışken ← / →
+    const dg = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+    if (dg && !e.repeat) { setSensLevel(+dg[1]); e.preventDefault(); return; }
+    if (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract') { setSens(-1); e.preventDefault(); return; }
+    if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') { setSens(1); e.preventDefault(); return; }
+    if (G.mode === 'paused' && (m === 'left' || m === 'right')) { setSens(m === 'left' ? -1 : 1); return; }
     if (e.repeat) return;
     firstGesture();
     if (e.code === 'Enter' || e.code === 'Space') {
@@ -190,8 +195,8 @@
       else ok = tryContinue(act === 'cont-title' ? G.best : G.sec);
       if (isMouse || !ok) return;
     } else if (G.mode === 'paused') {
-      if (inBtn(p, BTN.sensMinus)) { setSens(-0.1); return; }
-      if (inBtn(p, BTN.sensPlus)) { setSens(0.1); return; }
+      if (inBtn(p, BTN.sensMinus)) { setSens(-1); return; }
+      if (inBtn(p, BTN.sensPlus)) { setSens(1); return; }
       if (isMouse && !mouse.active) { mouse.active = true; mouse.mx = P.x - W / 2; mouse.my = 0; }
       togglePause();
       return;
@@ -1210,7 +1215,7 @@
 
     if (G.sensT > 0 && G.mode !== 'paused') {
       ctx.globalAlpha = Math.min(1, G.sensT * 2);
-      text('FARE HASSASİYETİ  %' + Math.round(mouse.sens * 100), W / 2, 116, 15, '#ffe9b8', 'center', 700);
+      text('FARE HASSASİYETİ  ' + mouse.level + ' / 9', W / 2, 116, 15, '#ffe9b8', 'center', 700);
       ctx.globalAlpha = 1;
     }
 
@@ -1343,15 +1348,15 @@
         text(muted ? 'ses kapalı (M)' : 'ses açık (M)', W / 2, 354, 13, 'rgba(190,215,240,0.85)', 'center', 500);
         // fare hassasiyeti ayarı
         text('FARE HASSASİYETİ', W / 2, 406, 13, '#ffcf8a', 'center', 500);
-        button(BTN.sensMinus, '−', null, false, mouse.sens > SENS_MIN);
-        button(BTN.sensPlus, '+', null, false, mouse.sens < SENS_MAX);
-        const bx0 = BTN.sensMinus.x + BTN.sensMinus.w + 10, bw0 = BTN.sensPlus.x - 10 - bx0, by0 = BTN.sensMinus.y + 26;
-        const fr = (mouse.sens - SENS_MIN) / (SENS_MAX - SENS_MIN);
-        text('%' + Math.round(mouse.sens * 100), W / 2, by0 - 8, 20, '#ffffff', 'center', 700);
-        ctx.fillStyle = 'rgba(190,215,240,0.3)'; ctx.fillRect(bx0, by0, bw0, 3);
-        ctx.fillStyle = '#ffd95a'; ctx.fillRect(bx0, by0, bw0 * fr, 3);
-        ctx.fillRect(bx0 + bw0 * fr - 1.5, by0 - 3, 3, 9);
-        text(IS_TOUCH ? 'düğmelere dokun' : '← →  ya da  − +  ile ayarla (oyun sırasında da − +)', W / 2, 476, 12.5, 'rgba(190,215,240,0.85)', 'center', 500);
+        button(BTN.sensMinus, '−', null, false, mouse.level > 1);
+        button(BTN.sensPlus, '+', null, false, mouse.level < 9);
+        const bx0 = BTN.sensMinus.x + BTN.sensMinus.w + 10, bw0 = BTN.sensPlus.x - 10 - bx0, by0 = BTN.sensMinus.y + 27;
+        text(mouse.level + ' / 9', W / 2, by0 - 9, 20, '#ffffff', 'center', 700);
+        for (let i = 0; i < 9; i++) {
+          ctx.fillStyle = i < mouse.level ? '#ffd95a' : 'rgba(190,215,240,0.3)';
+          ctx.fillRect(bx0 + i * (bw0 / 9) + 1, by0 - (i === mouse.level - 1 ? 2 : 0), bw0 / 9 - 2, i === mouse.level - 1 ? 7 : 3);
+        }
+        text(IS_TOUCH ? 'düğmelere dokun' : '1 – 9 tuşlarıyla ayarla (oyun sırasında da)', W / 2, 476, 12.5, 'rgba(190,215,240,0.85)', 'center', 500);
       }
     }
   }
@@ -1378,7 +1383,7 @@
     G: G, P: P, cfg: cfg, start: startGame, render: render,
     mouse: mouse,
     step: function (n, dt) { for (let i = 0; i < n; i++) update(dt || 1 / 60); },
-    setSens: setSens, startAt: startGame, tryContinue: tryContinue, btn: BTN,
+    setSens: setSens, setSensLevel: setSensLevel, startAt: startGame, tryContinue: tryContinue, btn: BTN,
     counts: function () { return { ents: ents.length, shots: shots.length, orbs: orbs.length, parts: parts.length, coins: coinsL.length }; }
   };
 })();
