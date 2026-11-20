@@ -33,7 +33,7 @@
     background: #0c2236;
     box-shadow: 0 0 0 1px rgba(159, 211, 230, .14), 0 30px 80px rgba(0, 0, 0, .6);
   }
-  .side { flex: 0 0 210px; display: none; font-size: 17px; line-height: 1.45; }
+  .side { flex: 0 0 210px; display: none; font-size: 16px; line-height: 1.4; }
   .side h1 { margin: 0 0 10px; font-size: 40px; line-height: .95; letter-spacing: .01em; color: #fff; }
   .side h1 span { color: #ff9a4d; display: block; }
   .side h2 { margin: 0 0 12px; font-size: 14px; font-weight: 500; letter-spacing: .14em; color: #ffcf8a; }
@@ -54,7 +54,8 @@
     <h2>KUZEY HATTI ISI KURYESİ</h2>
     <h1>BUZUL <span>GEÇİDİ</span></h1>
     <p>Kasabalar donmak üzere. Kızağınla fiyordu geç, ısın bitmeden bir sonraki fenere ulaş.</p>
-    <p>Sıcak kaynakların üstünden ne kadar yavaş geçersen o kadar çok ısı toplarsın. On iki etap, sonra daha zorlu yeni bir tur.</p>
+    <p>Sıcak kaynakların üstünden ne kadar yavaş geçersen o kadar çok ısı toplarsın. Her etapta akış hızlanır; sis, rüzgâr ve buz bariyerleri yolunu keser.</p>
+    <p>Topladığın altınlar bu tarayıcıda saklanır. Yolculuk bitince altınla kaldığın etaptan devam edebilirsin.</p>
   </aside>
 
   <div class="play">
@@ -68,22 +69,26 @@
       <dt>↑ ↓</dt><dd>hızlan / yavaşla (W / S)</dd>
       <dt>BOŞLUK</dt><dd>işaret fişeği</dd>
       <dt>FARE</dt><dd>hareket: yön ve hız, tık: ateş</dd>
+      <dt>C</dt><dd>altınla kaldığın etaptan devam</dd>
       <dt>P</dt><dd>duraklat</dd>
       <dt>M</dt><dd>ses aç / kapat</dd>
     </dl>
     <ul class="legend">
       <li><span class="dot" style="background:#ffba68"></span><b>Sıcak kaynak</b> ısı verir</li>
+      <li><span class="dot" style="background:#ffcf3d"></span><b>Altın</b> devam etmek için biriktir</li>
+      <li><span class="dot" style="background:#bfe6ff"></span><b>Buz bariyeri</b> ateşle kır</li>
       <li><span class="dot" style="background:#b9d6ea"></span><b>Buz mayını</b> 30 puan</li>
       <li><span class="dot" style="background:#8a4fd6"></span><b>Devriye botu</b> 60 puan</li>
       <li><span class="dot" style="background:#ff5fb8"></span><b>Süzülen dron</b> 100 puan</li>
+      <li><span class="dot" style="background:#e8324a"></span><b>Avcı</b> peşine düşer, 120 puan</li>
       <li><span class="dot" style="background:#5c6d86"></span><b>Gözcü kulesi</b> 150 puan</li>
       <li><span class="dot" style="background:#ffd682"></span><b>Fener</b> kayıt noktası</li>
     </ul>
   </aside>
 </main>
 <noscript>Bu oyun için JavaScript gerekli.</noscript>
-<script src="src/level.js?v=2"></script>
-<script src="src/audio.js?v=2"></script>
-<script src="src/game.js?v=2"></script>
+<script src="src/level.js?v=3"></script>
+<script src="src/audio.js?v=3"></script>
+<script src="src/game.js?v=3"></script>
 </body>
 </html>

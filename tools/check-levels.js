@@ -58,6 +58,8 @@ for (let k = 0; k < 36; k++) {
   s.spawns.forEach((e, i) => {
     counts[e.type] = (counts[e.type] || 0) + 1;
     if (e.type === 'mine' && !inWater(e.x, e.y, 8)) fail(k, `mayın ${i} suda değil`);
+    if (e.type === 'ice' && !inWater(e.x, e.y, 2)) fail(k, `buz bloğu ${i} suda değil`);
+    if (e.type === 'hunter' && !inWater(e.x, e.y, 10)) fail(k, `avcı ${i} suda değil`);
     if (e.type === 'turret' && !inWater(e.x, e.y, 14)) fail(k, `kule ${i} suda değil`);
     if (e.type === 'boat') {
       if (e.maxX - e.minX < 20) fail(k, `bot ${i} için alan dar`);
@@ -65,6 +67,11 @@ for (let k = 0; k < 36; k++) {
     }
     if (e.y - s.y0 < 380) fail(k, `düşman ${i} etap başına çok yakın`);
   });
+  // altınlar suda ve toplanabilir yerde olmalı
+  let coinSum = 0;
+  s.coins.forEach((c, i) => { coinSum += c.v; if (!inWater(c.x, c.y, 11)) fail(k, `altın ${i} suda değil`); });
+  if (coinSum < 12) fail(k, `altın az: ${coinSum}`);
+  counts['altın'] = coinSum;
   // süsler karada olmalı
   s.deco.forEach((dd, i) => { if (inWater(dd.x, dd.y, -6)) fail(k, `süs ${i} suyun içinde`); });
 

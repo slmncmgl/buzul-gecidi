@@ -13,6 +13,7 @@ sesler Web Audio ile üretiliyor; hiçbir hazır görsel ya da ses dosyası kull
 | ← → (A / D) | yön |
 | ↑ ↓ (W / S) | hızlan / yavaşla |
 | Boşluk (J / Z) | işaret fişeği |
+| C | altınla kaldığın etaptan devam |
 | P / Esc | duraklat |
 | M | ses aç / kapat |
 
@@ -26,15 +27,24 @@ Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dok
 - **Isı** sürekli azalır. **Sıcak kaynakların** üstünden geçince dolar; ne kadar yavaş geçersen o kadar çok.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
-- 12 etap bir tur. Tur bitince etaplar yeni bir düzenle, daha hızlı düşmanlarla baştan başlar.
+- 12 etap bir tur. Her etapta akış biraz daha hızlanır ve yeni bir tehlike eklenir: buz bariyerleri
+  (ateşle kırılır), peşine düşen avcılar, sisli etaplar (ileriyi göremezsin), rüzgârlı etaplar (kızağı yana iter).
+  Tur bitince etaplar yeni bir düzenle, daha hızlı düşmanlarla baştan başlar.
+- **Altın** topla. Altınların ve ulaştığın en uzak etap bu tarayıcıda saklanır (`localStorage`).
+  Yolculuk bitince, ya da daha sonra başlık ekranından, altın harcayıp kaldığın etabın başından
+  devam edebilirsin (C tuşu ya da düğme). Bedel etapla artar: 2. etap 30 altın, her etap +10.
+  Devam edince puan sıfırlanır.
 - Her 10.000 puanda yeni bir kızak.
 
 | Düşman | Puan |
 | --- | --- |
+| Buz bloğu | 10 |
 | Buz mayını | 30 |
 | Devriye botu | 60 |
 | Süzülen dron | 100 |
+| Avcı | 120 |
 | Gözcü kulesi (2 isabet) | 150 |
+| Altın | 10 (büyük altın 50) |
 | Kule mermisi | 20 |
 
 ## Çalıştırma
@@ -60,6 +70,7 @@ node tools/check-levels.js
 ```
 
 Etap zorluğunu değiştirmek için `src/level.js` içindeki `DEFS` tablosuna bak
-(kanal genişliği, ada sayısı, düşman sıklığı ve türleri, kaynak aralığı, ısı kaybı).
+(kanal genişliği, ada sayısı, düşman sıklığı ve türleri, kaynak aralığı, ısı kaybı, sis, rüzgâr).
+Hız artışı ve devam bedeli `src/game.js` başındaki `speedMul` ve `contCost` satırlarında.
 
 Test için: adrese `?auto` eklenirse otomatik pilot oynar, `?god` eklenirse düşmanlar zarar vermez.

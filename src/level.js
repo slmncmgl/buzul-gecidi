@@ -16,21 +16,22 @@
    * cps: uzunluk (kontrol noktası sayısı), minHalf/maxHalf: kanal yarı genişliği,
    * shift: iki kontrol noktası arasında kanalın en fazla kayabileceği mesafe,
    * gap: düşmanlar arası mesafe aralığı, mix: düşman türü ağırlıkları,
+   * form: düşmanın ikili gelme olasılığı, fog: sis yoğunluğu, wind: rüzgâr gücü (px/sn),
    * ventGap: sıcak kaynaklar arası ortalama mesafe, drain: ısı kaybı çarpanı.
    */
   var DEFS = [
-    { name: 'Sakin Körfez',   pal: 0, cps: 16, minHalf: 84,  maxHalf: 140, shift: 46,  islands: 0, gap: [300, 420], mix: { mine: 1 }, ventGap: 820, drain: 0.85 },
-    { name: 'Çam Kıyısı',     pal: 0, cps: 18, minHalf: 72,  maxHalf: 138, shift: 58,  islands: 1, gap: [250, 360], mix: { mine: 3, boat: 2 }, ventGap: 900, drain: 0.95 },
-    { name: 'İkiz Adalar',    pal: 0, cps: 20, minHalf: 66,  maxHalf: 150, shift: 66,  islands: 3, gap: [220, 330], mix: { mine: 3, boat: 3, skim: 1 }, ventGap: 950, drain: 1 },
-    { name: 'Sisli Boğaz',    pal: 1, cps: 20, minHalf: 54,  maxHalf: 112, shift: 76,  islands: 1, gap: [200, 310], mix: { mine: 3, boat: 3, skim: 2, turret: 1 }, ventGap: 1000, drain: 1 },
-    { name: 'Kırık Buzullar', pal: 1, cps: 22, minHalf: 58,  maxHalf: 150, shift: 70,  islands: 4, gap: [190, 290], mix: { mine: 4, boat: 3, skim: 2, turret: 1 }, ventGap: 1050, drain: 1.05 },
-    { name: 'Kurt Geçidi',    pal: 1, cps: 20, minHalf: 44,  maxHalf: 88,  shift: 72,  islands: 0, gap: [200, 300], mix: { mine: 2, boat: 3, skim: 3 }, ventGap: 1050, drain: 1.05 },
-    { name: 'Aurora Düzlüğü', pal: 2, cps: 22, minHalf: 104, maxHalf: 160, shift: 40,  islands: 3, gap: [130, 220], mix: { mine: 3, boat: 3, skim: 3, turret: 3 }, ventGap: 1100, drain: 1.1 },
-    { name: 'Yılan Kanal',    pal: 2, cps: 22, minHalf: 46,  maxHalf: 78,  shift: 104, islands: 0, gap: [210, 310], mix: { mine: 3, boat: 2, skim: 2 }, ventGap: 1100, drain: 1.1 },
-    { name: 'Fener Adaları',  pal: 2, cps: 24, minHalf: 62,  maxHalf: 156, shift: 70,  islands: 6, gap: [170, 260], mix: { mine: 3, boat: 4, skim: 2, turret: 2 }, ventGap: 1150, drain: 1.15 },
-    { name: 'Fırtına Hattı',  pal: 3, cps: 22, minHalf: 70,  maxHalf: 140, shift: 80,  islands: 2, gap: [130, 210], mix: { mine: 1, boat: 2, skim: 6, turret: 1 }, ventGap: 1150, drain: 1.2 },
-    { name: 'Dar Boğaz',      pal: 3, cps: 22, minHalf: 40,  maxHalf: 72,  shift: 88,  islands: 0, gap: [180, 270], mix: { mine: 4, boat: 2, skim: 2, turret: 2 }, ventGap: 1200, drain: 1.2 },
-    { name: 'Kuzey Kapısı',   pal: 3, cps: 28, minHalf: 50,  maxHalf: 156, shift: 90,  islands: 5, gap: [130, 220], mix: { mine: 3, boat: 3, skim: 3, turret: 3 }, ventGap: 1200, drain: 1.25 }
+    { name: 'Sakin Körfez',   pal: 0, cps: 12, minHalf: 78,  maxHalf: 135, shift: 50,  islands: 1, gap: [200, 300], form: 0.10, mix: { mine: 3, boat: 1 }, ventGap: 800, drain: 0.9 },
+    { name: 'Çam Kıyısı',     pal: 0, cps: 16, minHalf: 66,  maxHalf: 135, shift: 62,  islands: 2, gap: [170, 260], form: 0.20, mix: { mine: 3, boat: 3, skim: 1, ice: 1 }, ventGap: 900, drain: 1 },
+    { name: 'İkiz Adalar',    pal: 0, cps: 18, minHalf: 60,  maxHalf: 150, shift: 70,  islands: 4, gap: [150, 240], form: 0.25, mix: { mine: 3, boat: 3, skim: 2, turret: 1, ice: 1 }, ventGap: 950, drain: 1 },
+    { name: 'Sisli Boğaz',    pal: 1, cps: 18, minHalf: 54,  maxHalf: 112, shift: 76,  islands: 2, gap: [150, 230], form: 0.25, mix: { mine: 3, boat: 3, skim: 2, turret: 1, hunter: 1 }, ventGap: 1000, drain: 1, fog: 0.9 },
+    { name: 'Kırık Buzullar', pal: 1, cps: 20, minHalf: 56,  maxHalf: 150, shift: 70,  islands: 5, gap: [140, 220], form: 0.30, mix: { ice: 4, mine: 3, boat: 2, skim: 2, turret: 1, hunter: 1 }, ventGap: 1050, drain: 1.05 },
+    { name: 'Kurt Geçidi',    pal: 1, cps: 20, minHalf: 44,  maxHalf: 88,  shift: 74,  islands: 0, gap: [140, 220], form: 0.30, mix: { hunter: 4, boat: 2, skim: 2, mine: 2 }, ventGap: 1050, drain: 1.05 },
+    { name: 'Aurora Düzlüğü', pal: 2, cps: 20, minHalf: 100, maxHalf: 160, shift: 40,  islands: 4, gap: [100, 170], form: 0.35, mix: { turret: 4, boat: 3, skim: 3, mine: 2, hunter: 2 }, ventGap: 1100, drain: 1.1 },
+    { name: 'Yılan Kanal',    pal: 2, cps: 20, minHalf: 46,  maxHalf: 78,  shift: 104, islands: 0, gap: [150, 230], form: 0.30, mix: { mine: 3, boat: 2, skim: 2, ice: 2 }, ventGap: 1100, drain: 1.1 },
+    { name: 'Fener Adaları',  pal: 2, cps: 22, minHalf: 62,  maxHalf: 156, shift: 70,  islands: 6, gap: [120, 200], form: 0.35, mix: { boat: 4, turret: 3, mine: 2, skim: 2, hunter: 2, ice: 1 }, ventGap: 1150, drain: 1.15 },
+    { name: 'Fırtına Hattı',  pal: 3, cps: 20, minHalf: 70,  maxHalf: 140, shift: 80,  islands: 2, gap: [110, 180], form: 0.40, mix: { skim: 6, boat: 2, hunter: 2, mine: 1, turret: 1 }, ventGap: 1150, drain: 1.2, wind: 60 },
+    { name: 'Dar Boğaz',      pal: 3, cps: 20, minHalf: 40,  maxHalf: 72,  shift: 88,  islands: 0, gap: [140, 210], form: 0.35, mix: { mine: 4, ice: 3, turret: 2, boat: 2, skim: 2, hunter: 1 }, ventGap: 1200, drain: 1.2, fog: 0.6 },
+    { name: 'Kuzey Kapısı',   pal: 3, cps: 26, minHalf: 50,  maxHalf: 156, shift: 90,  islands: 5, gap: [95, 170],  form: 0.45, mix: { mine: 3, boat: 3, skim: 3, turret: 3, hunter: 2, ice: 2 }, ventGap: 1200, drain: 1.25, wind: 40 }
   ];
 
   // Etapların tur içindeki başlangıç satırları
@@ -173,7 +174,37 @@
     var spawns = [], types = Object.keys(def.mix), tot = 0;
     for (i = 0; i < types.length; i++) tot += def.mix[types[i]];
     var gscale = Math.pow(0.9, loop);
-    y = (k === 0 ? 700 : 400) + r() * 100;
+
+    function addEnemy(type, yy) {
+      var sg2 = segs(rowOf(yy)), s2 = sg2[Math.floor(r() * sg2.length)], wd = s2[1] - s2[0];
+      if (type === 'turret' && wd < 104) type = 'mine';
+      if (type === 'boat' && wd < 60) type = 'mine';
+      if (type === 'ice') {
+        // buz bariyeri: geçidi boydan boya kapatan, ateşle kırılan bloklar
+        var cnt = Math.floor((wd - 6) / 20), x0 = s2[0] + (wd - (cnt - 1) * 20) / 2;
+        for (var b = 0; b < cnt; b++) spawns.push({ type: 'ice', x: x0 + b * 20, y: y0 + yy });
+        return;
+      }
+      var e = { type: type, y: y0 + yy };
+      if (type === 'mine') {
+        e.x = s2[0] + 13 + r() * (wd - 26);
+      } else if (type === 'boat') {
+        e.minX = s2[0] + 17; e.maxX = s2[1] - 17;
+        e.x = e.minX + r() * (e.maxX - e.minX);
+        e.vx = (r() < 0.5 ? -1 : 1) * (38 + r() * 34) * hard;
+      } else if (type === 'skim') {
+        var dir = r() < 0.5 ? -1 : 1;
+        e.x = dir > 0 ? -26 : W + 26;
+        e.vx = dir * (100 + r() * 55) * hard;
+      } else if (type === 'hunter') {
+        e.x = s2[0] + 16 + r() * (wd - 32);
+      } else {
+        e.x = s2[0] + 40 + r() * (wd - 80);
+      }
+      spawns.push(e);
+    }
+
+    y = 400 + r() * 100;
     endY = N * ROW - 200;
     while (y < endY) {
       var yy = y;
@@ -181,26 +212,31 @@
       if (!nearVent(yy) && yy < endY) {
         var pick = r() * tot, type = types[0];
         for (i = 0; i < types.length; i++) { pick -= def.mix[types[i]]; if (pick < 0) { type = types[i]; break; } }
-        var sg2 = segs(rowOf(yy)), s2 = sg2[Math.floor(r() * sg2.length)], wd = s2[1] - s2[0];
-        if (type === 'turret' && wd < 104) type = 'mine';
-        if (type === 'boat' && wd < 60) type = 'mine';
-        var e = { type: type, y: y0 + yy };
-        if (type === 'mine') {
-          e.x = s2[0] + 13 + r() * (wd - 26);
-        } else if (type === 'boat') {
-          e.minX = s2[0] + 17; e.maxX = s2[1] - 17;
-          e.x = e.minX + r() * (e.maxX - e.minX);
-          e.vx = (r() < 0.5 ? -1 : 1) * (38 + r() * 34) * hard;
-        } else if (type === 'skim') {
-          var dir = r() < 0.5 ? -1 : 1;
-          e.x = dir > 0 ? -26 : W + 26;
-          e.vx = dir * (100 + r() * 55) * hard;
-        } else {
-          e.x = s2[0] + 40 + r() * (wd - 80);
-        }
-        spawns.push(e);
+        var twin = type !== 'ice' && type !== 'turret' && r() < def.form;
+        addEnemy(type, yy);
+        if (twin) addEnemy(type, yy + 34);
       }
       y += (def.gap[0] + r() * (def.gap[1] - def.gap[0])) * gscale;
+    }
+
+    // --- altınlar: düz ya da çapraz diziler, arada kıyıya yakın büyük altın (5 değerinde)
+    var coins = [];
+    y = 240 + r() * 120;
+    endY = N * ROW - 130;
+    while (y < endY) {
+      var sg3 = segs(rowOf(y)), s3 = sg3[Math.floor(r() * sg3.length)], wd3 = s3[1] - s3[0], kindc = r(), q;
+      if (kindc < 0.2) {
+        var bx = r() < 0.5 ? s3[0] + 18 : s3[1] - 18;
+        if (inWater(bx, y - 12, 13) && inWater(bx, y, 13) && inWater(bx, y + 12, 13)) coins.push({ x: bx, y: y0 + y, v: 5 });
+      } else {
+        var cx0 = s3[0] + 16 + r() * (wd3 - 32), slope = kindc < 0.6 ? 0 : (r() * 2 - 1) * 0.75, nco = 4 + Math.floor(r() * 3);
+        for (q = 0; q < nco; q++) {
+          var cxq = cx0 + slope * q * 22, cyq = y + q * 22;
+          if (cyq < endY + 60 && inWater(cxq, cyq, 13)) coins.push({ x: cxq, y: y0 + cyq, v: 1 });
+        }
+        y += nco * 22;
+      }
+      y += 250 + r() * 210;
     }
 
     // --- süsler: çamlar, kayalar, kulübeler (0: çam, 1: kaya, 2: kulübe)
@@ -228,7 +264,7 @@
     return {
       k: k, def: def, loop: loop, N: N, g0: startRow(k), y0: y0,
       L: L, R: R, IL: IL, IR: IR,
-      vents: vents, spawns: spawns, deco: deco,
+      vents: vents, spawns: spawns, coins: coins, deco: deco,
       gateY: y0 + (N - 8) * ROW
     };
   }

@@ -7,7 +7,7 @@
  * Signal flow:
  *   sfx one-shots ─► sfxBus ─┐
  *   music voices  ─► musicBus ┼─► master (mute) ─► compressor ─► destination
- *   engine/charge/beep ─► loopBus ┘
+ *   engine/charge/wind/beep ─► loopBus ┘
  *
  * Every public method is a safe no-op before init(), without Web Audio,
  * or if the context failed to start. Nothing here ever throws.
@@ -96,6 +96,7 @@
   let startupQueued = 0;      // one-shots queued before the context first runs
 
   let master, sfxBus, musicBus, loopBus;
+  let dullIn;                 // lowpass in front of sfxBus, for soft buzzes
   let noiseBuf = null;
 
   // music channel inputs
@@ -107,6 +108,8 @@
   let engineV = -1;
   let charge = null;          // { out }
   let chargeOn = false;
+  let wind = null;            // { out, filter }
+  let windV = 0;
 
   // scheduler
   let timer = null;
@@ -244,6 +247,12 @@
     musicBus.connect(master);
     loopBus.connect(master);
 
+    dullIn = ctx.createBiquadFilter();
+    dullIn.type = 'lowpass';
+    dullIn.frequency.value = 620;
+    dullIn.Q.value = 0.7;
+    dullIn.connect(sfxBus);
+
     // shared white-noise buffer (2 s), created once
     const len = Math.floor(ctx.sampleRate * 2);
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -253,6 +262,35 @@
     buildMusicChannels();
     buildEngine();
     buildCharge();
+    buildWind();
+  }
+
+  // Wind gust: looped noise through a bandpass, with a slow flutter so it
+  // never sounds static. Always running, silent until setWind(v > 0).
+  function buildWind() {
+    const out = gainNode(0);
+    out.connect(loopBus);
+
+    const flutter = gainNode(1);
+    flutter.connect(out);
+    const lfo = runningOsc('sine', 0.37);
+    const depth = gainNode(0.22);
+    lfo.connect(depth);
+    depth.connect(flutter.gain);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 320;
+    filter.Q.value = 0.8;
+    filter.connect(flutter);
+
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    src.connect(filter);
+    src.start(0, 0.97);       // offset: not in phase with the engine's noise layer
+
+    wind = { out: out, filter: filter };
   }
 
   function buildMusicChannels() {
@@ -543,6 +581,48 @@
       }
       tone(sfxBus, t, { type: 'triangle', f: hz(50), dur: 0.7, vol: 0.13, attack: 0.01, hold: 0.4 });
       tone(sfxBus, ct, { type: 'triangle', f: hz(38), dur: 0.78, vol: 0.16, attack: 0.01, hold: 0.35 });
+    },
+
+    // small coin: light two-note upward blip (a fourth), about 115 ms
+    coin: function (t) {
+      tone(sfxBus, t, { type: 'triangle', f: hz(81), dur: 0.05, vol: 0.07, attack: 0.003, hold: 0.02 });
+      tone(sfxBus, t + 0.045, { type: 'triangle', f: hz(86), dur: 0.07, vol: 0.075, attack: 0.003, hold: 0.015 });
+      tone(sfxBus, t + 0.045, { type: 'sine', f: hz(98), dur: 0.055, vol: 0.016, attack: 0.002 });
+    },
+
+    // big coin: three quick rising notes with a little sparkle, about 300 ms
+    bigCoin: function (t) {
+      const notes = [81, 86, 93];
+      for (let i = 0; i < notes.length; i++) {
+        const last = i === notes.length - 1;
+        const dur = last ? 0.18 : 0.075;
+        tone(sfxBus, t + i * 0.06, { type: 'triangle', f: hz(notes[i]), dur: dur, vol: 0.085, attack: 0.003, hold: 0.025 });
+        tone(sfxBus, t + i * 0.06, { type: 'square', f: hz(notes[i]), dur: dur * 0.7, vol: 0.02, attack: 0.003 });
+      }
+      tone(sfxBus, t + 0.14, { type: 'sine', f: hz(98), dur: 0.11, vol: 0.024, attack: 0.002 });
+      tone(sfxBus, t + 0.185, { type: 'sine', f: hz(105), dur: 0.115, vol: 0.016, attack: 0.002 });
+      noise(sfxBus, t + 0.12, { dur: 0.09, vol: 0.014, ftype: 'highpass', f: 8000 });
+    },
+
+    // coins spent to continue: two clinks over a soft thump, then a warm
+    // low fifth. Percussive and low so it does not fight 'start' after it.
+    buy: function (t) {
+      noise(sfxBus, t, { dur: 0.035, vol: 0.07, ftype: 'bandpass', f: 3000, q: 4 });
+      tone(sfxBus, t, { type: 'square', f: 1760, dur: 0.045, vol: 0.028, attack: 0.002 });
+      tone(sfxBus, t, { type: 'sine', f: 165, f2: 72, dur: 0.13, vol: 0.26 });
+      noise(sfxBus, t + 0.09, { dur: 0.03, vol: 0.06, ftype: 'bandpass', f: 4400, q: 4 });
+      tone(sfxBus, t + 0.09, { type: 'square', f: 2349, dur: 0.04, vol: 0.024, attack: 0.002 });
+      const ct = t + 0.13;
+      tone(sfxBus, ct, { type: 'triangle', f: hz(53), dur: 0.33, vol: 0.15, attack: 0.008, hold: 0.1 });
+      tone(sfxBus, ct, { type: 'triangle', f: hz(60), dur: 0.33, vol: 0.1, attack: 0.008, hold: 0.1 });
+      tone(sfxBus, ct, { type: 'sine', f: hz(69), dur: 0.26, vol: 0.035, attack: 0.008 });
+    },
+
+    // not enough coins: dull double low buzz, about 200 ms (saw through
+    // the shared lowpass so it stays soft)
+    deny: function (t) {
+      tone(dullIn, t, { type: 'sawtooth', f: 98, dur: 0.09, vol: 0.2, attack: 0.008, hold: 0.05 });
+      tone(dullIn, t + 0.11, { type: 'sawtooth', f: 92.5, dur: 0.09, vol: 0.2, attack: 0.008, hold: 0.05 });
     }
   };
 
@@ -599,6 +679,17 @@
     if (flag === chargeOn) return;
     chargeOn = flag;
     charge.out.gain.setTargetAtTime(flag ? 0.5 : 0, ctx.currentTime, flag ? 0.08 : 0.12);
+  }
+
+  // Atmosphere under the engine: loudness and brightness follow v (0..1).
+  function setWind(v) {
+    if (!ctx) return;
+    v = clamp01(v);
+    if (Math.abs(v - windV) < 0.004 && !(v === 0 && windV !== 0)) return;
+    const t = ctx.currentTime;
+    windV = v;
+    wind.out.gain.setTargetAtTime(0.18 * v, t, 0.15);
+    wind.filter.frequency.setTargetAtTime(320 + 900 * v, t, 0.15);
   }
 
   function setLowHeat(flag) {
@@ -754,6 +845,7 @@
     setEngine: guard(setEngine),
     stopEngine: guard(stopEngine),
     setCharging: guard(setCharging),
+    setWind: guard(setWind),
     setLowHeat: guard(setLowHeat),
     startMusic: guard(startMusic),
     stopMusic: guard(stopMusic),
