@@ -1697,7 +1697,6 @@
     drawPops();
     ctx.restore();
     drawVignette();
-    if (G.mode !== 'playing' && G.mode !== 'dying') text(VERSION, W - 8, H - 6, 11, 'rgba(210,228,245,0.85)', 'right', 700);
     if (G.mode === 'title') drawTitle();
     else {
       drawHud();
@@ -1720,6 +1719,9 @@
         text(IS_TOUCH ? 'düğmelere dokun' : '1 – 9 tuşlarıyla ayarla (oyun sırasında da)', W / 2, 476, 12.5, 'rgba(190,215,240,0.85)', 'center', 500);
       }
     }
+    // sürüm etiketi: karartmaların da üstünde, oyun sırasında dahil her zaman görünür
+    ctx.globalAlpha = 1;
+    text(VERSION, W - 6, H - 5, 12, '#ffffff', 'right', 700);
   }
 
   // ------------------------------------------------------------ döngü
