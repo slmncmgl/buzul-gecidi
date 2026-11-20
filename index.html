@@ -41,7 +41,16 @@
   .side dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; }
   .side dt { font-weight: 700; color: #ffe9b8; white-space: nowrap; }
   .side dd { margin: 0; color: #b4c6d8; }
-  .legend { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 7px; color: #b4c6d8; }
+  .info { margin-top: 18px; }
+  .info summary {
+    list-style: none; cursor: pointer; width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center; font: italic 700 16px Georgia, serif;
+    color: #ffe9b8; border: 1.5px solid rgba(255, 233, 184, .7);
+  }
+  .info summary::-webkit-details-marker { display: none; }
+  .info summary:hover, .info[open] summary { background: rgba(255, 233, 184, .16); }
+  .info summary:focus-visible { outline: 2px solid #ffe9b8; outline-offset: 2px; }
+  .legend { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 7px; color: #b4c6d8; }
   .legend b { color: #fff; font-weight: 700; }
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; }
   @media (min-width: 900px) and (min-height: 480px) { .side { display: block; } }
@@ -76,6 +85,8 @@
       <dt>P</dt><dd>duraklat</dd>
       <dt>M</dt><dd>ses aç / kapat</dd>
     </dl>
+    <details class="info">
+      <summary aria-label="Nesneler ve puanlar" title="Nesneler ve puanlar">i</summary>
     <ul class="legend">
       <li><span class="dot" style="background:#ffba68"></span><b>Sıcak kaynak</b> ısı verir</li>
       <li><span class="dot" style="background:#ffcf3d"></span><b>Altın</b> devam etmek için biriktir</li>
@@ -90,12 +101,13 @@
       <li><span class="dot" style="background:#4a5873"></span><b>Bekçi</b> tur sonunda, 2500 puan</li>
       <li><span class="dot" style="background:#ffd682"></span><b>Fener</b> kayıt noktası</li>
     </ul>
+    </details>
   </aside>
 </main>
 <noscript>Bu oyun için JavaScript gerekli.</noscript>
 <!-- Her yayında üç betikteki ?v= sayısını birlikte artır: oyun bu sayıyı ekranda sürüm olarak gösterir -->
-<script src="src/level.js?v=18"></script>
-<script src="src/audio.js?v=18"></script>
-<script src="src/game.js?v=18"></script>
+<script src="src/level.js?v=19"></script>
+<script src="src/audio.js?v=19"></script>
+<script src="src/game.js?v=19"></script>
 </body>
 </html>
