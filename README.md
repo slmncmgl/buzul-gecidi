@@ -22,6 +22,9 @@ kızak o yöne gider, ileri itersen hızlanır, geri çekersen yavaşlar, sıfı
 kalır. Tık (basılı tutunca sürekli) ateş eder. Oyun sırasında imleç gizlenir; Esc imleci geri getirir ve
 oyunu duraklatır, tıklayınca devam eder. Klavyeyle oynarken de herhangi bir anda tıklayıp fareye geçebilirsin.
 
+Fare hassasiyeti: oyun sırasında `-` / `+` tuşlarıyla, ya da duraklatıp (P) ekrandaki − / + düğmeleri
+veya ← / → ile ayarlanır (%30 – %200, varsayılan %70). Ayar tarayıcıda saklanır.
+
 Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dokunurken otomatik ateş eder.
 
 - **Isı** sürekli azalır. **Sıcak kaynakların** üstünden geçince dolar; ne kadar yavaş geçersen o kadar çok.
