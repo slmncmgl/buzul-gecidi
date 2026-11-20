@@ -203,7 +203,7 @@
 
     osc.type = o.type || 'sine';
     osc.frequency.setValueAtTime(o.f, t);
-    if (o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, sweepEnd);
+    if (o.f2) { if (o.lin) osc.frequency.linearRampToValueAtTime(o.f2, sweepEnd); else osc.frequency.exponentialRampToValueAtTime(o.f2, sweepEnd); }
     if (o.detune) osc.detune.setValueAtTime(o.detune, t);
 
     if (o.fm) {
@@ -307,7 +307,7 @@
 
   // Clocked noise whose clock rate falls: the crunchy roar of an arcade explosion, with a
   // sense of pitch dropping away. A plain white-noise burst reads as a pop; this does not.
-  // o: { dur, vol, rate, rate2, attack, hold, lp }
+  // o: { dur, vol, rate, rate2, glide, attack, hold, lp }
   function crunch(dest, t, o) {
     const dur = o.dur;
     const attack = Math.min(o.attack || 0.008, dur * 0.4);
@@ -319,7 +319,7 @@
     src.buffer = crunchBuf;
     src.loop = true;
     src.playbackRate.setValueAtTime(o.rate, t);
-    src.playbackRate.exponentialRampToValueAtTime(o.rate2, t + dur);
+    src.playbackRate.exponentialRampToValueAtTime(o.rate2, t + (o.glide || dur));      // glide: pitch reaches the bottom early, then rumbles
 
     lp.type = 'lowpass';
     lp.Q.value = 0.5;
@@ -731,15 +731,16 @@
 
   // ------------------------------------------------------------- one-shots
   const SFX = {
-    // laser "pew": fast exponential down-sweep through a resonant lowpass.
-    // Slight random detune keeps rapid fire from sounding like a machine.
+    // Laser "pew", late-90s PC shooter style: a hollow square tone that stays high for a moment
+    // and then dives (a straight-line fall, not an exponential one), a little grit on top.
     shoot: function (t) {
-      const d = (Math.random() * 2 - 1) * 45;
+      const d = (Math.random() * 2 - 1) * 40;
       voice(sfxBus, t, {
-        type: 'sawtooth', f: 2100, f2: 240, glide: 0.1, dur: 0.13, vol: 0.2, attack: 0.002, hold: 0.03, detune: d,
-        filter: { type: 'lowpass', f: 6000, f2: 900, q: 3.5 }
+        type: 'square', f: 2080, f2: 240, lin: true, glide: 0.19, dur: 0.2, vol: 0.13, attack: 0.002, hold: 0.06, detune: d,
+        filter: { type: 'lowpass', f: 4800, f2: 1500, q: 0.9 }
       });
-      voice(sfxBus, t, { type: 'square', f: 3200, f2: 500, glide: 0.06, dur: 0.07, vol: 0.05, attack: 0.002, detune: d });
+      voice(sfxBus, t, { type: 'sawtooth', f: 1040, f2: 120, lin: true, glide: 0.19, dur: 0.2, vol: 0.06, attack: 0.002, hold: 0.05, detune: d });
+      crunch(sfxBus, t, { dur: 0.09, vol: 0.05, rate: 1.6, rate2: 0.5, attack: 0.002, lp: 5000 });
     },
 
     // short metallic FM ping
@@ -765,19 +766,15 @@
       }
     },
 
-    // Enemy destroyed: a crunchy clocked-noise roar whose pitch falls away, over a soft sub
-    // push. No sharp transient and no short white-noise burst (those read as a balloon pop).
+    // Enemy destroyed: lo-fi sampled-explosion character. Dark clocked noise that starts in the
+    // low mids, drops to a rumble within the first third and then rolls on; loud body, no bright
+    // hiss and no tonal sweep (those read as a balloon pop).
     explode: function (t) {
       const k = 0.85 + Math.random() * 0.3;
-      crunch(sfxBus, t, { dur: 0.62, vol: 0.26, rate: 1.5 * k, rate2: 0.1, attack: 0.01, hold: 0.07, lp: 6500 });
-      crunch(sfxFx, t + 0.03, { dur: 0.8, vol: 0.1, rate: 0.5 * k, rate2: 0.06, attack: 0.03, hold: 0.1, lp: 2200 });
-      // sub push: slow attack, almost no pitch movement
-      voice(sfxBus, t, { type: 'triangle', f: 58 * k, f2: 40, dur: 0.55, vol: 0.2, attack: 0.03, hold: 0.12 });
-      // energy dissolving: a quiet buzzing sweep under the roar
-      voice(sfxBus, t, {
-        type: 'square', f: 520 * k, f2: 55, dur: 0.38, vol: 0.04, attack: 0.01, hold: 0.04,
-        filter: { type: 'lowpass', f: 2400, f2: 300, q: 0.8 }
-      });
+      crunch(sfxBus, t, { dur: 0.62, vol: 0.34, rate: 0.85 * k, rate2: 0.1, glide: 0.22, attack: 0.02, hold: 0.1, lp: 4500 });
+      crunch(sfxFx, t + 0.02, { dur: 0.8, vol: 0.14, rate: 0.3 * k, rate2: 0.045, glide: 0.35, attack: 0.03, hold: 0.15, lp: 1500 });
+      // rumble underneath
+      voice(sfxBus, t, { type: 'triangle', f: 84 * k, f2: 46, dur: 0.6, vol: 0.24, attack: 0.03, hold: 0.15 });
     },
 
     // Ice block breaking: a quick scatter of glassy FM pings, no noise burst
@@ -806,8 +803,8 @@
     // Sled destroyed: heavy crunch, a slow deep bass drop, the engine powering down smoothly
     // (no wobble), and shards ringing out into the echo (about 1.7 s).
     playerDie: function (t) {
-      crunch(sfxBus, t, { dur: 1.1, vol: 0.26, rate: 1.3, rate2: 0.07, attack: 0.008, hold: 0.14, lp: 6000 });
-      crunch(sfxFx, t + 0.05, { dur: 1.6, vol: 0.12, rate: 0.4, rate2: 0.05, attack: 0.05, hold: 0.3, lp: 1600 });
+      crunch(sfxBus, t, { dur: 1.2, vol: 0.32, rate: 0.9, rate2: 0.06, glide: 0.4, attack: 0.012, hold: 0.18, lp: 4800 });
+      crunch(sfxFx, t + 0.05, { dur: 1.7, vol: 0.15, rate: 0.3, rate2: 0.04, glide: 0.6, attack: 0.05, hold: 0.35, lp: 1400 });
       // bass drop
       voice(sfxBus, t, { type: 'sine', f: 105, f2: 27, dur: 1.5, vol: 0.38, attack: 0.012, hold: 0.25 });
       // power-down: two detuned saws gliding down, darkening as they fall
