@@ -699,6 +699,22 @@
       noise(sfxBus, t, { dur: 0.02, vol: 0.08, ftype: 'highpass', f: 5000 });
     },
 
+    // Nuke: bright flash crack, a long falling roar, deep sub and a wide reverb wash (~2.5 s)
+    nuke: function (t) {
+      noise(sfxBus, t, { dur: 0.06, vol: 0.35, ftype: 'highpass', f: 1800 });
+      noise(sfxFx, t, { dur: 2.4, vol: 0.4, attack: 0.01, ftype: 'lowpass', f: 5200, f2: 90, q: 0.7 });
+      noise(sfxBus, t + 0.02, { dur: 2.6, vol: 0.45, attack: 0.04, ftype: 'lowpass', f: 320, f2: 50, q: 0.7 });
+      voice(sfxBus, t, { type: 'sine', f: 70, f2: 30, dur: 2.2, vol: 0.4, attack: 0.02, hold: 0.4, fm: { ratio: 1.41, index: 2.5, index2: 0.3 } });
+      voice(sfxFx, t, {
+        type: 'sawtooth', f: 1400, f2: 60, dur: 1.4, vol: 0.1, attack: 0.005, hold: 0.1,
+        lfo: { rate: 14, rate2: 3, depth: 200 },
+        filter: { type: 'lowpass', f: 6000, f2: 300, q: 1 }
+      });
+      for (let i = 0; i < 8; i++) {
+        noise(sfxBus, t + 0.15 + Math.random() * 1.2, { dur: 0.05 + Math.random() * 0.08, vol: 0.06 + Math.random() * 0.08, ftype: 'bandpass', f: 900 + Math.random() * 2600, q: 1.1 });
+      }
+    },
+
     // Gritty explosion: sharp crack, a broad un-resonant noise body, a rough low rumble and
     // scattered debris crackle. No clean pitched sweep and no resonant filter: those are
     // what made the previous version read as a balloon pop.

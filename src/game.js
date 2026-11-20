@@ -13,6 +13,7 @@
   const speedMul = (k) => Math.min(1.75, 1 + 0.025 * (k % NSEC) + 0.12 * Math.floor(k / NSEC));
   const contCost = (k) => Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
+  const NUKE_CD = 60, NUKE_BOSS_DMG = 8;       // nükleer patlama: ekranı temizler, dakikada bir
   const BLAST_CD = 10, BLAST_CHARGE = 1.2, BLAST_HOLD = 0.18, BLAST_MIN = 0.25;
   const FONT = '"Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif';
 
@@ -119,7 +120,7 @@
     coins: parseInt(store('bg_coins') || '0', 10) || 0,      // cüzdan: tarayıcıda saklanır
     best: parseInt(store('bg_stage') || '0', 10) || 0,       // ulaşılan en uzak etap (0 tabanlı)
     runCoins: 0, sm: 1, fog: 0, wind: 0, windWarn: 0, windT: 0, deny: 0, sensT: 0,
-    blastCd: 0, readyT: 0, night: 0, boss: null, rapid: false,
+    blastCd: 0, readyT: 0, night: 0, boss: null, rapid: false, nukeCd: 0, nukeT: 0,
     stats: { deaths: [], gates: 0 }
   };
   const P = { x: W / 2, wy: 40, vx: 0, speed: SPEED_CRUISE, inv: 0, fireCd: 0, tilt: 0, holdT: 0, charge: 0 };
@@ -174,6 +175,8 @@
       if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) startGame(0);
       else if (G.mode === 'paused') togglePause();
       e.preventDefault();
+    } else if (e.code === 'KeyX' || e.code === 'KeyN') {
+      nuke();
     } else if (e.code === 'KeyC') {
       if (G.mode === 'title') tryContinue(G.best);
       else if (G.mode === 'gameover' && G.overT > 0.8) tryContinue(G.sec);
@@ -213,11 +216,13 @@
     } else if (!isMouse && p.x > W - 52 && p.y > 26 && p.y < 70) { togglePause(); return; }
     if (isMouse) {
       if (G.mode !== 'playing') return;
+      if (e.button === 2) { nuke(); return; }            // sağ tık: nükleer patlama
       if (!mouse.active) { mouse.active = true; mouse.mx = P.x - W / 2; mouse.my = 0; }
       lockPointer();
       mouse.down = true;
       return;
     }
+    if (touch.on && e.pointerId !== touch.id) { nuke(); return; }   // ikinci parmak: nükleer patlama
     touch.on = true; touch.id = e.pointerId; touch.lx = p.x; touch.y0 = p.y; touch.y = p.y; touch.dx = 0;
   });
   canvas.addEventListener('pointermove', function (e) {
@@ -328,7 +333,7 @@
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
-    G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0;
+    G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
     G.stats.deaths = []; G.stats.gates = 0;
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.5; P.fireCd = 0.35; P.tilt = 0;
     shots.length = 0; orbs.length = 0; parts.length = 0; pops.length = 0;
@@ -492,6 +497,7 @@
       if (G.blastCd <= 0) { G.blastCd = 0; G.readyT = 1.2; A.play('blastReady'); }
     }
     G.readyT = Math.max(0, G.readyT - dt);
+    if (G.nukeCd > 0) { G.nukeCd -= dt; if (G.nukeCd <= 0) { G.nukeCd = 0; A.play('blastReady'); pop(P.x, P.wy + 40, 'NÜKLEER HAZIR', '#7dffb0'); } }
     const autoRelease = touch.on || cfg.auto;       // dokunmatikte ve otomatik pilotta dolunca kendi ateşler
     if (inp.fire) {
       P.holdT += dt;
@@ -642,6 +648,29 @@
     A.play('extraLife');
   }
 
+  // Nükleer patlama: ekrandaki düşmanları ve mermileri siler (girdap ve ışık çiti kalır, bekçi hasar alır)
+  function nuke() {
+    if (G.mode !== 'playing') return;
+    if (G.nukeCd > 0) { A.play('deny'); return; }
+    for (let i = 0; i < ents.length; i++) {
+      const e = ents[i], y = sy(e.wy);
+      if (e.dead || y < -30 || y > H + 30 || e.type === 'whirl' || e.type === 'beam') continue;
+      if (e.type === 'boss') {
+        if (e.flee) continue;
+        e.hp -= NUKE_BOSS_DMG; e.flash = 0.3;
+        if (e.hp <= 0) kill(e, true);
+      } else kill(e, true);
+    }
+    for (let i = 0; i < orbs.length; i++) boom(orbs[i].x, orbs[i].wy, 6, ['#ffffff', '#ff7ad1'], 70);
+    orbs.length = 0;
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * 6.283, v = rand(120, 420);
+      part(P.x, P.wy, Math.cos(a) * v, Math.sin(a) * v + P.speed, rand(0.4, 0.9), rand(2, 4), i % 3 ? '#fff6da' : '#ffb347', true);
+    }
+    G.nukeCd = NUKE_CD; G.nukeT = 0.8; G.flash = 0.7; G.shake = 13;
+    A.play('nuke');
+  }
+
   function kill(e, byShot) {
     e.dead = true;
     if (e.type === 'boss') bossDown(e);
@@ -783,6 +812,7 @@
     G.shake = Math.max(0, G.shake - dt * 22);
     G.flash = Math.max(0, G.flash - dt);
     G.deny = Math.max(0, G.deny - dt);
+    G.nukeT = Math.max(0, G.nukeT - dt);
     G.sensT = Math.max(0, G.sensT - dt);
     G.banner.t += dt;
     let scroll = 0;
@@ -1483,6 +1513,15 @@
       if (P.charge > 0) { ctx.fillStyle = P.charge >= 1 ? '#ffffff' : '#ff9a4d'; ctx.fillRect(bx, yb, bw * P.charge, 4); }
       if (!ready) text(Math.ceil(G.blastCd) + ' sn', bx + bw + 8, yb + 6, 9, 'rgba(190,215,240,0.8)', 'left', 700);
     }
+    // nükleer patlama göstergesi
+    {
+      const ready = G.nukeCd <= 0, yn = by - 20, fr = ready ? 1 : 1 - G.nukeCd / NUKE_CD;
+      text('NÜKLEER', bx - 10, yn + 6, 9, ready ? '#7dffb0' : 'rgba(190,215,240,0.7)', 'right', 700);
+      ctx.fillStyle = 'rgba(8,18,30,0.85)'; ctx.fillRect(bx - 1, yn - 1, bw + 2, 6);
+      ctx.fillStyle = ready ? (Math.floor(G.t * 3) % 2 ? '#7dffb0' : '#c8ffe0') : 'rgba(125,255,176,0.45)';
+      ctx.fillRect(bx, yn, bw * fr, 4);
+      if (!ready) text(Math.ceil(G.nukeCd) + ' sn', bx + bw + 8, yn + 6, 9, 'rgba(190,215,240,0.8)', 'left', 700);
+    }
     ctx.fillStyle = 'rgba(8,18,30,0.85)';
     ctx.beginPath(); ctx.roundRect(bx - 2, by - 2, bw + 4, bh + 4, 7); ctx.fill();
     const cr = Math.round(92 + (255 - 92) * f), cg = Math.round(200 + (170 - 200) * f), cb = Math.round(255 + (60 - 255) * f);
@@ -1503,7 +1542,7 @@
     }
     text('HIZ', bx + bw + 46, by + 10, 10, 'rgba(190,215,240,0.8)', 'center', 500);
 
-    if (low && G.mode === 'playing') text('SICAK KAYNAK BUL!', W / 2, H - 42, 13, blink ? '#ff6a5a' : '#ffd0c8', 'center', 700);
+    if (low && G.mode === 'playing') text('SICAK KAYNAK BUL!', W / 2, H - 60, 13, blink ? '#ff6a5a' : '#ffd0c8', 'center', 700);
 
     if (G.rapid && G.mode === 'playing') text('HIZLI AKINTI  ›››', W / 2, 108, 15, '#e6f8ff', 'center', 700);
     if (G.boss && !G.boss.dead && !G.boss.flee) {
@@ -1578,11 +1617,11 @@
 
     const cy = y0 + 226;
     const rows = IS_TOUCH
-      ? [['SÜRÜKLE', 'yön'], ['YUKARI / AŞAĞI', 'hızlan / yavaşla'], ['DOKUNURKEN', 'otomatik ateş']]
-      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK / TIK', 'ateş'], ['BASILI TUT', 'şarj et, bırak: yaylım'], ['FARE', 'yön + hız  ·  1–9 hassasiyet'], ['P  ·  M', 'duraklat  ·  ses']];
+      ? [['SÜRÜKLE', 'yön'], ['YUKARI / AŞAĞI', 'hızlan / yavaşla'], ['DOKUNURKEN', 'otomatik ateş'], ['İKİNCİ PARMAK', 'nükleer patlama']]
+      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK / TIK', 'ateş'], ['BASILI TUT', 'şarj et, bırak: yaylım'], ['X / SAĞ TIK', 'nükleer patlama (60 sn)'], ['FARE', 'yön + hız  ·  1–9 hassasiyet'], ['P  ·  M', 'duraklat  ·  ses']];
     for (let i = 0; i < rows.length; i++) {
-      text(rows[i][0], W / 2 - 10, cy + i * 20, 15, '#ffe9b8', 'right', 700);
-      text(rows[i][1], W / 2 + 10, cy + i * 20, 15, 'rgba(225,238,250,0.92)', 'left', 500);
+      text(rows[i][0], W / 2 - 10, cy + i * 17.5, 14, '#ffe9b8', 'right', 700);
+      text(rows[i][1], W / 2 + 10, cy + i * 17.5, 14, 'rgba(225,238,250,0.92)', 'left', 500);
     }
 
     const blink = Math.floor(G.t * 1.6) % 2 === 0;
@@ -1639,6 +1678,15 @@
     }
     drawNight();
     drawParts();
+    if (G.nukeT > 0) {                        // genişleyen şok halkası
+      const k = 1 - G.nukeT / 0.8, r = 20 + k * 620;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(255,240,200,' + (0.9 * (1 - k)) + ')'; ctx.lineWidth = 14 * (1 - k) + 2;
+      ctx.beginPath(); ctx.arc(P.x, PSY, r, 0, 6.3); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,150,70,' + (0.6 * (1 - k)) + ')'; ctx.lineWidth = 30 * (1 - k) + 2;
+      ctx.beginPath(); ctx.arc(P.x, PSY, r * 0.82, 0, 6.3); ctx.stroke();
+      ctx.restore();
+    }
     drawFog();
     drawSnow();
     drawPops();

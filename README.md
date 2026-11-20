@@ -31,6 +31,9 @@ Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dok
 - **Yaylım atışı:** ateşi basılı tut, kızağın çevresindeki halka dolsun, bırak. Şarja göre 5–11 fişek yelpaze
   şeklinde çıkar; tam şarjda fişekler çift hasar verir. Kullandıktan sonra 10 sn kapanır (alttaki YAYLIM çubuğu
   dolunca yeniden hazır). Kapalıyken basılı tutmak eskisi gibi seri tekli atış yapar.
+- **Nükleer patlama:** X tuşu ya da sağ tık (telefonda ikinci parmak). Ekrandaki düşmanları ve mermileri siler,
+  bekçiye 8 hasar verir; girdap ve ışık çiti kalır. Oyun başında hazırdır, kullanınca 60 sn bekler; bekleme can
+  kaybedince sıfırlanmaz.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
 - 18 etap bir tur. Her etapta akış biraz daha hızlanır ve etapların kendi tehlikesi vardır: buz bariyerleri
