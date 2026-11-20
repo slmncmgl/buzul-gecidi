@@ -837,7 +837,7 @@
     ctx.fillText(s, x, y);
   }
   let ROUND = 0;                 // > 0 iken poly() köşeleri bu kalınlıkta yuvarlatır
-  const ES = 0.99, PS = 1.01;    // düşman ve kızak çizim ölçeği (çarpışma kutuları aynı kalır)
+  const ES = 0.99, PS = 0.91;    // düşman ve kızak çizim ölçeği (çarpışma kutuları aynı kalır)
   function poly(pts) {
     ctx.beginPath();
     ctx.moveTo(pts[0], pts[1]);
