@@ -324,7 +324,8 @@
         flash: 0, ph: hash(sp.y + sp.x) * 6.28, ang: Math.PI / 2, dead: false
       });
       const e = ents[ents.length - 1];
-      if (sp.type === 'beam') { e.hw = (sp.maxX - sp.minX) / 2; e.hp = 1e9; e.period = sp.period; e.bph = sp.ph; e.on = false; e.warn = false; }
+      if (sp.type === 'beam') { e.hw = (sp.maxX - sp.minX) / 2; e.hp = 1e9; e.onT = sp.period * 0.55; e.period = sp.period + 2; e.bph = sp.ph;   // açık süre aynı, kapalı süre +2 sn
+        e.on = false; e.warn = false; }
       else if (sp.type === 'whirl') { e.hp = 1e9; e.r = sp.r; }
       else if (sp.type === 'boss') { e.hp = e.maxHp = 28 + 14 * s.loop; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
     }
@@ -647,7 +648,7 @@
   function hazard(e, dt, playing) {
     if (e.type === 'beam') {
       const t = (G.t + e.bph) % e.period;
-      e.on = t < e.period * 0.55; e.warn = !e.on && t > e.period - 0.45;
+      e.on = t < e.onT; e.warn = !e.on && t > e.period - 0.45;
       if (playing && e.on && P.inv <= 0 && !cfg.god && Math.abs(P.wy - e.wy) < 9 && P.x > e.minX - 2 && P.x < e.maxX + 2) die('beam');
     } else if (playing) {
       const dx = e.x - P.x, dy = e.wy - P.wy, d = Math.hypot(dx, dy);
