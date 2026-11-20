@@ -16,6 +16,11 @@ sesler Web Audio ile üretiliyor; hiçbir hazır görsel ya da ses dosyası kull
 | P / Esc | duraklat |
 | M | ses aç / kapat |
 
+Fareyle: oyunu tıklayarak başlat. Farenin o andaki konumu sıfır noktası olur; sağa / sola götürürsen
+kızak o yöne gider, ileri itersen hızlanır, geri çekersen yavaşlar, sıfır noktası civarında seyir hızında
+kalır. Tık (basılı tutunca sürekli) ateş eder. Oyun sırasında imleç gizlenir; Esc imleci geri getirir ve
+oyunu duraklatır, tıklayınca devam eder. Klavyeyle oynarken de herhangi bir anda tıklayıp fareye geçebilirsin.
+
 Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dokunurken otomatik ateş eder.
 
 - **Isı** sürekli azalır. **Sıcak kaynakların** üstünden geçince dolar; ne kadar yavaş geçersen o kadar çok.

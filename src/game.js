@@ -117,6 +117,9 @@
   const keys = {};
   const inp = { left: false, right: false, up: false, down: false, fire: false };
   const touch = { on: false, id: null, lx: 0, y0: 0, y: 0, dx: 0 };
+  // Fare: oyun başladığı andaki konum (0,0) kabul edilir; mx sağ/sol, my ileri/geri sapmadır
+  const mouse = { active: false, down: false, mx: 0, my: 0 };
+  const MOUSE_R = 64, MOUSE_DEAD = 12;      // ileri/geri menzili ve ölü bölge (mantıksal px)
   const KEYMAP = {
     ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
     ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
@@ -135,14 +138,16 @@
       if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) startGame();
       else if (G.mode === 'paused') togglePause();
       e.preventDefault();
-    } else if (e.code === 'KeyP' || e.code === 'Escape') {
+    } else if (e.code === 'KeyP') {
       togglePause();
+    } else if (e.code === 'Escape') {
+      if (G.mode === 'playing') togglePause();
     } else if (e.code === 'KeyM') {
       muted = !muted; A.setMuted(muted); store('bg_muted', muted ? '1' : '0');
     }
   });
   window.addEventListener('keyup', function (e) { const m = KEYMAP[e.code]; if (m) keys[m] = false; });
-  window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; });
+  window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; mouse.down = false; });
 
   function toLogical(e) {
     const r = canvas.getBoundingClientRect();
@@ -150,12 +155,24 @@
   }
   canvas.addEventListener('pointerdown', function (e) {
     firstGesture();
-    const p = toLogical(e);
+    const p = toLogical(e), isMouse = e.pointerType === 'mouse';
     e.preventDefault();
-    if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) { startGame(); if (e.pointerType === 'mouse') return; }
-    else if (G.mode === 'paused') { togglePause(); return; }
-    else if (p.x > W - 52 && p.y > 26 && p.y < 70) { togglePause(); return; }
-    if (e.pointerType === 'mouse') return;
+    if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) {
+      if (isMouse) mouse.active = true;         // fareyle başlatan fareyle oynar
+      startGame();
+      if (isMouse) return;
+    } else if (G.mode === 'paused') {
+      if (isMouse && !mouse.active) { mouse.active = true; mouse.mx = P.x - W / 2; mouse.my = 0; }
+      togglePause();
+      return;
+    } else if (!isMouse && p.x > W - 52 && p.y > 26 && p.y < 70) { togglePause(); return; }
+    if (isMouse) {
+      if (G.mode !== 'playing') return;
+      if (!mouse.active) { mouse.active = true; mouse.mx = P.x - W / 2; mouse.my = 0; }
+      lockPointer();
+      mouse.down = true;
+      return;
+    }
     touch.on = true; touch.id = e.pointerId; touch.lx = p.x; touch.y0 = p.y; touch.y = p.y; touch.dx = 0;
   });
   canvas.addEventListener('pointermove', function (e) {
@@ -163,7 +180,31 @@
     const p = toLogical(e);
     touch.dx += p.x - touch.lx; touch.lx = p.x; touch.y = p.y;
   });
-  function touchEnd(e) { if (e.pointerId === touch.id) touch.on = false; }
+  function touchEnd(e) {
+    if (e.pointerType === 'mouse') { mouse.down = false; return; }
+    if (e.pointerId === touch.id) touch.on = false;
+  }
+  window.addEventListener('mouseup', function () { mouse.down = false; });
+
+  // Fare kilidi: imleç gizlenir, fare pencere kenarına takılmaz. Kilit alınamazsa da oyun çalışır.
+  function lockPointer() {
+    if (document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
+    try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(NOP); } catch (e) { /* yut */ }
+  }
+  function unlockPointer() {
+    if (document.pointerLockElement === canvas && document.exitPointerLock) document.exitPointerLock();
+  }
+  document.addEventListener('pointerlockchange', function () {
+    if (document.pointerLockElement === canvas) return;
+    mouse.down = false;
+    if (G.mode === 'playing' && mouse.active) togglePause();    // Esc ile kilitten çıkıldı
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!mouse.active || G.mode !== 'playing') return;
+    const k = W / (canvas.getBoundingClientRect().width || W);
+    mouse.mx = clamp(mouse.mx + (e.movementX || 0) * k, 4 - W / 2, W / 2 - 4);
+    mouse.my = clamp(mouse.my - (e.movementY || 0) * k, -MOUSE_R, MOUSE_R);
+  });
   canvas.addEventListener('pointerup', touchEnd);
   canvas.addEventListener('pointercancel', touchEnd);
   canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -173,8 +214,14 @@
   });
 
   function togglePause() {
-    if (G.mode === 'playing') { G.mode = 'paused'; A.stopEngine(); A.setCharging(false); A.setLowHeat(false); A.pause(); }
-    else if (G.mode === 'paused') { G.mode = 'playing'; A.resume(); }
+    if (G.mode === 'playing') {
+      G.mode = 'paused'; mouse.down = false;
+      A.stopEngine(); A.setCharging(false); A.setLowHeat(false); A.pause();
+      unlockPointer();
+    } else if (G.mode === 'paused') {
+      G.mode = 'playing'; A.resume();
+      if (mouse.active) lockPointer();
+    }
   }
 
   // ------------------------------------------------------------ oyun akışı
@@ -207,6 +254,8 @@
     G.stats.deaths = []; G.stats.gates = 0;
     P.x = W / 2; P.wy = 40; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.5; P.fireCd = 0.35; P.tilt = 0;
     shots.length = 0; orbs.length = 0; parts.length = 0; pops.length = 0;
+    mouse.mx = 0; mouse.my = 0; mouse.down = false;      // farenin şu anki konumu sıfır noktası
+    if (mouse.active) lockPointer();
     rearm(); setBanner(0);
     A.resume(); A.play('start'); A.startMusic();
   }
@@ -235,10 +284,12 @@
       G.mode = 'gameover'; G.overT = 0;
       if (G.score > G.hi) { G.hi = G.score; G.newHi = true; store('bg_hi', String(G.hi)); }
       A.stopMusic();
+      mouse.down = false; unlockPointer();
       return;
     }
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0;
     G.heat = 100; shots.length = 0; orbs.length = 0;
+    mouse.mx = 0; mouse.my = 0;                          // yeniden doğunca sıfır noktası da yenilenir
     rearm();
     G.mode = 'playing';
   }
@@ -298,6 +349,15 @@
       P.x += mv; touch.dx -= mv / 1.15;
       P.vx = approach(P.vx, clamp(mv / Math.max(dt, 0.001), -175, 175), 1400 * dt);
       inp.up = touch.y0 - touch.y > 34; inp.down = touch.y - touch.y0 > 34; inp.fire = true;
+    } else if (mouse.active && !cfg.auto) {
+      // kızak, farenin sıfır noktasına göre sağ/sol sapmasını izler; ok tuşları da aynı hedefi kaydırır
+      if (inp.left) mouse.mx -= 175 * dt;
+      if (inp.right) mouse.mx += 175 * dt;
+      mouse.mx = clamp(mouse.mx, 4 - W / 2, W / 2 - 4);
+      const nx = approach(P.x, W / 2 + mouse.mx, 420 * dt);
+      P.vx = approach(P.vx, clamp((nx - P.x) / Math.max(dt, 0.001), -175, 175), 1500 * dt);
+      P.x = nx;
+      if (mouse.down) inp.fire = true;
     } else {
       const ax = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
       P.vx = approach(P.vx, ax * 175, 1500 * dt);
@@ -306,7 +366,13 @@
     P.x = clamp(P.x, 4, W - 4);
     P.tilt += (P.vx / 175 - P.tilt) * Math.min(1, dt * 12);
 
-    const target = inp.up ? SPEED_MAX : inp.down ? SPEED_MIN : SPEED_CRUISE;
+    let target = inp.up ? SPEED_MAX : inp.down ? SPEED_MIN : SPEED_CRUISE;
+    if (mouse.active && !cfg.auto && !touch.on && !inp.up && !inp.down) {
+      // fare ileri: hızlan, geri: yavaşla; sıfır noktası civarı seyir hızı
+      const m = mouse.my, span = MOUSE_R - MOUSE_DEAD;
+      if (m > MOUSE_DEAD) target = SPEED_CRUISE + (SPEED_MAX - SPEED_CRUISE) * (m - MOUSE_DEAD) / span;
+      else if (m < -MOUSE_DEAD) target = SPEED_CRUISE - (SPEED_CRUISE - SPEED_MIN) * (-m - MOUSE_DEAD) / span;
+    }
     P.speed = approach(P.speed, target, 230 * dt);
     P.wy += P.speed * dt;
     P.inv = Math.max(0, P.inv - dt);
@@ -491,8 +557,11 @@
     }
   }
 
+  let cursorHidden = false;
   function update(dt) {
     G.t += dt;
+    const hide = mouse.active && G.mode === 'playing';
+    if (hide !== cursorHidden) { cursorHidden = hide; canvas.style.cursor = hide ? 'none' : ''; }
     G.shake = Math.max(0, G.shake - dt * 22);
     G.flash = Math.max(0, G.flash - dt);
     G.banner.t += dt;
@@ -1012,12 +1081,12 @@
     const cy = y0 + 222;
     const rows = IS_TOUCH
       ? [['SÜRÜKLE', 'yön'], ['YUKARI / AŞAĞI', 'hızlan / yavaşla'], ['DOKUNURKEN', 'otomatik ateş']]
-      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK', 'işaret fişeği'], ['P  ·  M', 'duraklat  ·  ses']];
+      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK', 'işaret fişeği'], ['FARE', 'yön + hız, tık: ateş'], ['P  ·  M', 'duraklat  ·  ses']];
     for (let i = 0; i < rows.length; i++) {
       text(rows[i][0], W / 2 - 10, cy + i * 21, 15, '#ffe9b8', 'right', 700);
       text(rows[i][1], W / 2 + 10, cy + i * 21, 15, 'rgba(225,238,250,0.92)', 'left', 500);
     }
-    if (Math.floor(G.t * 1.6) % 2 === 0) text(IS_TOUCH ? 'BAŞLAMAK İÇİN DOKUN' : 'BAŞLAMAK İÇİN ENTER', W / 2, H - 96, 20, '#ffffff', 'center', 700);
+    if (Math.floor(G.t * 1.6) % 2 === 0) text(IS_TOUCH ? 'BAŞLAMAK İÇİN DOKUN' : 'ENTER YA DA TIKLA', W / 2, H - 96, 20, '#ffffff', 'center', 700);
     if (G.hi > 0) text('EN İYİ  ' + String(G.hi).padStart(6, '0'), W / 2, H - 64, 14, '#ffcf8a', 'center', 500);
   }
 
@@ -1029,7 +1098,7 @@
     text('PUAN', W / 2, 296, 12, 'rgba(190,215,240,0.85)', 'center', 500);
     text(String(G.score).padStart(6, '0'), W / 2, 338, 46, '#ffffff', 'center', 700);
     text(G.newHi ? 'YENİ REKOR!' : 'EN İYİ  ' + String(G.hi).padStart(6, '0'), W / 2, 368, 15, G.newHi ? '#7dffb0' : '#ffcf8a', 'center', 700);
-    if (G.overT > 0.8 && Math.floor(G.t * 1.6) % 2 === 0) text(IS_TOUCH ? 'YENİDEN: DOKUN' : 'YENİDEN: ENTER', W / 2, 440, 20, '#ffffff', 'center', 700);
+    if (G.overT > 0.8 && Math.floor(G.t * 1.6) % 2 === 0) text(IS_TOUCH ? 'YENİDEN: DOKUN' : 'YENİDEN: ENTER YA DA TIKLA', W / 2, 440, 20, '#ffffff', 'center', 700);
   }
 
   function render() {
@@ -1059,7 +1128,7 @@
       else if (G.mode === 'paused') {
         dim(0.55);
         text('DURAKLADI', W / 2, 300, 40, '#ffffff', 'center', 700);
-        text(IS_TOUCH ? 'devam etmek için dokun' : 'devam etmek için P ya da ENTER', W / 2, 330, 15, '#ffcf8a', 'center', 500);
+        text(IS_TOUCH ? 'devam etmek için dokun' : mouse.active ? 'devam etmek için tıkla' : 'devam etmek için P ya da ENTER', W / 2, 330, 15, '#ffcf8a', 'center', 500);
         text(muted ? 'ses kapalı (M)' : 'ses açık (M)', W / 2, 354, 13, 'rgba(190,215,240,0.85)', 'center', 500);
       }
     }
@@ -1085,6 +1154,7 @@
   // Test kancası: konsoldan __bg.step(600) ile kare kare ilerletilebilir
   window.__bg = {
     G: G, P: P, cfg: cfg, start: startGame, render: render,
+    mouse: mouse,
     step: function (n, dt) { for (let i = 0; i < n; i++) update(dt || 1 / 60); },
     counts: function () { return { ents: ents.length, shots: shots.length, orbs: orbs.length, parts: parts.length }; }
   };
