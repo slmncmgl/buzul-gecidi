@@ -699,16 +699,36 @@
       noise(sfxBus, t, { dur: 0.02, vol: 0.08, ftype: 'highpass', f: 5000 });
     },
 
-    // sci-fi burst: noise through a downward resonant sweep + sub thump
+    // Gritty explosion: sharp crack, a broad un-resonant noise body, a rough low rumble and
+    // scattered debris crackle. No clean pitched sweep and no resonant filter: those are
+    // what made the previous version read as a balloon pop.
     explode: function (t) {
-      const k = 0.9 + Math.random() * 0.25;
-      noise(sfxBus, t, { dur: 0.5, vol: 0.4, ftype: 'lowpass', f: 5200 * k, f2: 160, q: 5 });
-      noise(sfxBus, t, { dur: 0.12, vol: 0.18, ftype: 'highpass', f: 3000 });
-      voice(sfxBus, t, { type: 'sine', f: 120 * k, f2: 34, dur: 0.45, vol: 0.5 });
+      const k = 0.85 + Math.random() * 0.3;
+      // crack: very short bright transient
+      noise(sfxBus, t, { dur: 0.035, vol: 0.22, ftype: 'highpass', f: 2400 });
+      // body: wide noise closing down slowly, flat filter (q 0.7)
+      noise(sfxBus, t, { dur: 1.3, vol: 0.3, attack: 0.006, ftype: 'lowpass', f: 2600 * k, f2: 160, q: 0.7 });
+      // rumble: low noise, longer than the body, a little of it into the space bus
+      noise(sfxBus, t + 0.01, { dur: 1.7, vol: 0.34, attack: 0.02, ftype: 'lowpass', f: 260, f2: 70, q: 0.7 });
+      noise(sfxFx, t + 0.02, { dur: 1.0, vol: 0.12, attack: 0.02, ftype: 'bandpass', f: 700 * k, f2: 220, q: 0.8 });
+      // rough sub: FM-roughened, nearly flat in pitch, soft attack (no "boing")
       voice(sfxBus, t, {
-        type: 'sawtooth', f: 300 * k, f2: 45, dur: 0.3, vol: 0.1, fm: { ratio: 0.5, index: 3 },
-        filter: { type: 'lowpass', f: 1800, f2: 200, q: 2 }
+        type: 'sine', f: 62 * k, f2: 44, dur: 1.0, vol: 0.2, attack: 0.012, hold: 0.16,
+        fm: { ratio: 1.37, index: 2.2, index2: 0.3 }
       });
+      // energy tearing apart: short noisy metallic zap
+      voice(sfxBus, t, {
+        type: 'sawtooth', f: 760 * k, f2: 90, dur: 0.2, vol: 0.07, attack: 0.003,
+        fm: { ratio: 2.71, index: 6, index2: 1 },
+        filter: { type: 'lowpass', f: 3200, f2: 500, q: 0.9 }
+      });
+      // debris: a few tiny crackles scattered over the tail
+      for (let i = 0; i < 5; i++) {
+        noise(sfxBus, t + 0.06 + Math.random() * 0.5, {
+          dur: 0.03 + Math.random() * 0.04, vol: 0.07 + Math.random() * 0.07,
+          ftype: 'bandpass', f: 1600 + Math.random() * 2600, q: 1.2
+        });
+      }
     },
 
     // enemy energy orb: alien "wub" (low tone with a slowing pitch wobble)
