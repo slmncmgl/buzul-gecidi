@@ -1,5 +1,5 @@
 /* Etapların oynanabilir olduğunu doğrular: node tools/check-levels.js
- * İlk 3 turun (36 etap) her satırını kontrol eder.
+ * İlk 3 turun her etabının her satırını kontrol eder.
  */
 'use strict';
 const LV = require('../src/level.js');
@@ -9,7 +9,7 @@ let errors = 0;
 const fail = (k, msg) => { errors++; console.log(`  HATA etap ${k + 1}: ${msg}`); };
 
 console.log('etap  ad                uzunluk  enDar  enDarGeçit  maksEğim  kaynak  maksKaynakArası  düşman');
-for (let k = 0; k < 36; k++) {
+for (let k = 0; k < LV.DEFS.length * 3; k++) {
   const s = LV.generate(k), N = s.N;
   let minW = 1e9, minPass = 1e9, maxSlope = 0;
   for (let i = 0; i < N; i++) {
@@ -61,6 +61,9 @@ for (let k = 0; k < 36; k++) {
     if (e.type === 'ice' && !inWater(e.x, e.y, 2)) fail(k, `buz bloğu ${i} suda değil`);
     if (e.type === 'hunter' && !inWater(e.x, e.y, 10)) fail(k, `avcı ${i} suda değil`);
     if (e.type === 'turret' && !inWater(e.x, e.y, 14)) fail(k, `kule ${i} suda değil`);
+    if (e.type === 'whirl' && !inWater(e.x, e.y, 36)) fail(k, `girdap ${i} kıyıya çok yakın`);
+    if (e.type === 'beam' && (e.maxX - e.minX < 30 || !inWater(e.minX + 6, e.y, 0) || !inWater(e.maxX - 6, e.y, 0))) fail(k, `ışık çiti ${i} hatalı`);
+    if (e.type === 'boss' && !inWater(e.x, e.y, 60)) fail(k, 'bekçi alanı dar');
     if (e.type === 'boat') {
       if (e.maxX - e.minX < 20) fail(k, `bot ${i} için alan dar`);
       if (!inWater(e.minX, e.y, 12) || !inWater(e.maxX, e.y, 12)) fail(k, `bot ${i} sınırları suda değil`);
@@ -77,7 +80,7 @@ for (let k = 0; k < 36; k++) {
 
   const cs = Object.entries(counts).map(([t, n]) => `${t}:${n}`).join(' ');
   console.log(
-    String(k + 1).padStart(4) + '  ' + s.def.name.padEnd(16) + '  ' + String(N * ROW).padStart(7) + '  ' +
+    String(k + 1).padStart(4) + '  ' + s.info.name.padEnd(17) + '  ' + String(N * ROW).padStart(7) + '  ' +
     minW.toFixed(0).padStart(5) + '  ' + (minPass > 1e8 ? '-' : minPass.toFixed(0)).padStart(10) + '  ' +
     maxSlope.toFixed(2).padStart(8) + '  ' + String(s.vents.length).padStart(6) + '  ' +
     maxVentGap.toFixed(0).padStart(15) + '  ' + cs

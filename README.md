@@ -33,9 +33,13 @@ Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dok
   dolunca yeniden hazır). Kapalıyken basılı tutmak eskisi gibi seri tekli atış yapar.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
-- 12 etap bir tur. Her etapta akış biraz daha hızlanır ve yeni bir tehlike eklenir: buz bariyerleri
-  (ateşle kırılır), peşine düşen avcılar, sisli etaplar (ileriyi göremezsin), rüzgârlı etaplar (kızağı yana iter).
-  Tur bitince etaplar yeni bir düzenle, daha hızlı düşmanlarla baştan başlar.
+- 18 etap bir tur. Her etapta akış biraz daha hızlanır ve etapların kendi tehlikesi vardır: buz bariyerleri
+  (ateşle kırılır), peşine düşen avcılar, girdaplar (içine çeker), ışık çitleri (sönünce geçilir), hızlı akıntı
+  (yavaşlanamaz), sisli ve rüzgârlı etaplar.
+- **Bekçi:** turun son etabının sonunda geniş bir alanda karşına çıkar; ateş eder, avcı salar. İndirirsen 2500 puan
+  ve önüne saçılan altınlar senin. Alan bitene kadar indiremezsen kaçar; yol yine açılır.
+- **Turlar birbirinin aynısı değil:** tur bitince etapların sırası karışır, adları ve günün saati değişir, sis ve
+  rüzgâr başka etaplara geçer, her etaba avcı, buz bariyeri, girdap ve ışık çiti de eklenir; düşmanlar hızlanır.
 - **Gece ve gündüz:** etaplar gündüz, akşamüstü, gece ve şafak diye döner. Gece uzaklar kararır; kızağın farı,
   sıcak kaynaklar, fenerler, altınlar ve düşmanların ışıkları karanlıkta seçilir.
 - **Altın** topla. Altınların ve ulaştığın en uzak etap bu tarayıcıda saklanır (`localStorage`).
@@ -52,6 +56,7 @@ Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dok
 | Süzülen dron | 100 |
 | Avcı | 120 |
 | Gözcü kulesi (2 isabet) | 150 |
+| Bekçi | 2500 |
 | Altın | 10 (büyük altın 50) |
 | Kule mermisi | 20 |
 
