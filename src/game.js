@@ -17,6 +17,11 @@
   const BLAST_CD = 10, BLAST_CHARGE = 1.2, BLAST_HOLD = 0.18, BLAST_MIN = 0.25;
   const FONT = '"Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif';
 
+  // Sürüm: index.html'deki betik adresinin ?v= değeri. Her yayında o sayı artar; ekranda görünür.
+  const VERSION = (function () {
+    const m = /[?&]v=(\d+)/.exec((document.currentScript && document.currentScript.src) || '');
+    return m ? 'v' + m[1] : 'v?';
+  })();
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const params = new URLSearchParams(location.search);
@@ -1692,6 +1697,7 @@
     drawPops();
     ctx.restore();
     drawVignette();
+    if (G.mode !== 'playing' && G.mode !== 'dying') text(VERSION, W - 8, H - 6, 11, 'rgba(210,228,245,0.85)', 'right', 700);
     if (G.mode === 'title') drawTitle();
     else {
       drawHud();
@@ -1738,7 +1744,7 @@
     G: G, P: P, cfg: cfg, start: startGame, render: render,
     mouse: mouse,
     step: function (n, dt) { for (let i = 0; i < n; i++) update(dt || 1 / 60); },
-    setSens: setSens, setSensLevel: setSensLevel, startAt: startGame, keys: keys, tryContinue: tryContinue, btn: BTN,
+    version: VERSION, setSens: setSens, setSensLevel: setSensLevel, startAt: startGame, keys: keys, tryContinue: tryContinue, btn: BTN,
     counts: function () { return { ents: ents.length, shots: shots.length, orbs: orbs.length, parts: parts.length, coins: coinsL.length }; }
   };
 })();
