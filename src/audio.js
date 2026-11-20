@@ -139,6 +139,7 @@
   let musicSend;              // music's fader into the space bus
   let dullIn;                 // lowpass in front of sfxBus, for soft buzzes
   let noiseBuf = null;
+  let crunchBuf = null;       // clocked (sample-and-hold) noise for crunchy explosions
 
   // music channel inputs
   let bassIn, leadIn, arpIn, padIn, hatIn;
@@ -304,6 +305,49 @@
     };
   }
 
+  // Clocked noise whose clock rate falls: the crunchy roar of an arcade explosion, with a
+  // sense of pitch dropping away. A plain white-noise burst reads as a pop; this does not.
+  // o: { dur, vol, rate, rate2, attack, hold, lp }
+  function crunch(dest, t, o) {
+    const dur = o.dur;
+    const attack = Math.min(o.attack || 0.008, dur * 0.4);
+    const hold = Math.max(0, Math.min(o.hold || 0, dur - attack - 0.02));
+    const src = ctx.createBufferSource();
+    const g = ctx.createGain();
+    const lp = ctx.createBiquadFilter();
+
+    src.buffer = crunchBuf;
+    src.loop = true;
+    src.playbackRate.setValueAtTime(o.rate, t);
+    src.playbackRate.exponentialRampToValueAtTime(o.rate2, t + dur);
+
+    lp.type = 'lowpass';
+    lp.Q.value = 0.5;
+    lp.frequency.value = o.lp || 7000;
+
+    // body stays up (hold, then a slow linear fall); only the very end is exponential
+    g.gain.value = 0;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(o.vol, t + attack);
+    if (hold > 0) g.gain.setValueAtTime(o.vol, t + attack + hold);
+    g.gain.linearRampToValueAtTime(o.vol * 0.12, t + attack + hold + (dur - attack - hold) * 0.75);
+    g.gain.exponentialRampToValueAtTime(SILENCE, t + dur);
+
+    src.connect(lp);
+    lp.connect(g);
+    g.connect(dest);
+
+    src.start(t, Math.random() * (crunchBuf.duration - 0.1));
+    src.stop(t + dur + 0.03);
+    src.onended = function () {
+      try {
+        src.disconnect();
+        lp.disconnect();
+        g.disconnect();
+      } catch (err) { /* already gone */ }
+    };
+  }
+
   // Free-running oscillator for loops and LFOs.
   function runningOsc(type, freq, startAt) {
     const osc = ctx.createOscillator();
@@ -353,6 +397,12 @@
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+
+    // clocked noise: each random value is held for several samples (about a 4.8 kHz clock)
+    crunchBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const cd = crunchBuf.getChannelData(0);
+    const step = Math.max(4, Math.round(ctx.sampleRate / 4800));
+    for (let i = 0, v = 0; i < len; i++) { if (i % step === 0) v = Math.random() * 2 - 1; cd[i] = v; }
 
     buildSpace();
 
@@ -715,36 +765,32 @@
       }
     },
 
-    // Gritty explosion: sharp crack, a broad un-resonant noise body, a rough low rumble and
-    // scattered debris crackle. No clean pitched sweep and no resonant filter: those are
-    // what made the previous version read as a balloon pop.
+    // Enemy destroyed: a crunchy clocked-noise roar whose pitch falls away, over a soft sub
+    // push. No sharp transient and no short white-noise burst (those read as a balloon pop).
     explode: function (t) {
       const k = 0.85 + Math.random() * 0.3;
-      // crack: very short bright transient
-      noise(sfxBus, t, { dur: 0.035, vol: 0.22, ftype: 'highpass', f: 2400 });
-      // body: wide noise closing down slowly, flat filter (q 0.7)
-      noise(sfxBus, t, { dur: 1.3, vol: 0.3, attack: 0.006, ftype: 'lowpass', f: 2600 * k, f2: 160, q: 0.7 });
-      // rumble: low noise, longer than the body, a little of it into the space bus
-      noise(sfxBus, t + 0.01, { dur: 1.7, vol: 0.34, attack: 0.02, ftype: 'lowpass', f: 260, f2: 70, q: 0.7 });
-      noise(sfxFx, t + 0.02, { dur: 1.0, vol: 0.12, attack: 0.02, ftype: 'bandpass', f: 700 * k, f2: 220, q: 0.8 });
-      // rough sub: FM-roughened, nearly flat in pitch, soft attack (no "boing")
+      crunch(sfxBus, t, { dur: 0.62, vol: 0.26, rate: 1.5 * k, rate2: 0.1, attack: 0.01, hold: 0.07, lp: 6500 });
+      crunch(sfxFx, t + 0.03, { dur: 0.8, vol: 0.1, rate: 0.5 * k, rate2: 0.06, attack: 0.03, hold: 0.1, lp: 2200 });
+      // sub push: slow attack, almost no pitch movement
+      voice(sfxBus, t, { type: 'triangle', f: 58 * k, f2: 40, dur: 0.55, vol: 0.2, attack: 0.03, hold: 0.12 });
+      // energy dissolving: a quiet buzzing sweep under the roar
       voice(sfxBus, t, {
-        type: 'sine', f: 62 * k, f2: 44, dur: 1.0, vol: 0.2, attack: 0.012, hold: 0.16,
-        fm: { ratio: 1.37, index: 2.2, index2: 0.3 }
+        type: 'square', f: 520 * k, f2: 55, dur: 0.38, vol: 0.04, attack: 0.01, hold: 0.04,
+        filter: { type: 'lowpass', f: 2400, f2: 300, q: 0.8 }
       });
-      // energy tearing apart: short noisy metallic zap
-      voice(sfxBus, t, {
-        type: 'sawtooth', f: 760 * k, f2: 90, dur: 0.2, vol: 0.07, attack: 0.003,
-        fm: { ratio: 2.71, index: 6, index2: 1 },
-        filter: { type: 'lowpass', f: 3200, f2: 500, q: 0.9 }
-      });
-      // debris: a few tiny crackles scattered over the tail
+    },
+
+    // Ice block breaking: a quick scatter of glassy FM pings, no noise burst
+    shatter: function (t) {
+      const base = 2200 + Math.random() * 600;
       for (let i = 0; i < 5; i++) {
-        noise(sfxBus, t + 0.06 + Math.random() * 0.5, {
-          dur: 0.03 + Math.random() * 0.04, vol: 0.07 + Math.random() * 0.07,
-          ftype: 'bandpass', f: 1600 + Math.random() * 2600, q: 1.2
+        const f = base * (0.7 + Math.random() * 1.3);
+        voice(i < 2 ? sfxBus : sfxFx, t + i * 0.022 + Math.random() * 0.02, {
+          type: 'sine', f: f, f2: f * 0.94, dur: 0.07 + Math.random() * 0.09, vol: 0.09, attack: 0.002,
+          fm: { ratio: 2.76, index: 3, index2: 0.2 }
         });
       }
+      voice(sfxBus, t, { type: 'triangle', f: 190, f2: 120, dur: 0.07, vol: 0.1, attack: 0.004 });
     },
 
     // enemy energy orb: alien "wub" (low tone with a slowing pitch wobble)
@@ -757,16 +803,30 @@
       voice(sfxBus, t, { type: 'sine', f: 75, f2: 55, dur: 0.3, vol: 0.14, attack: 0.02, hold: 0.1 });
     },
 
-    // long descending explosion: falling wobbling tone, sub boom, noise tail (1.2 s)
+    // Sled destroyed: heavy crunch, a slow deep bass drop, the engine powering down smoothly
+    // (no wobble), and shards ringing out into the echo (about 1.7 s).
     playerDie: function (t) {
-      noise(sfxFx, t, { dur: 1.2, vol: 0.34, ftype: 'lowpass', f: 6500, f2: 110, q: 3 });
-      noise(sfxBus, t + 0.16, { dur: 0.5, vol: 0.2, ftype: 'bandpass', f: 1500, f2: 260, q: 2 });
-      voice(sfxFx, t, {
-        type: 'sawtooth', f: 920, f2: 42, dur: 1.05, vol: 0.16, attack: 0.008, hold: 0.25,
-        lfo: { rate: 11, rate2: 4, depth: 140 },
-        filter: { type: 'lowpass', f: 4000, f2: 300, q: 3 }
+      crunch(sfxBus, t, { dur: 1.1, vol: 0.26, rate: 1.3, rate2: 0.07, attack: 0.008, hold: 0.14, lp: 6000 });
+      crunch(sfxFx, t + 0.05, { dur: 1.6, vol: 0.12, rate: 0.4, rate2: 0.05, attack: 0.05, hold: 0.3, lp: 1600 });
+      // bass drop
+      voice(sfxBus, t, { type: 'sine', f: 105, f2: 27, dur: 1.5, vol: 0.38, attack: 0.012, hold: 0.25 });
+      // power-down: two detuned saws gliding down, darkening as they fall
+      voice(sfxFx, t + 0.04, {
+        type: 'sawtooth', f: 196, f2: 46, dur: 1.3, vol: 0.07, attack: 0.03, hold: 0.2, detune: -9,
+        filter: { type: 'lowpass', f: 2200, f2: 180, q: 1.2 }
       });
-      voice(sfxBus, t, { type: 'sine', f: 130, f2: 28, dur: 0.85, vol: 0.42 });
+      voice(sfxFx, t + 0.04, {
+        type: 'sawtooth', f: 196, f2: 46, dur: 1.3, vol: 0.07, attack: 0.03, hold: 0.2, detune: 11,
+        filter: { type: 'lowpass', f: 2200, f2: 180, q: 1.2 }
+      });
+      // shards
+      for (let i = 0; i < 7; i++) {
+        const f = 1300 + Math.random() * 2600;
+        voice(sfxFx, t + 0.08 + Math.random() * 0.7, {
+          type: 'sine', f: f, f2: f * 0.9, dur: 0.1 + Math.random() * 0.16, vol: 0.05, attack: 0.002,
+          fm: { ratio: 3.17, index: 3, index2: 0.2 }
+        });
+      }
     },
 
     // froze solid: crystalline FM bells falling down the scale, with echo

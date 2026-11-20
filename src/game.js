@@ -436,7 +436,7 @@
 
     const s = sec(G.sec);
     const sm = G.sm = speedMul(G.sec), vMin = SPEED_MIN * sm, vCr = SPEED_CRUISE * sm, vMax = SPEED_MAX * sm;
-    const lat = 180 * Math.sqrt(sm);
+    const lat = 126 * Math.sqrt(sm);     // klavye yan hızı (180 fazla sıçratıyordu)
 
     // rüzgâr: önce uyarı, sonra birkaç saniyelik yan itiş
     const w0 = s.info.wind || 0;
@@ -684,7 +684,7 @@
       : e.type === 'hunter' ? ['#ffffff', '#ffd27a', '#ff6a5a', '#ff3d55'] : ['#ffffff', '#ffd27a', '#d58bff', '#ff7ad1'];
     boom(e.x, e.wy, e.type === 'turret' ? 26 : e.type === 'ice' ? 9 : 16, c, e.type === 'turret' ? 130 : 100);
     G.shake = Math.max(G.shake, e.type === 'turret' ? 5 : 3);
-    A.play(e.type === 'ice' ? 'hit' : 'explode');
+    A.play(e.type === 'ice' ? 'shatter' : 'explode');
     if (byShot) { addScore(PTS[e.type]); if (e.type !== 'ice') pop(e.x, e.wy + 10, '+' + PTS[e.type]); }
   }
 
