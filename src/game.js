@@ -14,8 +14,8 @@
   const contCost = (k) => Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
   // Silah gücü: düşmanlardan %10 şansla düşen güçlendirme başına +%20; bir turda en fazla +%100 (5 adet)
-  const POWER_DROP = 0.1, POWER_PER_LOOP = 5;
-  const shotCount = () => G.power >= 4 ? 3 : G.power >= 2 ? 2 : 1;
+  const POWER_DROP = 0.2, POWER_MAX = 10, POWER_STEP = 25, BOSS_EVERY = 10;      // her güçlendirme +%25, en çok +%250
+  const shotCount = () => G.power >= 8 ? 4 : G.power >= 4 ? 3 : G.power >= 2 ? 2 : 1;
   const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power));
   const nukeCdMax = () => Math.max(30, NUKE_CD * (1 - 0.05 * G.power));
   const NUKE_CD = 60, NUKE_BOSS_DMG = 8;       // nükleer patlama: ekranı temizler, dakikada bir
@@ -173,14 +173,15 @@
   let sensBeforeCombo = 0, comboT = 0;
   function jumpToBoss() {
     const playing = G.mode === 'playing' || G.mode === 'dying' || G.mode === 'paused';
-    let k = (playing ? Math.floor(G.sec / NSEC) : 0) * NSEC + NSEC - 1;
+    let k = (playing ? Math.floor(G.sec / BOSS_EVERY) : 0) * BOSS_EVERY + BOSS_EVERY - 1;
     const bossY = function (kk) { const sp = sec(kk).spawns; for (let i = 0; i < sp.length; i++) if (sp[i].type === 'boss') return sp[i].y; return sec(kk).gateY - 4000; };
-    if (playing && G.sec === k && P.wy > bossY(k) - 700) k += NSEC;      // bu bekçi geçildiyse sıradaki tura
+    if (playing && G.sec === k && P.wy > bossY(k) - 700) k += BOSS_EVERY;      // bu bekçi geçildiyse sıradakine
     if (G.mode === 'paused') togglePause();
     startGame(k);
     const y = bossY(k) - 380 - 520, t = terrain(y, T1);
     P.wy = y; P.x = (t.L + t.R) / 2; G.checkpoint = y; mouse.mx = P.x - W / 2;
     G.cheated = true;
+    G.power = Math.max(G.power, 6);      // test: o etaba gelmiş biri kadar güçlü başla
     if (sensBeforeCombo) setSensLevel(sensBeforeCombo);
     G.sensT = 0;
     pop(P.x, P.wy + 120, 'TEST: BEKÇİYE ATLANDI', '#7dffb0');
@@ -314,20 +315,20 @@
   function arm(k) {
     if (armed[k]) return;
     armed[k] = true;
-    const s = sec(k);
+    const s = sec(k), tier = Math.floor(k / BOSS_EVERY);      // geçilen her 10 etap bir kademe zorlaştırır
     for (let i = 0; i < s.spawns.length; i++) {
       const sp = s.spawns[i], sz = SIZE[sp.type];
       ents.push({
         type: sp.type, x: sp.x, wy: sp.y, vx: sp.vx || 0, minX: sp.minX, maxX: sp.maxX,
-        hw: sz[0], hh: sz[1], hp: sp.type === 'turret' ? 2 : sp.type === 'ice' ? 1 + Math.min(1, s.loop) : 1,
-        cd: 0.7, rate: 2.3 / (1 + 0.15 * s.loop), hard: 1 + 0.15 * s.loop,
+        hw: sz[0], hh: sz[1], hp: sp.type === 'turret' ? 2 + Math.min(4, tier) : sp.type === 'ice' ? 1 + Math.min(1, tier) : (sp.type === 'hunter' || sp.type === 'boat') ? 1 + Math.min(2, Math.floor((tier + 1) / 2)) : 1,
+        cd: 0.7, rate: 2.3 / (1 + 0.08 * tier), hard: 1 + 0.08 * tier,
         flash: 0, ph: hash(sp.y + sp.x) * 6.28, ang: Math.PI / 2, dead: false
       });
       const e = ents[ents.length - 1];
       if (sp.type === 'beam') { e.hw = (sp.maxX - sp.minX) / 2; e.hp = 1e9; e.onT = sp.period * 0.55; e.period = sp.period + 2; e.bph = sp.ph;   // açık süre aynı, kapalı süre +2 sn
         e.on = false; e.warn = false; }
       else if (sp.type === 'whirl') { e.hp = 1e9; e.r = sp.r; }
-      else if (sp.type === 'boss') { e.hp = e.maxHp = 28 + 14 * s.loop; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
+      else if (sp.type === 'boss') { e.hp = e.maxHp = 80 + 45 * tier; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
     }
     for (let i = 0; i < s.coins.length; i++) {
       const c = s.coins[i];
@@ -536,7 +537,7 @@
       if (G.blastCd <= 0) { G.blastCd = 0; G.readyT = 1.2; A.play('blastReady'); }
     }
     G.readyT = Math.max(0, G.readyT - dt);
-    if (G.blastEcho) { G.blastEcho.t -= dt; if (G.blastEcho.t <= 0) { pellets(G.blastEcho.c); A.play('blast'); G.blastEcho = null; } }
+    if (G.blastEcho) { G.blastEcho.t -= dt; if (G.blastEcho.t <= 0) { pellets(G.blastEcho.c); A.play('blast'); if (--G.blastEcho.n > 0) G.blastEcho.t = 0.16; else G.blastEcho = null; } }
     if (G.nukeCd > 0) { G.nukeCd -= dt; if (G.nukeCd <= 0) { G.nukeCd = 0; A.play('blastReady'); pop(P.x, P.wy + 40, 'NÜKLEER HAZIR', '#7dffb0'); } }
     const autoRelease = touch.on || cfg.auto;       // dokunmatikte ve otomatik pilotta dolunca kendi ateşler
     if (inp.fire) {
@@ -546,7 +547,7 @@
         P.charge = Math.min(1, P.charge + dt / BLAST_CHARGE);
         if (autoRelease && P.charge >= 1) fireBlast();
       } else if (P.fireCd <= 0 && normalShots() < 3 * shotCount()) {
-        const n = shotCount(), dm = 1 + Math.floor(G.power / 5);       // +%40: çift, +%80: üçlü, +%100: çift hasar
+        const n = shotCount(), dm = 1 + Math.floor(G.power / 5);       // +%50: çift, +%100: üçlü, +%125: çift hasar, +%200: dörtlü, +%250: üç kat hasar
         for (let i = 0; i < n; i++) shots.push({ x: P.x + (i - (n - 1) / 2) * 9, wy: P.wy + 14, v: 440 + P.speed, vx: 0, dmg: dm });
         P.fireCd = Math.max(0.11, 0.2 / (1 + 0.1 * G.power));
         A.play('shoot');
@@ -627,9 +628,9 @@
     }
   }
   function powerUp() {
-    if (G.power - G.powerBase >= POWER_PER_LOOP) { addScore(200); pop(P.x, P.wy + 30, '+200', '#ff9a4d'); return; }
+    if (G.power >= POWER_MAX) { addScore(200); pop(P.x, P.wy + 30, '+200', '#ff9a4d'); return; }
     G.power++;
-    const msg = G.power === 2 ? 'ÇİFT ATIŞ' : G.power === 4 ? 'ÜÇLÜ ATIŞ' : G.power === 5 ? 'ÇİFT YAYLIM' : 'SİLAH +' + 20 * G.power + '%';
+    const msg = G.power === 2 ? 'ÇİFT ATIŞ' : G.power === 4 ? 'ÜÇLÜ ATIŞ' : G.power === 5 ? 'ÇİFT YAYLIM' : G.power === 8 ? 'DÖRTLÜ ATIŞ' : G.power === POWER_MAX ? 'ÜÇLÜ YAYLIM · TAM GÜÇ' : 'SİLAH +' + POWER_STEP * G.power + '%';
     pop(P.x, P.wy + 34, msg, '#ff9a4d');
     G.flash = Math.max(G.flash, 0.2);
     A.play('bigCoin');
@@ -637,7 +638,7 @@
   function fireBlast() {
     const c = P.charge;
     pellets(c);
-    if (G.power >= 5) G.blastEcho = { t: 0.16, c: c };      // +%100: yaylım çift gider
+    if (G.power >= 5) G.blastEcho = { t: 0.16, c: c, n: G.power >= POWER_MAX ? 2 : 1 };      // +%125: yaylım çift, +%250: üçlü gider
     for (let i = 0; i < 16; i++) part(P.x + rand(-6, 6), P.wy + 14, rand(-110, 110), rand(40, 190), rand(0.2, 0.45), rand(1.5, 3), i % 2 ? '#fff6da' : '#ffcf8a', true);
     G.blastCd = blastCdMax(); G.shake = Math.max(G.shake, 3 + 3 * c);
     P.charge = 0; P.fireCd = 0.25;
@@ -736,7 +737,7 @@
     boom(e.x, e.wy, e.type === 'turret' ? 26 : e.type === 'ice' ? 9 : 16, c, e.type === 'turret' ? 130 : 100);
     G.shake = Math.max(G.shake, e.type === 'turret' ? 5 : 3);
     A.play(e.type === 'ice' ? 'shatter' : 'explode');
-    if (byShot && e.type !== 'ice' && e.type !== 'boss' && G.power - G.powerBase < POWER_PER_LOOP && Math.random() < POWER_DROP && !solid(e.x, e.wy)) {
+    if (byShot && e.type !== 'ice' && e.type !== 'boss' && G.power < POWER_MAX && Math.random() < POWER_DROP && !solid(e.x, e.wy)) {
       coinsL.push({ x: e.x, wy: e.wy, v: 0, pw: true, ph: 0 });        // silah güçlendirmesi düşer
     }
     if (byShot) { addScore(PTS[e.type]); if (e.type !== 'ice') pop(e.x, e.wy + 10, '+' + PTS[e.type]); }
@@ -1555,7 +1556,7 @@
     text(String(G.score).padStart(6, '0'), 12, 36, 24, '#ffffff', 'left', 700);
     coinIcon(18, 50, 5, 1);
     text(String(G.coins), 28, 55, 15, '#ffd95a', 'left', 700);
-    if (G.power > 0) text('SİLAH +' + 20 * G.power + '%', 12, 72, 12, '#ff9a4d', 'left', 700);
+    if (G.power > 0) text('SİLAH +' + POWER_STEP * G.power + '%', 12, 72, 12, '#ff9a4d', 'left', 700);
     const loop = Math.floor(G.sec / NSEC);
     const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);

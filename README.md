@@ -34,16 +34,17 @@ Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dok
 - **Nükleer patlama:** X tuşu ya da sağ tık (telefonda ikinci parmak). Ekrandaki düşmanları ve mermileri siler,
   bekçiye 8 hasar verir; girdap ve ışık çiti kalır. Oyun başında hazırdır, kullanınca 60 sn bekler; bekleme can
   kaybedince sıfırlanmaz.
-- **Silah güçlendirmesi:** vurduğun düşmanlardan %10 şansla turuncu bir güçlendirme düşer; her biri silahı +%20
-  güçlendirir, bir turda en fazla +%100. Atış hızlanır, +%40'ta çift, +%80'de üçlü atış, +%100'de çift hasar.
-  Yaylım daha çok fişek atar ve daha çabuk dolar, +%100'de çift gider; nükleer daha çabuk dolar. Güç, yolculuk
-  bitince sıfırlanır.
+- **Silah güçlendirmesi:** vurduğun düşmanlardan %20 şansla turuncu bir güçlendirme düşer; her biri silahı +%25
+  güçlendirir, en fazla +%250. Atış hızlanır; +%50'de çift, +%100'de üçlü, +%200'de dörtlü atış; +%125'te çift,
+  +%250'de üç kat hasar. Yaylım daha çok fişek atar ve daha çabuk dolar, +%125'te çift, +%250'de üçlü gider;
+  nükleer daha çabuk dolar. Güç, yolculuk bitince sıfırlanır.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
-- 18 etap bir tur. Her etapta akış biraz daha hızlanır ve etapların kendi tehlikesi vardır: buz bariyerleri
+- 20 etap bir tur. Her etapta akış biraz daha hızlanır ve etapların kendi tehlikesi vardır: buz bariyerleri
   (ateşle kırılır), peşine düşen avcılar, girdaplar (içine çeker), ışık çitleri (sönünce geçilir), hızlı akıntı
   (yavaşlanamaz), sisli ve rüzgârlı etaplar.
-- **Bekçi:** turun son etabının sonunda geniş bir alanda karşına çıkar; ateş eder, avcı salar. İndirirsen 2500 puan
+- **Bekçi:** her 10. etabın sonunda geniş bir alanda karşına çıkar; ateş eder, avcı salar. Geçilen her 10 etapta
+  bekçi ve düşmanlar daha dayanıklı olur. İndirirsen 2500 puan
   ve önüne saçılan altınlar senin. Alan bitene kadar indiremezsen kaçar; yol yine açılır.
 - **Turlar birbirinin aynısı değil:** tur bitince etapların sırası karışır, adları ve günün saati değişir, sis ve
   rüzgâr başka etaplara geçer, her etaba avcı, buz bariyeri, girdap ve ışık çiti de eklenir; düşmanlar hızlanır.
