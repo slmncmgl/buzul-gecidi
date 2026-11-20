@@ -4,10 +4,14 @@
  * Everything is synthesized with the Web Audio API: no samples, no assets.
  * Exposes a single global: window.GameAudio
  *
+ * Palette: "cosmic" synth. Laser sweeps, FM metal, detuned saws, sub booms,
+ * and a shared space bus (ping-pong echo + one synthetic reverb).
+ *
  * Signal flow:
- *   sfx one-shots ─► sfxBus ─┐
- *   music voices  ─► musicBus ┼─► master (mute) ─► compressor ─► destination
- *   engine/charge/wind/whine/beep ─► loopBus ┘
+ *   sfx one-shots ─► sfxBus ──────────┐
+ *   music voices  ─► musicBus ────────┼─► master (mute) ─► compressor ─► out
+ *   engine/charge/wind/whine/alarm ─► loopBus ┤
+ *   sends (sfx light, sfxFx heavy, music lead/arp/pad) ─► space bus ┘
  *
  * Every public method is a safe no-op before init(), without Web Audio,
  * or if the context failed to start. Nothing here ever throws.
@@ -18,76 +22,107 @@
   // ---------------------------------------------------------------- levels
   const MASTER_LEVEL = 0.8;
   const SFX_LEVEL = 0.9;
-  const MUSIC_LEVEL = 0.2;    // music sits clearly below the effects (0.42 ölçümde atış sesini bastırıyordu)
+  const MUSIC_LEVEL = 0.15;   // music bed sits clearly below shoot/explode (balanced against offline renders)
   const LOOP_LEVEL = 0.6;
+  const ECHO_LEVEL = 0.5;     // space bus: ping-pong echo return
+  const REVERB_LEVEL = 0.55;  // space bus: reverb return
   const SILENCE = 0.0001;     // end value for exponential ramps (-80 dB)
 
   // ------------------------------------------------------------- scheduler
   const TICK_MS = 25;         // scheduler wake-up interval
   const AHEAD = 0.12;         // how far ahead notes are put on the audio clock (s)
 
-  const BPM = 116;
+  const BPM = 126;
   const STEP = 60 / BPM / 4;  // one 16th note in seconds
   const STEPS_PER_BAR = 16;
+  const BAR = STEP * STEPS_PER_BAR;
 
-  const BEEP_PERIOD = 0.6;    // low-heat warning interval (s)
+  const BEEP_PERIOD = 0.6;    // low-heat alarm interval (s)
 
   const WHINE_F0 = 220;       // weapon charge whine: pitch at v = 0 (two octaves up at v = 1)
   const WHINE_RATIO = 2.008;  // second oscillator: an octave up, slightly sharp
 
   // ------------------------------------------------------------ music data
-  // Original piece in D minor, 24 bars: A (8) + B (8) + C (8, breakdown on
-  // the A chords). One chord per bar. Notes are MIDI numbers.
+  // Original piece in E minor, 32 bars, one chord per bar:
+  //   A (8) theme, B (8) lift, C (8) breakdown and build, A2 (8) reprise.
+  // Notes are MIDI numbers.
   const CHORDS = {
-    Dm:   { bass: 38, arp: [62, 65, 69, 74] },
-    Bb:   { bass: 34, arp: [58, 62, 65, 70] },
-    C:    { bass: 36, arp: [60, 64, 67, 72] },
-    Am:   { bass: 33, arp: [57, 60, 64, 69] },
-    Gm:   { bass: 43, arp: [55, 58, 62, 67] },
-    F:    { bass: 41, arp: [57, 60, 65, 69] },
-    Asus: { bass: 33, arp: [57, 62, 64, 69] },
-    A:    { bass: 33, arp: [57, 61, 64, 69] }
+    Em:   { bass: 40, pad: [52, 55, 59], arp: [64, 67, 71, 76] },
+    C:    { bass: 36, pad: [52, 55, 60], arp: [60, 64, 67, 72] },
+    D:    { bass: 38, pad: [50, 54, 57], arp: [62, 66, 69, 74] },
+    G:    { bass: 43, pad: [50, 55, 59], arp: [62, 67, 71, 74] },
+    Am:   { bass: 45, pad: [52, 57, 60], arp: [60, 64, 69, 72] },
+    B:    { bass: 35, pad: [51, 54, 59], arp: [59, 63, 66, 71] },
+    Bsus: { bass: 35, pad: [52, 54, 59], arp: [59, 64, 66, 71] }
   };
 
-  // Bass: 8th-note pulse, semitone offsets from the chord root.
-  const BASS_A = [0, 0, 0, 12, 0, 0, 12, 0];
-  const BASS_B = [0, 0, 12, 0, 0, 12, 0, 7];
+  // Bass sequence: 16th notes, semitone offsets from the chord root, -1 = rest.
+  const BASS_A = [0, 0, 12, 0, 0, 0, 12, 0, 0, 0, 12, 0, 0, 12, 0, 12];
+  const BASS_B = [0, 12, 0, 0, 12, 0, 0, 12, 0, 12, 0, 0, 12, 0, 7, 12];
+  const BASS_C = [0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 12, -1];
 
   // Arpeggio: indexes into the chord's arp notes.
-  const ARP_A = [0, 2, 1, 3, 0, 2, 1, 3];                           // 8ths
-  const ARP_B = [0, 1, 2, 3, 2, 1, 2, 3, 0, 1, 2, 3, 2, 3, 2, 1];   // 16ths
-  const ARP_C = [3, 2, 1, 0, 3, 2, 1, 2];                           // 8ths, octave up
+  const ARP_8 = [0, 2, 1, 3, 2, 1, 3, 2];                              // 8ths
+  const ARP_16 = [0, 1, 2, 3, 2, 1, 2, 3, 0, 2, 1, 3, 2, 3, 1, 2];     // 16ths
+  const ARP_C = [3, 1, 2, 0, 3, 2, 1, 2];                              // 8ths, octave up
+
+  const CH_A = ['Em', 'Em', 'C', 'D', 'Em', 'G', 'Am', 'B'];
+  const CH_B = ['C', 'D', 'G', 'Em', 'Am', 'C', 'Bsus', 'B'];
+  const CH_C = ['Em', 'Em', 'C', 'C', 'Am', 'Am', 'B', 'B'];
 
   // Lead notes per bar: [step (0..15), midi, length in steps].
-  const SONG = [
-    // ---- A: main theme
-    { chord: 'Dm',   sec: 'A',  lead: [[0, 69, 4], [6, 74, 2], [8, 76, 2], [10, 77, 6]] },
-    { chord: 'Dm',   sec: 'A',  lead: [[2, 76, 2], [4, 74, 4], [10, 69, 4]] },
-    { chord: 'Bb',   sec: 'A',  lead: [[0, 70, 4], [6, 74, 2], [8, 77, 6]] },
-    { chord: 'C',    sec: 'A',  lead: [[0, 76, 4], [4, 72, 4], [10, 76, 2], [12, 74, 4]] },
-    { chord: 'Dm',   sec: 'A',  lead: [[0, 69, 4], [6, 74, 2], [8, 76, 2], [10, 77, 2], [12, 81, 4]] },
-    { chord: 'Dm',   sec: 'A',  lead: [[2, 79, 2], [4, 77, 2], [6, 76, 2], [8, 74, 6]] },
-    { chord: 'Bb',   sec: 'A',  lead: [[0, 77, 6], [8, 74, 3], [12, 70, 4]] },
-    { chord: 'Am',   sec: 'A',  lead: [[0, 72, 4], [4, 76, 8]] },
-    // ---- B: lifts to the subdominant, busier arpeggio and hats
-    { chord: 'Gm',   sec: 'B',  lead: [[0, 79, 6], [8, 74, 2], [10, 79, 2], [12, 82, 4]] },
-    { chord: 'Bb',   sec: 'B',  lead: [[0, 81, 2], [2, 77, 6], [10, 74, 4]] },
-    { chord: 'F',    sec: 'B',  lead: [[0, 72, 4], [4, 77, 2], [6, 81, 6]] },
-    { chord: 'C',    sec: 'B',  lead: [[0, 79, 4], [4, 76, 4], [8, 72, 2], [10, 76, 2], [12, 79, 4]] },
-    { chord: 'Gm',   sec: 'B',  lead: [[0, 82, 6], [6, 81, 2], [8, 79, 4], [12, 74, 4]] },
-    { chord: 'Bb',   sec: 'B',  lead: [[0, 77, 4], [6, 74, 2], [8, 77, 2], [10, 82, 6]] },
-    { chord: 'Asus', sec: 'B',  lead: [[0, 81, 6], [8, 76, 6]] },
-    { chord: 'A',    sec: 'B',  lead: [[0, 73, 6], [6, 76, 2], [8, 69, 6]] },
-    // ---- C: breakdown (long bass, sparse lead), builds back in bars 5-8
-    { chord: 'Dm',   sec: 'C1', lead: [[4, 69, 4], [12, 74, 4]] },
-    { chord: 'Dm',   sec: 'C1', lead: [[8, 77, 8]] },
-    { chord: 'Bb',   sec: 'C1', lead: [[4, 74, 4], [12, 77, 4]] },
-    { chord: 'C',    sec: 'C1', lead: [[8, 76, 8]] },
-    { chord: 'Dm',   sec: 'C2', lead: [[4, 69, 2], [6, 74, 2], [8, 81, 8]] },
-    { chord: 'Dm',   sec: 'C2', lead: [[4, 79, 4], [12, 77, 4]] },
-    { chord: 'Bb',   sec: 'C2', lead: [[0, 74, 8], [12, 70, 4]] },
-    { chord: 'Am',   sec: 'C2', lead: [[0, 72, 4], [4, 76, 4], [12, 69, 2], [14, 72, 2]] }
+  const LEAD_A = [
+    [[0, 71, 4], [4, 76, 6], [12, 74, 2], [14, 71, 2]],
+    [[0, 67, 8], [12, 69, 2], [14, 71, 2]],
+    [[0, 72, 4], [4, 76, 6], [12, 74, 2], [14, 72, 2]],
+    [[0, 69, 6], [8, 66, 4], [12, 69, 4]],
+    [[0, 71, 4], [4, 76, 6], [12, 74, 2], [14, 76, 2]],
+    [[0, 79, 8], [10, 78, 2], [12, 74, 4]],
+    [[0, 76, 6], [6, 72, 2], [8, 69, 6]],
+    [[0, 71, 6], [8, 75, 4], [12, 78, 4]]
   ];
+  const LEAD_B = [
+    [[0, 79, 8], [8, 76, 4], [12, 72, 4]],
+    [[0, 78, 8], [8, 74, 4], [12, 69, 4]],
+    [[0, 74, 4], [4, 79, 4], [8, 83, 8]],
+    [[0, 81, 2], [2, 79, 6], [10, 76, 6]],
+    [[0, 72, 4], [4, 76, 4], [8, 81, 8]],
+    [[0, 79, 6], [6, 76, 2], [8, 72, 4], [12, 76, 4]],
+    [[0, 78, 8], [8, 76, 8]],
+    [[0, 75, 12], [12, 71, 4]]
+  ];
+  const LEAD_C = [
+    [[4, 71, 4], [12, 76, 4]],
+    [[4, 79, 8]],
+    [[4, 72, 4], [12, 76, 4]],
+    [[4, 79, 4], [10, 76, 6]],
+    [[0, 81, 8], [12, 76, 4]],
+    [[0, 72, 12]],
+    [[0, 71, 4], [4, 75, 4], [8, 78, 8]],
+    [[0, 83, 8], [8, 78, 4], [12, 75, 4]]
+  ];
+  // the reprise shares the theme's first six bars and gets its own ending
+  const LEAD_A2 = LEAD_A.slice(0, 6).concat([
+    [[0, 76, 4], [4, 81, 4], [8, 79, 4], [12, 76, 4]],
+    [[0, 78, 6], [6, 75, 2], [8, 71, 8]]
+  ]);
+
+  function section(sec, chords, leads) {
+    return chords.map(function (chord, i) {
+      return { chord: chord, sec: sec, lead: leads[i], fill: false };
+    });
+  }
+
+  const SONG = [].concat(
+    section('A', CH_A, LEAD_A),
+    section('B', CH_B, LEAD_B),
+    section('C1', CH_C.slice(0, 4), LEAD_C.slice(0, 4)),
+    section('C2', CH_C.slice(4), LEAD_C.slice(4)),
+    section('A2', CH_A, LEAD_A2)
+  );
+  SONG[15].fill = true;       // snare roll into the breakdown
+  SONG[23].fill = true;       // ... out of it
+  SONG[31].fill = true;       // ... and around the loop point
 
   // ----------------------------------------------------------------- state
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -99,14 +134,17 @@
   let startupQueued = 0;      // one-shots queued before the context first runs
 
   let master, sfxBus, musicBus, loopBus;
+  let spaceIn;                // shared echo + reverb send bus
+  let sfxFx;                  // sfx input with a generous space send
+  let musicSend;              // music's fader into the space bus
   let dullIn;                 // lowpass in front of sfxBus, for soft buzzes
   let noiseBuf = null;
 
   // music channel inputs
-  let bassIn, leadIn, arpIn, hatIn;
+  let bassIn, leadIn, arpIn, padIn, hatIn;
 
   // persistent loops
-  let engine = null;          // { out, lp, o1, o2, lfo, wind, windGain }
+  let engine = null;          // { out, lp, o1, o2, sub, hiss, hissGain }
   let engineOn = false;
   let engineV = -1;
   let charge = null;          // { out }
@@ -145,32 +183,82 @@
     if (promise && typeof promise.catch === 'function') promise.catch(noop);
   }
 
-  // One-shot oscillator voice: linear attack, optional hold, exponential decay.
-  // o: { type, f, f2, glide, detune, dur, vol, attack, hold }
-  function tone(dest, t, o) {
+  // One-shot synth voice: linear attack, optional hold, exponential decay.
+  // o: { type, f, f2, glide, detune, dur, vol, attack, hold,
+  //      filter: { type, f, f2, q, glide },      resonant filter, optional sweep
+  //      fm:     { ratio, index, index2, time }, FM (metallic / bell tones)
+  //      lfo:    { rate, rate2, depth } }        pitch wobble, depth in cents
+  // Everything it creates is stopped and disconnected when the voice ends.
+  function voice(dest, t, o) {
     const dur = o.dur;
+    const end = t + dur;
+    const stopAt = end + 0.03;
+    const sweepEnd = t + (o.glide || dur);
     const attack = Math.min(o.attack || 0.004, dur * 0.5);
     const hold = Math.max(0, Math.min(o.hold || 0, dur - attack - 0.012));
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
+    const nodes = [osc, g];
 
     osc.type = o.type || 'sine';
     osc.frequency.setValueAtTime(o.f, t);
-    if (o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, t + (o.glide || dur));
+    if (o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, sweepEnd);
     if (o.detune) osc.detune.setValueAtTime(o.detune, t);
+
+    if (o.fm) {
+      const mod = ctx.createOscillator();
+      const depth = ctx.createGain();
+      const mf = o.f * o.fm.ratio;
+      mod.frequency.setValueAtTime(mf, t);
+      if (o.f2) mod.frequency.exponentialRampToValueAtTime(o.f2 * o.fm.ratio, sweepEnd);
+      depth.gain.setValueAtTime(mf * o.fm.index, t);
+      depth.gain.exponentialRampToValueAtTime(Math.max(mf * (o.fm.index2 || 0), 0.01), t + (o.fm.time || dur));
+      mod.connect(depth);
+      depth.connect(osc.frequency);
+      mod.start(t);
+      mod.stop(stopAt);
+      nodes.push(mod, depth);
+    }
+
+    if (o.lfo) {
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      lfo.frequency.setValueAtTime(o.lfo.rate, t);
+      if (o.lfo.rate2) lfo.frequency.exponentialRampToValueAtTime(o.lfo.rate2, end);
+      depth.gain.value = o.lfo.depth;
+      lfo.connect(depth);
+      depth.connect(osc.detune);
+      lfo.start(t);
+      lfo.stop(stopAt);
+      nodes.push(lfo, depth);
+    }
 
     g.gain.value = 0;
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(o.vol, t + attack);
     if (hold > 0) g.gain.setValueAtTime(o.vol, t + attack + hold);
-    g.gain.exponentialRampToValueAtTime(SILENCE, t + dur);
+    g.gain.exponentialRampToValueAtTime(SILENCE, end);
 
-    osc.connect(g);
+    if (o.filter) {
+      const flt = ctx.createBiquadFilter();
+      flt.type = o.filter.type || 'lowpass';
+      flt.Q.value = o.filter.q || 0.7;
+      flt.frequency.setValueAtTime(o.filter.f, t);
+      if (o.filter.f2) flt.frequency.exponentialRampToValueAtTime(o.filter.f2, t + (o.filter.glide || dur));
+      osc.connect(flt);
+      flt.connect(g);
+      nodes.push(flt);
+    } else {
+      osc.connect(g);
+    }
     g.connect(dest);
+
     osc.start(t);
-    osc.stop(t + dur + 0.03);
+    osc.stop(stopAt);
     osc.onended = function () {
-      try { osc.disconnect(); g.disconnect(); } catch (err) { /* already gone */ }
+      try {
+        for (let i = 0; i < nodes.length; i++) nodes[i].disconnect();
+      } catch (err) { /* already gone */ }
     };
   }
 
@@ -231,6 +319,14 @@
     return g;
   }
 
+  function filterNode(type, freq, q) {
+    const f = ctx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    f.Q.value = q;
+    return f;
+  }
+
   // ----------------------------------------------------------------- build
   function build() {
     // master chain
@@ -252,17 +348,27 @@
     musicBus.connect(master);
     loopBus.connect(master);
 
-    dullIn = ctx.createBiquadFilter();
-    dullIn.type = 'lowpass';
-    dullIn.frequency.value = 620;
-    dullIn.Q.value = 0.7;
-    dullIn.connect(sfxBus);
-
     // shared white-noise buffer (2 s), created once
     const len = Math.floor(ctx.sampleRate * 2);
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+
+    buildSpace();
+
+    // sfx routing: every effect gets a touch of space; effects sent to
+    // sfxFx (chimes, fanfares, big hits) get a generous amount
+    const sfxLight = gainNode(0.1);
+    sfxBus.connect(sfxLight);
+    sfxLight.connect(spaceIn);
+    sfxFx = gainNode(1);
+    sfxFx.connect(sfxBus);
+    const sfxHeavy = gainNode(0.4);
+    sfxFx.connect(sfxHeavy);
+    sfxHeavy.connect(spaceIn);
+
+    dullIn = filterNode('lowpass', 620, 0.7);
+    dullIn.connect(sfxBus);
 
     buildMusicChannels();
     buildEngine();
@@ -271,172 +377,160 @@
     buildWhine();
   }
 
-  // Weapon charge whine: thin and "electric" (saw + octave square through a
-  // highpass), nothing like the warm thermal-vent loop. A slow LFO adds the
-  // pulse; its depth is opened by setWeaponCharge() as the charge fills.
-  // Always running, silent until setWeaponCharge(v > 0).
-  function buildWhine() {
-    const out = gainNode(0);
-    out.connect(loopBus);
+  // The "cosmic" part: one send bus with a damped ping-pong echo (dotted
+  // 8th of the music tempo) and one convolver fed with a synthetic impulse
+  // (decaying stereo noise). Returns go straight to the master.
+  function buildSpace() {
+    spaceIn = gainNode(1);
+    const out = gainNode(1);
+    out.connect(master);
 
-    const vca = gainNode(1);
-    vca.connect(out);
-    const lfo = runningOsc('sine', 5.5);
-    const pulse = gainNode(0);
-    lfo.connect(pulse);
-    pulse.connect(vca.gain);
+    const dl = ctx.createDelay(1);
+    const dr = ctx.createDelay(1);
+    dl.delayTime.value = STEP * 3;
+    dr.delayTime.value = STEP * 3;
+    const cross = gainNode(0.6);
+    const back = gainNode(0.55);
+    const damp = filterNode('lowpass', 3200, 0.5);
+    spaceIn.connect(dl);
+    dl.connect(cross);
+    cross.connect(dr);
+    dr.connect(back);
+    back.connect(damp);
+    damp.connect(dl);
 
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 1200;
-    lp.Q.value = 1.5;
-    lp.connect(vca);
+    const echoOut = gainNode(ECHO_LEVEL);
+    echoOut.connect(out);
+    if (ctx.createChannelMerger) {
+      // left tap mostly left, right tap mostly right, a little of each across
+      const merger = ctx.createChannelMerger(2);
+      const lToR = gainNode(0.35);
+      const rToL = gainNode(0.35);
+      dl.connect(merger, 0, 0);
+      dr.connect(merger, 0, 1);
+      dl.connect(lToR);
+      lToR.connect(merger, 0, 1);
+      dr.connect(rToL);
+      rToL.connect(merger, 0, 0);
+      merger.connect(echoOut);
+    } else {
+      dl.connect(echoOut);
+      dr.connect(echoOut);
+    }
 
-    const hp = ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 700;
-    hp.Q.value = 0.7;
-    hp.connect(lp);
-
-    const o1 = runningOsc('sawtooth', WHINE_F0);
-    const g1 = gainNode(0.5);
-    o1.connect(g1);
-    g1.connect(hp);
-
-    const o2 = runningOsc('square', WHINE_F0 * WHINE_RATIO);
-    const g2 = gainNode(0.14);
-    o2.connect(g2);
-    g2.connect(hp);
-
-    whine = { out: out, o1: o1, o2: o2, lp: lp, pulse: pulse };
-  }
-
-  // Wind gust: looped noise through a bandpass, with a slow flutter so it
-  // never sounds static. Always running, silent until setWind(v > 0).
-  function buildWind() {
-    const out = gainNode(0);
-    out.connect(loopBus);
-
-    const flutter = gainNode(1);
-    flutter.connect(out);
-    const lfo = runningOsc('sine', 0.37);
-    const depth = gainNode(0.22);
-    lfo.connect(depth);
-    depth.connect(flutter.gain);
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 320;
-    filter.Q.value = 0.8;
-    filter.connect(flutter);
-
-    const src = ctx.createBufferSource();
-    src.buffer = noiseBuf;
-    src.loop = true;
-    src.connect(filter);
-    src.start(0, 0.97);       // offset: not in phase with the engine's noise layer
-
-    wind = { out: out, filter: filter };
+    // Reverb is a nicety: if the browser cannot do it, the echo carries on alone.
+    try {
+      if (ctx.createConvolver) {
+        const sr = ctx.sampleRate;
+        const len = Math.floor(sr * 1.7);
+        const skip = Math.floor(sr * 0.008);
+        const ir = ctx.createBuffer(2, len, sr);
+        for (let ch = 0; ch < 2; ch++) {
+          const d = ir.getChannelData(ch);
+          let lp = 0;
+          for (let i = skip; i < len; i++) {
+            const x = i / len;
+            // one-pole lowpass that closes over time: the tail gets darker
+            lp += (0.6 - 0.45 * x) * ((Math.random() * 2 - 1) - lp);
+            d[i] = lp * (1 - x) * (1 - x) * Math.exp(-3 * x);
+          }
+        }
+        const conv = ctx.createConvolver();
+        conv.buffer = ir;
+        const revOut = gainNode(REVERB_LEVEL);
+        spaceIn.connect(conv);
+        conv.connect(revOut);
+        revOut.connect(out);
+      }
+    } catch (err) { /* no reverb */ }
   }
 
   function buildMusicChannels() {
-    // echo shared by lead and arpeggio: 3/16 delay with light feedback
-    const send = gainNode(0.28);
-    const delay = ctx.createDelay(1);
-    const feedback = gainNode(0.32);
-    const wet = gainNode(0.6);
-    delay.delayTime.value = STEP * 3;
-    send.connect(delay);
-    delay.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(wet);
-    wet.connect(musicBus);
+    musicSend = gainNode(0);           // follows the music fader
+    musicSend.connect(spaceIn);
 
-    bassIn = ctx.createBiquadFilter();
-    bassIn.type = 'lowpass';
-    bassIn.frequency.value = 480;
-    bassIn.Q.value = 1.2;
+    bassIn = gainNode(1);
     bassIn.connect(musicBus);
 
-    leadIn = ctx.createBiquadFilter();
-    leadIn.type = 'lowpass';
-    leadIn.frequency.value = 2600;
-    leadIn.Q.value = 0.7;
+    leadIn = filterNode('lowpass', 3000, 1);
     leadIn.connect(musicBus);
-    leadIn.connect(send);
+    const leadSend = gainNode(0.5);
+    leadIn.connect(leadSend);
+    leadSend.connect(musicSend);
 
-    arpIn = gainNode(1);
+    arpIn = filterNode('lowpass', 3600, 0.7);
     arpIn.connect(musicBus);
-    arpIn.connect(send);
+    const arpSend = gainNode(0.7);
+    arpIn.connect(arpSend);
+    arpSend.connect(musicSend);
 
-    hatIn = ctx.createBiquadFilter();
-    hatIn.type = 'highpass';
-    hatIn.frequency.value = 7000;
-    hatIn.Q.value = 0.7;
+    padIn = filterNode('lowpass', 1500, 0.7);
+    padIn.connect(musicBus);
+    const padSend = gainNode(0.3);
+    padIn.connect(padSend);
+    padSend.connect(musicSend);
+
+    hatIn = filterNode('highpass', 7000, 0.7);
     hatIn.connect(musicBus);
   }
 
-  // Hover engine: saw + fifth + filtered wind, slow throb. Always running,
-  // silent until setEngine() opens the output gain.
+  // Thruster hum: two detuned saws through a resonant lowpass that breathes
+  // slowly, a sub sine an octave below, and a little exhaust hiss. Always
+  // running, silent until setEngine() opens the output gain.
   function buildEngine() {
     const out = gainNode(0);
     out.connect(loopBus);
 
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 260;
-    lp.Q.value = 0.9;
+    const lp = filterNode('lowpass', 300, 2.2);
     lp.connect(out);
-
-    const trem = gainNode(1);
-    trem.connect(lp);
-
-    const o1 = runningOsc('sawtooth', 52);
-    const g1 = gainNode(0.5);
-    o1.connect(g1);
-    g1.connect(trem);
-
-    const o2 = runningOsc('triangle', 52 * 1.498);
-    const g2 = gainNode(0.35);
-    o2.connect(g2);
-    g2.connect(trem);
-
-    const lfo = runningOsc('sine', 6);
-    const lfoDepth = gainNode(0.12);
+    const lfo = runningOsc('sine', 0.7);
+    const lfoDepth = gainNode(45);     // Hz
     lfo.connect(lfoDepth);
-    lfoDepth.connect(trem.gain);
+    lfoDepth.connect(lp.frequency);
 
-    // wind layer bypasses the lowpass so it can add air at speed
-    const windSrc = ctx.createBufferSource();
-    windSrc.buffer = noiseBuf;
-    windSrc.loop = true;
-    const wind = ctx.createBiquadFilter();
-    wind.type = 'bandpass';
-    wind.frequency.value = 500;
-    wind.Q.value = 1.4;
-    const windGain = gainNode(0.03);
-    windSrc.connect(wind);
-    wind.connect(windGain);
-    windGain.connect(out);
-    windSrc.start(0);
+    const o1 = runningOsc('sawtooth', 116);
+    const g1 = gainNode(0.4);
+    o1.connect(g1);
+    g1.connect(lp);
 
-    engine = { out: out, lp: lp, o1: o1, o2: o2, lfo: lfo, wind: wind, windGain: windGain };
+    const o2 = runningOsc('sawtooth', 116 * 1.009);
+    const g2 = gainNode(0.4);
+    o2.connect(g2);
+    g2.connect(lp);
+
+    const sub = runningOsc('sine', 58);
+    const gs = gainNode(0.55);
+    sub.connect(gs);
+    gs.connect(out);
+
+    const hissSrc = ctx.createBufferSource();
+    hissSrc.buffer = noiseBuf;
+    hissSrc.loop = true;
+    const hiss = filterNode('bandpass', 600, 1.2);
+    const hissGain = gainNode(0.03);
+    hissSrc.connect(hiss);
+    hiss.connect(hissGain);
+    hissGain.connect(out);
+    hissSrc.start(0);
+
+    engine = { out: out, lp: lp, o1: o1, o2: o2, sub: sub, hiss: hiss, hissGain: hissGain };
   }
 
-  // Thermal-vent charging loop. A triangle LFO opens the voice twice per
-  // cycle while a sawtooth LFO (same rate, same start) sweeps the pitch up;
-  // the sawtooth reset falls exactly on a silent point, so it never clicks.
+  // Thermal-vent charging loop: warm energy being absorbed. A triangle LFO
+  // opens the voice twice per cycle while a sawtooth LFO (same rate, same
+  // start) sweeps the pitch up; the sawtooth reset falls exactly on a silent
+  // point, so it never clicks. High partials shimmer on top, with echo.
   function buildCharge() {
     const rate = 1 / 0.9;
     const t0 = ctx.currentTime + 0.02;
 
     const out = gainNode(0);
     out.connect(loopBus);
+    const send = gainNode(0.2);
+    out.connect(send);
+    send.connect(spaceIn);
 
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 2400;
-    lp.Q.value = 0.5;
+    const lp = filterNode('lowpass', 2400, 0.5);
     lp.connect(out);
 
     const pulse = gainNode(0);
@@ -448,9 +542,9 @@
     const sweep = gainNode(350);          // cents
     sweepLfo.connect(sweep);
 
-    const a = runningOsc('triangle', 392.0, t0);
+    const a = runningOsc('triangle', 329.63, t0);
     const ga = gainNode(0.22);
-    const b = runningOsc('sine', 587.33, t0);
+    const b = runningOsc('sine', 493.88, t0);
     const gb = gainNode(0.12);
     sweep.connect(a.detune);
     sweep.connect(b.detune);
@@ -460,8 +554,8 @@
     gb.connect(pulse);
 
     // two high partials with slow, unrelated tremolos: the shimmer
-    shimmer(lp, 1174.66, 7.3, 0.045, t0);
-    shimmer(lp, 1567.98, 5.1, 0.03, t0);
+    shimmer(lp, 1318.51, 7.3, 0.045, t0);
+    shimmer(lp, 1975.53, 5.1, 0.03, t0);
 
     charge = { out: out };
   }
@@ -477,6 +571,65 @@
     osc.connect(vca);
     vca.connect(lvl);
     lvl.connect(dest);
+  }
+
+  // Wind gust: looped noise through a bandpass, with a slow flutter so it
+  // never sounds static. Always running, silent until setWind(v > 0).
+  function buildWind() {
+    const out = gainNode(0);
+    out.connect(loopBus);
+
+    const flutter = gainNode(1);
+    flutter.connect(out);
+    const lfo = runningOsc('sine', 0.37);
+    const depth = gainNode(0.22);
+    lfo.connect(depth);
+    depth.connect(flutter.gain);
+
+    const filter = filterNode('bandpass', 320, 0.8);
+    filter.connect(flutter);
+
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    src.connect(filter);
+    src.start(0, 0.97);       // offset: not in phase with the engine's noise layer
+
+    wind = { out: out, filter: filter };
+  }
+
+  // Weapon charge whine: thin and "electric" (saw + octave square through a
+  // highpass), nothing like the warm thermal-vent loop. A slow LFO adds the
+  // pulse; its depth is opened by setWeaponCharge() as the charge fills.
+  // Always running, silent until setWeaponCharge(v > 0).
+  function buildWhine() {
+    const out = gainNode(0);
+    out.connect(loopBus);         // dry only: it must fall silent the moment 'blast' plays
+
+    const vca = gainNode(1);
+    vca.connect(out);
+    const lfo = runningOsc('sine', 5.5);
+    const pulse = gainNode(0);
+    lfo.connect(pulse);
+    pulse.connect(vca.gain);
+
+    const lp = filterNode('lowpass', 1200, 2.5);
+    lp.connect(vca);
+
+    const hp = filterNode('highpass', 700, 0.7);
+    hp.connect(lp);
+
+    const o1 = runningOsc('sawtooth', WHINE_F0);
+    const g1 = gainNode(0.5);
+    o1.connect(g1);
+    g1.connect(hp);
+
+    const o2 = runningOsc('square', WHINE_F0 * WHINE_RATIO);
+    const g2 = gainNode(0.14);
+    o2.connect(g2);
+    g2.connect(hp);
+
+    whine = { out: out, o1: o1, o2: o2, lp: lp, pulse: pulse };
   }
 
   // ------------------------------------------------------------- lifecycle
@@ -528,166 +681,199 @@
 
   // ------------------------------------------------------------- one-shots
   const SFX = {
-    // short bright flare pulse; slight random detune keeps rapid fire fresh
+    // laser "pew": fast exponential down-sweep through a resonant lowpass.
+    // Slight random detune keeps rapid fire from sounding like a machine.
     shoot: function (t) {
       const d = (Math.random() * 2 - 1) * 45;
-      tone(sfxBus, t, { type: 'triangle', f: 2300, f2: 760, dur: 0.085, vol: 0.085, detune: d });
-      tone(sfxBus, t, { type: 'square', f: 1500, f2: 520, dur: 0.06, vol: 0.035, detune: d });
-      noise(sfxBus, t, { dur: 0.03, vol: 0.035, ftype: 'highpass', f: 5200 });
+      voice(sfxBus, t, {
+        type: 'sawtooth', f: 2100, f2: 240, glide: 0.1, dur: 0.13, vol: 0.2, attack: 0.002, hold: 0.03, detune: d,
+        filter: { type: 'lowpass', f: 6000, f2: 900, q: 3.5 }
+      });
+      voice(sfxBus, t, { type: 'square', f: 3200, f2: 500, glide: 0.06, dur: 0.07, vol: 0.05, attack: 0.002, detune: d });
     },
 
-    // small metallic tick: two inharmonic partials + a click
+    // short metallic FM ping
     hit: function (t) {
-      tone(sfxBus, t, { type: 'square', f: 2093, dur: 0.055, vol: 0.05, attack: 0.002 });
-      tone(sfxBus, t, { type: 'square', f: 3190, dur: 0.04, vol: 0.032, attack: 0.002 });
-      noise(sfxBus, t, { dur: 0.025, vol: 0.05, ftype: 'bandpass', f: 4200, q: 3 });
+      voice(sfxBus, t, { type: 'sine', f: 1568, dur: 0.09, vol: 0.22, attack: 0.002, hold: 0.012, fm: { ratio: 3.53, index: 4, index2: 0.2 } });
+      voice(sfxBus, t, { type: 'sine', f: 2637, dur: 0.05, vol: 0.08, attack: 0.002, fm: { ratio: 1.41, index: 2 } });
+      noise(sfxBus, t, { dur: 0.02, vol: 0.08, ftype: 'highpass', f: 5000 });
     },
 
-    // noise burst + low thump
+    // sci-fi burst: noise through a downward resonant sweep + sub thump
     explode: function (t) {
       const k = 0.9 + Math.random() * 0.25;
-      noise(sfxBus, t, { dur: 0.38, vol: 0.28, ftype: 'lowpass', f: 3800 * k, f2: 260, q: 0.8 });
-      tone(sfxBus, t, { type: 'sine', f: 150 * k, f2: 42, dur: 0.32, vol: 0.4 });
-      tone(sfxBus, t, { type: 'square', f: 220 * k, f2: 60, dur: 0.14, vol: 0.05 });
+      noise(sfxBus, t, { dur: 0.5, vol: 0.4, ftype: 'lowpass', f: 5200 * k, f2: 160, q: 5 });
+      noise(sfxBus, t, { dur: 0.12, vol: 0.18, ftype: 'highpass', f: 3000 });
+      voice(sfxBus, t, { type: 'sine', f: 120 * k, f2: 34, dur: 0.45, vol: 0.5 });
+      voice(sfxBus, t, {
+        type: 'sawtooth', f: 300 * k, f2: 45, dur: 0.3, vol: 0.1, fm: { ratio: 0.5, index: 3 },
+        filter: { type: 'lowpass', f: 1800, f2: 200, q: 2 }
+      });
     },
 
-    // enemy energy orb: low "bwoop"
+    // enemy energy orb: alien "wub" (low tone with a slowing pitch wobble)
     orb: function (t) {
-      tone(sfxBus, t, { type: 'triangle', f: 95, f2: 250, glide: 0.16, dur: 0.3, vol: 0.22, attack: 0.015, hold: 0.1 });
-      tone(sfxBus, t, { type: 'sine', f: 190, f2: 500, glide: 0.16, dur: 0.24, vol: 0.06, attack: 0.015 });
+      voice(sfxBus, t, {
+        type: 'sawtooth', f: 150, f2: 110, dur: 0.34, vol: 0.11, attack: 0.02, hold: 0.14,
+        lfo: { rate: 16, rate2: 7, depth: 420 },
+        filter: { type: 'lowpass', f: 500, f2: 1400, q: 4 }
+      });
+      voice(sfxBus, t, { type: 'sine', f: 75, f2: 55, dur: 0.3, vol: 0.14, attack: 0.02, hold: 0.1 });
     },
 
-    // bigger crash, about one second
+    // long descending explosion: falling wobbling tone, sub boom, noise tail (1.2 s)
     playerDie: function (t) {
-      noise(sfxBus, t, { dur: 1.0, vol: 0.32, ftype: 'lowpass', f: 5000, f2: 140, q: 0.8 });
-      noise(sfxBus, t + 0.12, { dur: 0.45, vol: 0.16, ftype: 'bandpass', f: 1300, f2: 300, q: 1.2 });
-      tone(sfxBus, t, { type: 'sine', f: 170, f2: 32, dur: 0.7, vol: 0.42 });
-      tone(sfxBus, t, { type: 'triangle', f: 392, f2: 49, dur: 0.9, vol: 0.13, attack: 0.01, hold: 0.2 });
+      noise(sfxFx, t, { dur: 1.2, vol: 0.34, ftype: 'lowpass', f: 6500, f2: 110, q: 3 });
+      noise(sfxBus, t + 0.16, { dur: 0.5, vol: 0.2, ftype: 'bandpass', f: 1500, f2: 260, q: 2 });
+      voice(sfxFx, t, {
+        type: 'sawtooth', f: 920, f2: 42, dur: 1.05, vol: 0.16, attack: 0.008, hold: 0.25,
+        lfo: { rate: 11, rate2: 4, depth: 140 },
+        filter: { type: 'lowpass', f: 4000, f2: 300, q: 3 }
+      });
+      voice(sfxBus, t, { type: 'sine', f: 130, f2: 28, dur: 0.85, vol: 0.42 });
     },
 
-    // froze solid: glassy descending shimmer, about one second
+    // froze solid: crystalline FM bells falling down the scale, with echo
     freeze: function (t) {
-      const notes = [93, 89, 86, 84, 81, 77, 74, 69];
+      const notes = [95, 91, 88, 86, 83, 79, 76, 71];
       for (let i = 0; i < notes.length; i++) {
-        const f = hz(notes[i]);
-        const at = t + i * 0.085;
-        tone(sfxBus, at, { type: 'sine', f: f, dur: 0.4, vol: 0.085, attack: 0.003 });
-        tone(sfxBus, at, { type: 'sine', f: f * 2.76, dur: 0.16, vol: 0.022, attack: 0.002 });
+        voice(sfxFx, t + i * 0.085, {
+          type: 'sine', f: hz(notes[i]), dur: 0.42, vol: 0.09, attack: 0.003,
+          fm: { ratio: 3.01, index: 2.2, index2: 0.05, time: 0.18 }
+        });
       }
-      tone(sfxBus, t, { type: 'triangle', f: 1300, f2: 280, dur: 0.95, vol: 0.035, attack: 0.03, hold: 0.3 });
-      noise(sfxBus, t, { dur: 0.9, vol: 0.04, attack: 0.02, ftype: 'highpass', f: 7000 });
+      voice(sfxBus, t, { type: 'triangle', f: 1500, f2: 240, dur: 1.0, vol: 0.04, attack: 0.03, hold: 0.3 });
+      noise(sfxFx, t, { dur: 0.95, vol: 0.05, attack: 0.03, ftype: 'highpass', f: 7500 });
     },
 
-    // checkpoint: warm rising chime (F major, the relative major of the music)
+    // checkpoint: bright rising arpeggio that opens up, over a warp sweep
     gate: function (t) {
-      const notes = [65, 69, 72, 77];
+      const notes = [64, 71, 76, 79, 83, 88];
       for (let i = 0; i < notes.length; i++) {
         const last = i === notes.length - 1;
-        const at = t + i * 0.1;
-        tone(sfxBus, at, { type: 'triangle', f: hz(notes[i]), dur: last ? 0.7 : 0.42, vol: 0.14, attack: 0.008 });
-        tone(sfxBus, at, { type: 'sine', f: hz(notes[i] + 12), dur: last ? 0.5 : 0.3, vol: 0.045, attack: 0.008 });
+        const at = t + i * 0.075;
+        voice(sfxFx, at, {
+          type: 'sawtooth', f: hz(notes[i]), dur: last ? 0.6 : 0.3, vol: 0.15, attack: 0.005, detune: 8,
+          filter: { type: 'lowpass', f: 900, f2: 5200, q: 3, glide: 0.2 }
+        });
+        voice(sfxFx, at, { type: 'square', f: hz(notes[i] + 12), dur: 0.2, vol: 0.04, attack: 0.005, detune: -8 });
       }
+      noise(sfxFx, t, { dur: 0.7, vol: 0.08, attack: 0.3, ftype: 'bandpass', f: 500, f2: 7000, q: 2.5 });
     },
 
     // short bright fanfare (open fifths, fits over the minor-key music)
     extraLife: function (t) {
-      const seq = [[74, 0, 0.09], [81, 0.07, 0.09], [86, 0.14, 0.09], [81, 0.21, 0.09], [86, 0.28, 0.34]];
+      const seq = [[76, 0, 0.09], [83, 0.07, 0.09], [88, 0.14, 0.09], [83, 0.21, 0.09], [88, 0.28, 0.34]];
       for (let i = 0; i < seq.length; i++) {
         const n = seq[i];
-        tone(sfxBus, t + n[1], { type: 'square', f: hz(n[0]), dur: n[2], vol: 0.06, hold: n[2] * 0.5 });
-        tone(sfxBus, t + n[1], { type: 'triangle', f: hz(n[0] - 12), dur: n[2], vol: 0.09, hold: n[2] * 0.5 });
+        const o = { type: 'sawtooth', f: hz(n[0]), dur: n[2], vol: 0.08, hold: n[2] * 0.5, detune: 9 };
+        voice(sfxFx, t + n[1], o);
+        o.detune = -9;
+        voice(sfxFx, t + n[1], o);
+        voice(sfxFx, t + n[1], { type: 'sine', f: hz(n[0] + 12), dur: n[2], vol: 0.05, fm: { ratio: 2, index: 1.5, index2: 0.1 } });
       }
     },
 
-    // game start jingle, about 0.75 s
+    // game start: power-up sweep into a rising arpeggio, about 0.8 s
     start: function (t) {
-      const notes = [62, 69, 74, 77, 81];
+      voice(sfxFx, t, {
+        type: 'sawtooth', f: 82, f2: 330, glide: 0.3, dur: 0.42, vol: 0.09, attack: 0.02, hold: 0.25,
+        filter: { type: 'lowpass', f: 300, f2: 3200, q: 4, glide: 0.3 }
+      });
+      const notes = [64, 71, 76, 79, 83];
       for (let i = 0; i < notes.length; i++) {
         const last = i === notes.length - 1;
-        const dur = last ? 0.38 : 0.11;
-        tone(sfxBus, t + i * 0.09, { type: 'square', f: hz(notes[i]), dur: dur, vol: 0.06, hold: dur * 0.5 });
-        tone(sfxBus, t + i * 0.09, { type: 'triangle', f: hz(notes[i]), dur: dur, vol: 0.07, hold: dur * 0.5 });
+        const dur = last ? 0.36 : 0.11;
+        const at = t + 0.12 + i * 0.08;
+        voice(sfxFx, at, { type: 'sawtooth', f: hz(notes[i]), dur: dur, vol: 0.055, hold: dur * 0.5, detune: 8 });
+        voice(sfxFx, at, { type: 'square', f: hz(notes[i]), dur: dur, vol: 0.028, hold: dur * 0.5, detune: -8 });
       }
-      tone(sfxBus, t, { type: 'triangle', f: hz(50), dur: 0.7, vol: 0.13, attack: 0.01, hold: 0.3 });
     },
 
-    // all stages done: rising D major arpeggio into a held chord, about 1.5 s
+    // all stages done: rising E major run into a wide held chord, about 1.5 s
     lapDone: function (t) {
-      const run = [62, 66, 69, 74, 78, 81, 86];
+      const run = [64, 68, 71, 76, 80, 83, 88];
       for (let i = 0; i < run.length; i++) {
         const at = t + i * 0.1;
-        tone(sfxBus, at, { type: 'square', f: hz(run[i]), dur: 0.16, vol: 0.05, hold: 0.07 });
-        tone(sfxBus, at, { type: 'triangle', f: hz(run[i]), dur: 0.22, vol: 0.08, hold: 0.07 });
+        voice(sfxFx, at, { type: 'sawtooth', f: hz(run[i]), dur: 0.2, vol: 0.05, hold: 0.07, detune: 8 });
+        voice(sfxFx, at, { type: 'sine', f: hz(run[i] + 12), dur: 0.16, vol: 0.025, fm: { ratio: 2, index: 1.5, index2: 0.1 } });
       }
-      const chord = [74, 78, 81, 86];
+      const chord = [76, 80, 83, 88];
       const ct = t + 0.74;
       for (let i = 0; i < chord.length; i++) {
-        tone(sfxBus, ct, { type: 'square', f: hz(chord[i]), dur: 0.78, vol: 0.032, attack: 0.01, hold: 0.3 });
-        tone(sfxBus, ct, { type: 'triangle', f: hz(chord[i]), dur: 0.78, vol: 0.06, attack: 0.01, hold: 0.3 });
+        voice(sfxFx, ct, { type: 'sawtooth', f: hz(chord[i]), dur: 0.78, vol: 0.028, attack: 0.01, hold: 0.3, detune: 10 });
+        voice(sfxFx, ct, { type: 'sawtooth', f: hz(chord[i]), dur: 0.78, vol: 0.028, attack: 0.01, hold: 0.3, detune: -10 });
       }
-      tone(sfxBus, t, { type: 'triangle', f: hz(50), dur: 0.7, vol: 0.13, attack: 0.01, hold: 0.4 });
-      tone(sfxBus, ct, { type: 'triangle', f: hz(38), dur: 0.78, vol: 0.16, attack: 0.01, hold: 0.35 });
+      voice(sfxBus, t, { type: 'triangle', f: hz(52), dur: 0.7, vol: 0.09, attack: 0.01, hold: 0.4 });
+      voice(sfxBus, ct, { type: 'sine', f: hz(40), dur: 0.78, vol: 0.18, attack: 0.01, hold: 0.35 });
+      noise(sfxFx, t, { dur: 0.74, vol: 0.05, attack: 0.5, ftype: 'bandpass', f: 600, f2: 8000, q: 2 });
     },
 
-    // small coin: light two-note upward blip (a fourth), about 115 ms
+    // small coin: sparkly two-note FM blip (a rising fourth), about 115 ms
     coin: function (t) {
-      tone(sfxBus, t, { type: 'triangle', f: hz(81), dur: 0.05, vol: 0.07, attack: 0.003, hold: 0.02 });
-      tone(sfxBus, t + 0.045, { type: 'triangle', f: hz(86), dur: 0.07, vol: 0.075, attack: 0.003, hold: 0.015 });
-      tone(sfxBus, t + 0.045, { type: 'sine', f: hz(98), dur: 0.055, vol: 0.016, attack: 0.002 });
+      voice(sfxBus, t, { type: 'sine', f: hz(83), dur: 0.05, vol: 0.1, attack: 0.002, hold: 0.015, fm: { ratio: 2, index: 1.4, index2: 0.1 } });
+      voice(sfxBus, t + 0.045, { type: 'sine', f: hz(88), dur: 0.07, vol: 0.11, attack: 0.002, hold: 0.012, fm: { ratio: 2, index: 1.8, index2: 0.1 } });
     },
 
-    // big coin: three quick rising notes with a little sparkle, about 300 ms
+    // big coin: three quick rising FM notes with sparkle and echo, about 300 ms
     bigCoin: function (t) {
-      const notes = [81, 86, 93];
+      const notes = [83, 88, 95];
       for (let i = 0; i < notes.length; i++) {
         const last = i === notes.length - 1;
-        const dur = last ? 0.18 : 0.075;
-        tone(sfxBus, t + i * 0.06, { type: 'triangle', f: hz(notes[i]), dur: dur, vol: 0.085, attack: 0.003, hold: 0.025 });
-        tone(sfxBus, t + i * 0.06, { type: 'square', f: hz(notes[i]), dur: dur * 0.7, vol: 0.02, attack: 0.003 });
+        voice(sfxFx, t + i * 0.06, {
+          type: 'sine', f: hz(notes[i]), dur: last ? 0.18 : 0.075, vol: 0.12, attack: 0.002, hold: 0.02,
+          fm: { ratio: 3, index: 1.6, index2: 0.1 }
+        });
       }
-      tone(sfxBus, t + 0.14, { type: 'sine', f: hz(98), dur: 0.11, vol: 0.024, attack: 0.002 });
-      tone(sfxBus, t + 0.185, { type: 'sine', f: hz(105), dur: 0.115, vol: 0.016, attack: 0.002 });
-      noise(sfxBus, t + 0.12, { dur: 0.09, vol: 0.014, ftype: 'highpass', f: 8000 });
+      voice(sfxFx, t + 0.185, { type: 'sine', f: hz(107), dur: 0.115, vol: 0.02, attack: 0.002 });
+      noise(sfxFx, t + 0.12, { dur: 0.09, vol: 0.02, ftype: 'highpass', f: 8000 });
     },
 
-    // coins spent to continue: two clinks over a soft thump, then a warm
-    // low fifth. Percussive and low so it does not fight 'start' after it.
+    // coins spent to continue: sub thump, then a low filtered-saw fifth that
+    // opens up. Percussive and low so it does not fight 'start' after it.
     buy: function (t) {
-      noise(sfxBus, t, { dur: 0.035, vol: 0.07, ftype: 'bandpass', f: 3000, q: 4 });
-      tone(sfxBus, t, { type: 'square', f: 1760, dur: 0.045, vol: 0.028, attack: 0.002 });
-      tone(sfxBus, t, { type: 'sine', f: 165, f2: 72, dur: 0.13, vol: 0.26 });
-      noise(sfxBus, t + 0.09, { dur: 0.03, vol: 0.06, ftype: 'bandpass', f: 4400, q: 4 });
-      tone(sfxBus, t + 0.09, { type: 'square', f: 2349, dur: 0.04, vol: 0.024, attack: 0.002 });
-      const ct = t + 0.13;
-      tone(sfxBus, ct, { type: 'triangle', f: hz(53), dur: 0.33, vol: 0.15, attack: 0.008, hold: 0.1 });
-      tone(sfxBus, ct, { type: 'triangle', f: hz(60), dur: 0.33, vol: 0.1, attack: 0.008, hold: 0.1 });
-      tone(sfxBus, ct, { type: 'sine', f: hz(69), dur: 0.26, vol: 0.035, attack: 0.008 });
+      voice(sfxBus, t, { type: 'sine', f: 160, f2: 60, dur: 0.14, vol: 0.35 });
+      voice(sfxBus, t, {
+        type: 'sawtooth', f: hz(40), dur: 0.16, vol: 0.16, attack: 0.004, hold: 0.06,
+        filter: { type: 'lowpass', f: 2400, f2: 300, q: 5 }
+      });
+      voice(sfxBus, t + 0.11, {
+        type: 'sawtooth', f: hz(47), dur: 0.35, vol: 0.16, attack: 0.006, hold: 0.1,
+        filter: { type: 'lowpass', f: 400, f2: 2600, q: 5, glide: 0.18 }
+      });
+      voice(sfxFx, t + 0.11, { type: 'sine', f: hz(71), dur: 0.3, vol: 0.05, attack: 0.004, fm: { ratio: 2, index: 1.5, index2: 0.05 } });
     },
 
-    // not enough coins: dull double low buzz, about 200 ms (saw through
-    // the shared lowpass so it stays soft)
+    // not enough coins: dull double low buzz (rough FM saw through the
+    // shared lowpass so it stays soft), about 200 ms
     deny: function (t) {
-      tone(dullIn, t, { type: 'sawtooth', f: 98, dur: 0.09, vol: 0.2, attack: 0.008, hold: 0.05 });
-      tone(dullIn, t + 0.11, { type: 'sawtooth', f: 92.5, dur: 0.09, vol: 0.2, attack: 0.008, hold: 0.05 });
+      voice(dullIn, t, { type: 'sawtooth', f: 98, dur: 0.09, vol: 0.12, attack: 0.008, hold: 0.05, fm: { ratio: 0.5, index: 1.5, index2: 1.5 } });
+      voice(dullIn, t + 0.11, { type: 'sawtooth', f: 92.5, dur: 0.09, vol: 0.12, attack: 0.008, hold: 0.05, fm: { ratio: 0.5, index: 1.5, index2: 1.5 } });
     },
 
-    // charged spread released: fast bright down-sweep (two detuned layers
-    // for width) + noise "fwoosh" + small low thump, about 360 ms
+    // charged spread released: big wide energy discharge. Two detuned saws
+    // dive through a resonant sweep, with a noise fwoosh, an FM zap and a
+    // sub boom; the space bus spreads it. About 420 ms.
     blast: function (t) {
-      tone(sfxBus, t, { type: 'triangle', f: 2700, f2: 300, glide: 0.2, dur: 0.26, vol: 0.17, attack: 0.003, hold: 0.03 });
-      tone(sfxBus, t, { type: 'triangle', f: 2700, f2: 300, glide: 0.24, dur: 0.3, vol: 0.1, attack: 0.003, hold: 0.03, detune: 28 });
-      tone(sfxBus, t, { type: 'square', f: 1900, f2: 230, glide: 0.16, dur: 0.18, vol: 0.055, attack: 0.003 });
-      noise(sfxBus, t, { dur: 0.36, vol: 0.2, attack: 0.004, ftype: 'bandpass', f: 5200, f2: 900, q: 0.9 });
-      noise(sfxBus, t, { dur: 0.05, vol: 0.07, ftype: 'highpass', f: 6000 });
-      tone(sfxBus, t, { type: 'sine', f: 145, f2: 55, dur: 0.17, vol: 0.28 });
+      voice(sfxFx, t, {
+        type: 'sawtooth', f: 3200, f2: 110, glide: 0.28, dur: 0.36, vol: 0.2, attack: 0.003, hold: 0.04,
+        filter: { type: 'lowpass', f: 7000, f2: 500, q: 4 }
+      });
+      voice(sfxFx, t, {
+        type: 'sawtooth', f: 3200, f2: 110, glide: 0.32, dur: 0.4, vol: 0.13, attack: 0.003, hold: 0.04, detune: 35,
+        filter: { type: 'lowpass', f: 7000, f2: 500, q: 4 }
+      });
+      voice(sfxBus, t, { type: 'square', f: 2200, f2: 160, glide: 0.2, dur: 0.22, vol: 0.06, attack: 0.003, fm: { ratio: 1.5, index: 2 } });
+      noise(sfxFx, t, { dur: 0.42, vol: 0.24, attack: 0.004, ftype: 'bandpass', f: 6000, f2: 700, q: 1.2 });
+      noise(sfxBus, t, { dur: 0.05, vol: 0.1, ftype: 'highpass', f: 6000 });
+      voice(sfxBus, t, { type: 'sine', f: 110, f2: 36, dur: 0.3, vol: 0.4 });
     },
 
-    // spread weapon available again: soft two-note ping, a rising fifth in a
-    // lower register than 'coin' (sine, so it stays in the background)
+    // spread weapon available again: soft "systems online" ping, a rising
+    // fifth well below 'coin', with echo
     blastReady: function (t) {
-      tone(sfxBus, t, { type: 'sine', f: hz(69), dur: 0.075, vol: 0.05, attack: 0.006, hold: 0.03 });
-      tone(sfxBus, t + 0.07, { type: 'sine', f: hz(76), dur: 0.11, vol: 0.055, attack: 0.006, hold: 0.025 });
-      tone(sfxBus, t + 0.07, { type: 'sine', f: hz(88), dur: 0.08, vol: 0.01, attack: 0.006 });
+      voice(sfxFx, t, { type: 'sine', f: hz(64), dur: 0.075, vol: 0.06, attack: 0.006, hold: 0.03, fm: { ratio: 2, index: 0.8, index2: 0.05 } });
+      voice(sfxFx, t + 0.07, { type: 'sine', f: hz(71), dur: 0.11, vol: 0.065, attack: 0.006, hold: 0.025, fm: { ratio: 2, index: 0.8, index2: 0.05 } });
     }
   };
 
@@ -719,16 +905,16 @@
     v = clamp01(v);
     if (engineOn && Math.abs(v - engineV) < 0.004) return;   // nothing audible changed
     const t = ctx.currentTime;
-    const f = 52 + 58 * v;
+    const f = 104 + 96 * v;                                   // saws; the sub sits an octave below
     engineOn = true;
     engineV = v;
     engine.o1.frequency.setTargetAtTime(f, t, 0.09);
-    engine.o2.frequency.setTargetAtTime(f * 1.498, t, 0.09);
-    engine.lfo.frequency.setTargetAtTime(6 + 6 * v, t, 0.15);
-    engine.lp.frequency.setTargetAtTime(260 + 1150 * v, t, 0.09);
-    engine.wind.frequency.setTargetAtTime(500 + 1300 * v, t, 0.12);
-    engine.windGain.gain.setTargetAtTime(0.03 + 0.08 * v, t, 0.12);
-    engine.out.gain.setTargetAtTime(0.14 + 0.1 * v, t, 0.1);
+    engine.o2.frequency.setTargetAtTime(f * 1.009, t, 0.09);
+    engine.sub.frequency.setTargetAtTime(f * 0.5, t, 0.09);
+    engine.lp.frequency.setTargetAtTime(300 + 1500 * v, t, 0.09);
+    engine.hiss.frequency.setTargetAtTime(600 + 1500 * v, t, 0.12);
+    engine.hissGain.gain.setTargetAtTime(0.03 + 0.09 * v, t, 0.12);
+    engine.out.gain.setTargetAtTime(0.03 + 0.022 * v, t, 0.1);
   }
 
   function stopEngine() {
@@ -743,7 +929,7 @@
     flag = !!flag;
     if (flag === chargeOn) return;
     chargeOn = flag;
-    charge.out.gain.setTargetAtTime(flag ? 0.5 : 0, ctx.currentTime, flag ? 0.08 : 0.12);
+    charge.out.gain.setTargetAtTime(flag ? 0.28 : 0, ctx.currentTime, flag ? 0.08 : 0.12);
   }
 
   // Atmosphere under the engine: loudness and brightness follow v (0..1).
@@ -753,7 +939,7 @@
     if (Math.abs(v - windV) < 0.004 && !(v === 0 && windV !== 0)) return;
     const t = ctx.currentTime;
     windV = v;
-    wind.out.gain.setTargetAtTime(0.18 * v, t, 0.15);
+    wind.out.gain.setTargetAtTime(0.07 * v, t, 0.15);
     wind.filter.frequency.setTargetAtTime(320 + 900 * v, t, 0.15);
   }
 
@@ -785,7 +971,7 @@
     }
     whineV = v;
     whine.pulse.gain.setTargetAtTime(0.12 * v * v * v, t, 0.05);   // pulse mostly near full charge
-    whine.out.gain.setTargetAtTime(0.04 + 0.06 * v, t, 0.03);
+    whine.out.gain.setTargetAtTime(0.03 + 0.045 * v, t, 0.03);
   }
 
   function setLowHeat(flag) {
@@ -801,9 +987,16 @@
     }
   }
 
+  // two-tone alarm: resonant saw blips, a falling fourth
   function beep(t) {
-    tone(loopBus, t, { type: 'square', f: 988, dur: 0.085, vol: 0.085, hold: 0.05 });
-    tone(loopBus, t + 0.11, { type: 'square', f: 740, dur: 0.085, vol: 0.085, hold: 0.05 });
+    voice(loopBus, t, {
+      type: 'sawtooth', f: 880, dur: 0.09, vol: 0.28, hold: 0.05,
+      filter: { type: 'bandpass', f: 1760, q: 2.5 }
+    });
+    voice(loopBus, t + 0.11, {
+      type: 'sawtooth', f: 659.26, dur: 0.09, vol: 0.28, hold: 0.05,
+      filter: { type: 'bandpass', f: 1320, q: 2.5 }
+    });
   }
 
   // ----------------------------------------------------------------- music
@@ -814,6 +1007,7 @@
     stepIdx = 0;
     nextStepTime = ctx.currentTime + 0.06;
     musicBus.gain.setTargetAtTime(MUSIC_LEVEL, ctx.currentTime, 0.03);
+    musicSend.gain.setTargetAtTime(MUSIC_LEVEL, ctx.currentTime, 0.03);
     ensureTimer();
     tick();
   }
@@ -821,12 +1015,9 @@
   function stopMusic() {
     if (!ctx || !musicOn) return;
     musicOn = false;
-    // fade the bus: also silences the echo tail and the few notes already queued
+    // fade the dry bus and the send; what is already in the echo rings out
     musicBus.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
-  }
-
-  function musicNote(dest, t, type, midi, dur, vol, attack, hold) {
-    tone(dest, t, { type: type, f: hz(midi), dur: dur, vol: vol, attack: attack, hold: hold });
+    musicSend.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
   }
 
   function scheduleStep(bar, step, t) {
@@ -836,41 +1027,77 @@
     const even = (step & 1) === 0;
     const i8 = step >> 1;
     const beat = step % 4;
+    const full = sec === 'B' || sec === 'A2';
 
-    // bass: steady 8th pulse (long notes in the breakdown)
+    // pad: detuned saw pair per chord note, one bar long, soft edges
+    if (step === 0) {
+      const pv = sec === 'C1' ? 0.042 : 0.032;
+      for (let i = 0; i < ch.pad.length; i++) {
+        const f = hz(ch.pad[i]);
+        voice(padIn, t, { type: 'sawtooth', f: f, detune: -9, dur: BAR * 1.06, vol: pv, attack: 0.18, hold: BAR * 0.8 });
+        voice(padIn, t, { type: 'sawtooth', f: f, detune: 9, dur: BAR * 1.06, vol: pv, attack: 0.18, hold: BAR * 0.8 });
+      }
+    }
+
+    // bass: driving 16th sequence, each note a resonant filter pluck
     if (sec === 'C1') {
-      if (step === 0 || step === 8) musicNote(bassIn, t, 'square', ch.bass, STEP * 7.5, 0.15, 0.012, STEP * 4);
-    } else if (even) {
-      const pat = sec === 'B' ? BASS_B : BASS_A;
-      musicNote(bassIn, t, 'square', ch.bass + pat[i8], STEP * 1.8, 0.16, 0.006, STEP * 0.9);
+      if (step === 0) {
+        voice(bassIn, t, {
+          type: 'sawtooth', f: hz(ch.bass), dur: BAR * 0.98, vol: 0.16, attack: 0.03, hold: BAR * 0.6,
+          filter: { type: 'lowpass', f: 520, f2: 220, q: 2 }
+        });
+      }
+    } else {
+      const pat = sec === 'C2' ? BASS_C : (sec === 'B' ? BASS_B : BASS_A);
+      const off = pat[step];
+      if (off >= 0) {
+        voice(bassIn, t, {
+          type: 'sawtooth', f: hz(ch.bass + off), dur: STEP * 0.96, vol: beat === 0 ? 0.1 : 0.085, attack: 0.004, hold: STEP * 0.45,
+          filter: { type: 'lowpass', f: 1700, f2: 240, q: 2.5 }
+        });
+      }
     }
 
-    // soft arpeggio
-    if (sec === 'B') {
-      musicNote(arpIn, t, 'triangle', ch.arp[ARP_B[step]], 0.16, even ? 0.04 : 0.028, 0.004, 0);
+    // arpeggio: plucks into the echo
+    if (full) {
+      voice(arpIn, t, { type: 'square', f: hz(ch.arp[ARP_16[step]]), dur: 0.14, vol: even ? 0.06 : 0.042 });
     } else if (even) {
-      if (sec === 'A') musicNote(arpIn, t, 'triangle', ch.arp[ARP_A[i8]], 0.2, 0.05, 0.004, 0);
-      else musicNote(arpIn, t, 'triangle', ch.arp[ARP_C[i8]] + 12, 0.24, 0.042, 0.004, 0);
+      if (sec === 'A') voice(arpIn, t, { type: 'square', f: hz(ch.arp[ARP_8[i8]]), dur: 0.16, vol: 0.06 });
+      else voice(arpIn, t, { type: 'triangle', f: hz(ch.arp[ARP_C[i8]] + 12), dur: 0.24, vol: 0.07 });
     }
 
-    // light noise hi-hat, accent on the off-beat
+    // hats: open on the off-beat, closed in between
     let hat = 0;
-    if (sec === 'B') hat = beat === 2 ? 0.055 : (beat === 0 ? 0.03 : 0.016);
-    else if (sec === 'C1') hat = beat === 2 ? 0.03 : 0;
-    else if (even) hat = beat === 2 ? 0.05 : 0.024;
-    if (hat > 0) noise(hatIn, t, { dur: beat === 2 ? 0.06 : 0.035, vol: hat, attack: 0.002 });
+    if (full || b.fill) hat = beat === 2 ? 0.055 : (beat === 0 ? 0.028 : 0.016);
+    else if (sec === 'C1') hat = beat === 2 ? 0.025 : 0;
+    else if (even) hat = beat === 2 ? 0.05 : 0.022;
+    if (hat > 0) noise(hatIn, t, { dur: beat === 2 ? 0.07 : 0.03, vol: hat, attack: 0.002 });
 
-    // soft kick for drive
+    // kick: four on the floor (a single heartbeat per bar in the breakdown)
     if (beat === 0 && (sec !== 'C1' || step === 0)) {
-      tone(musicBus, t, { type: 'sine', f: 118, f2: 44, dur: 0.15, vol: 0.2, attack: 0.003 });
+      voice(musicBus, t, { type: 'sine', f: 150, f2: 42, glide: 0.09, dur: 0.2, vol: 0.14, attack: 0.002 });
+      noise(musicBus, t, { dur: 0.012, vol: 0.05, ftype: 'lowpass', f: 3000 });
     }
 
-    // lead
+    // snare: back-beat in the full sections, a roll at the end of fill bars
+    let snare = 0;
+    if (full && (step === 4 || step === 12)) snare = 0.07;
+    if (b.fill && step >= 12) snare = 0.04 + 0.018 * (step - 12);
+    if (snare > 0) {
+      noise(musicBus, t, { dur: 0.13, vol: snare, ftype: 'bandpass', f: 1900, q: 0.8 });
+      voice(musicBus, t, { type: 'triangle', f: 210, f2: 150, dur: 0.07, vol: snare * 0.9 });
+    }
+
+    // lead: detuned saw + square, vibrato on the long notes
     const lead = b.lead;
     for (let i = 0; i < lead.length; i++) {
       if (lead[i][0] === step) {
         const dur = lead[i][2] * STEP * 0.94;
-        musicNote(leadIn, t, 'square', lead[i][1], dur, 0.07, 0.012, dur * 0.55);
+        const f = hz(lead[i][1]);
+        const o = { type: 'sawtooth', f: f, dur: dur, vol: 0.06, attack: 0.012, hold: dur * 0.55, detune: -7 };
+        if (lead[i][2] >= 6) o.lfo = { rate: 5.5, depth: 10 };
+        voice(leadIn, t, o);
+        voice(leadIn, t, { type: 'square', f: f, dur: dur, vol: 0.03, attack: 0.012, hold: dur * 0.55, detune: 7 });
       }
     }
   }
