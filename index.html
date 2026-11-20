@@ -41,7 +41,11 @@
   .side dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; }
   .side dt { font-weight: 700; color: #ffe9b8; white-space: nowrap; }
   .side dd { margin: 0; color: #b4c6d8; }
-  .info { margin-top: 18px; }
+  /* bilgi simgesi panelin sağ üstünde durur; açılınca kontrollerin yerine nesne listesi görünür */
+  .has-info { position: relative; }
+  .info summary { position: absolute; top: -6px; right: 0; }
+  .has-info:has(.info[open]) > h2, .has-info:has(.info[open]) > dl { display: none; }
+  .info .legend { margin-top: 0; }
   .info summary {
     list-style: none; cursor: pointer; width: 26px; height: 26px; border-radius: 50%;
     display: grid; place-items: center; font: italic 700 16px Georgia, serif;
@@ -71,22 +75,10 @@
     <canvas id="game" width="360" height="640" tabindex="0" aria-label="Buzul Geçidi oyun alanı"></canvas>
   </div>
 
-  <aside class="side">
-    <h2>KONTROLLER</h2>
-    <dl>
-      <dt>← →</dt><dd>yön (A / D)</dd>
-      <dt>↑ ↓</dt><dd>hızlan / yavaşla (W / S)</dd>
-      <dt>BOŞLUK</dt><dd>ateş (fareyle: tık)</dd>
-      <dt>BASILI TUT</dt><dd>şarj et, bırakınca yaylım atışı (10 sn bekler)</dd>
-      <dt>FARE</dt><dd>hareket: yön ve hız</dd>
-      <dt>1 – 9</dt><dd>fare hassasiyeti (1 en düşük, 9 en yüksek)</dd>
-      <dt>X / SAĞ TIK</dt><dd>nükleer patlama: ekranı temizler (60 sn bekler)</dd>
-      <dt>C</dt><dd>altınla kaldığın etaptan devam</dd>
-      <dt>P</dt><dd>duraklat</dd>
-      <dt>M</dt><dd>ses aç / kapat</dd>
-    </dl>
+  <aside class="side has-info">
     <details class="info">
       <summary aria-label="Nesneler ve puanlar" title="Nesneler ve puanlar">i</summary>
+      <h2>NESNELER VE PUANLAR</h2>
     <ul class="legend">
       <li><span class="dot" style="background:#ffba68"></span><b>Sıcak kaynak</b> ısı verir</li>
       <li><span class="dot" style="background:#ffcf3d"></span><b>Altın</b> devam etmek için biriktir</li>
@@ -102,12 +94,25 @@
       <li><span class="dot" style="background:#ffd682"></span><b>Fener</b> kayıt noktası</li>
     </ul>
     </details>
+    <h2>KONTROLLER</h2>
+    <dl>
+      <dt>← →</dt><dd>yön (A / D)</dd>
+      <dt>↑ ↓</dt><dd>hızlan / yavaşla (W / S)</dd>
+      <dt>BOŞLUK</dt><dd>ateş (fareyle: tık)</dd>
+      <dt>BASILI TUT</dt><dd>şarj et, bırakınca yaylım atışı (10 sn bekler)</dd>
+      <dt>FARE</dt><dd>hareket: yön ve hız</dd>
+      <dt>1 – 9</dt><dd>fare hassasiyeti (1 en düşük, 9 en yüksek)</dd>
+      <dt>X / SAĞ TIK</dt><dd>nükleer patlama: ekranı temizler (60 sn bekler)</dd>
+      <dt>C</dt><dd>altınla kaldığın etaptan devam</dd>
+      <dt>P</dt><dd>duraklat</dd>
+      <dt>M</dt><dd>ses aç / kapat</dd>
+    </dl>
   </aside>
 </main>
 <noscript>Bu oyun için JavaScript gerekli.</noscript>
 <!-- Her yayında üç betikteki ?v= sayısını birlikte artır: oyun bu sayıyı ekranda sürüm olarak gösterir -->
-<script src="src/level.js?v=19"></script>
-<script src="src/audio.js?v=19"></script>
-<script src="src/game.js?v=19"></script>
+<script src="src/level.js?v=20"></script>
+<script src="src/audio.js?v=20"></script>
+<script src="src/game.js?v=20"></script>
 </body>
 </html>
