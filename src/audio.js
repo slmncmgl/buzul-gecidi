@@ -7,7 +7,7 @@
  * Signal flow:
  *   sfx one-shots ─► sfxBus ─┐
  *   music voices  ─► musicBus ┼─► master (mute) ─► compressor ─► destination
- *   engine/charge/wind/beep ─► loopBus ┘
+ *   engine/charge/wind/whine/beep ─► loopBus ┘
  *
  * Every public method is a safe no-op before init(), without Web Audio,
  * or if the context failed to start. Nothing here ever throws.
@@ -18,7 +18,7 @@
   // ---------------------------------------------------------------- levels
   const MASTER_LEVEL = 0.8;
   const SFX_LEVEL = 0.9;
-  const MUSIC_LEVEL = 0.42;   // music sits clearly below the effects
+  const MUSIC_LEVEL = 0.2;    // music sits clearly below the effects (0.42 ölçümde atış sesini bastırıyordu)
   const LOOP_LEVEL = 0.6;
   const SILENCE = 0.0001;     // end value for exponential ramps (-80 dB)
 
@@ -31,6 +31,9 @@
   const STEPS_PER_BAR = 16;
 
   const BEEP_PERIOD = 0.6;    // low-heat warning interval (s)
+
+  const WHINE_F0 = 220;       // weapon charge whine: pitch at v = 0 (two octaves up at v = 1)
+  const WHINE_RATIO = 2.008;  // second oscillator: an octave up, slightly sharp
 
   // ------------------------------------------------------------ music data
   // Original piece in D minor, 24 bars: A (8) + B (8) + C (8, breakdown on
@@ -110,6 +113,8 @@
   let chargeOn = false;
   let wind = null;            // { out, filter }
   let windV = 0;
+  let whine = null;           // weapon charge: { out, o1, o2, lp, pulse }
+  let whineV = 0;
 
   // scheduler
   let timer = null;
@@ -263,6 +268,47 @@
     buildEngine();
     buildCharge();
     buildWind();
+    buildWhine();
+  }
+
+  // Weapon charge whine: thin and "electric" (saw + octave square through a
+  // highpass), nothing like the warm thermal-vent loop. A slow LFO adds the
+  // pulse; its depth is opened by setWeaponCharge() as the charge fills.
+  // Always running, silent until setWeaponCharge(v > 0).
+  function buildWhine() {
+    const out = gainNode(0);
+    out.connect(loopBus);
+
+    const vca = gainNode(1);
+    vca.connect(out);
+    const lfo = runningOsc('sine', 5.5);
+    const pulse = gainNode(0);
+    lfo.connect(pulse);
+    pulse.connect(vca.gain);
+
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1200;
+    lp.Q.value = 1.5;
+    lp.connect(vca);
+
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 700;
+    hp.Q.value = 0.7;
+    hp.connect(lp);
+
+    const o1 = runningOsc('sawtooth', WHINE_F0);
+    const g1 = gainNode(0.5);
+    o1.connect(g1);
+    g1.connect(hp);
+
+    const o2 = runningOsc('square', WHINE_F0 * WHINE_RATIO);
+    const g2 = gainNode(0.14);
+    o2.connect(g2);
+    g2.connect(hp);
+
+    whine = { out: out, o1: o1, o2: o2, lp: lp, pulse: pulse };
   }
 
   // Wind gust: looped noise through a bandpass, with a slow flutter so it
@@ -623,6 +669,25 @@
     deny: function (t) {
       tone(dullIn, t, { type: 'sawtooth', f: 98, dur: 0.09, vol: 0.2, attack: 0.008, hold: 0.05 });
       tone(dullIn, t + 0.11, { type: 'sawtooth', f: 92.5, dur: 0.09, vol: 0.2, attack: 0.008, hold: 0.05 });
+    },
+
+    // charged spread released: fast bright down-sweep (two detuned layers
+    // for width) + noise "fwoosh" + small low thump, about 360 ms
+    blast: function (t) {
+      tone(sfxBus, t, { type: 'triangle', f: 2700, f2: 300, glide: 0.2, dur: 0.26, vol: 0.17, attack: 0.003, hold: 0.03 });
+      tone(sfxBus, t, { type: 'triangle', f: 2700, f2: 300, glide: 0.24, dur: 0.3, vol: 0.1, attack: 0.003, hold: 0.03, detune: 28 });
+      tone(sfxBus, t, { type: 'square', f: 1900, f2: 230, glide: 0.16, dur: 0.18, vol: 0.055, attack: 0.003 });
+      noise(sfxBus, t, { dur: 0.36, vol: 0.2, attack: 0.004, ftype: 'bandpass', f: 5200, f2: 900, q: 0.9 });
+      noise(sfxBus, t, { dur: 0.05, vol: 0.07, ftype: 'highpass', f: 6000 });
+      tone(sfxBus, t, { type: 'sine', f: 145, f2: 55, dur: 0.17, vol: 0.28 });
+    },
+
+    // spread weapon available again: soft two-note ping, a rising fifth in a
+    // lower register than 'coin' (sine, so it stays in the background)
+    blastReady: function (t) {
+      tone(sfxBus, t, { type: 'sine', f: hz(69), dur: 0.075, vol: 0.05, attack: 0.006, hold: 0.03 });
+      tone(sfxBus, t + 0.07, { type: 'sine', f: hz(76), dur: 0.11, vol: 0.055, attack: 0.006, hold: 0.025 });
+      tone(sfxBus, t + 0.07, { type: 'sine', f: hz(88), dur: 0.08, vol: 0.01, attack: 0.006 });
     }
   };
 
@@ -690,6 +755,37 @@
     windV = v;
     wind.out.gain.setTargetAtTime(0.18 * v, t, 0.15);
     wind.filter.frequency.setTargetAtTime(320 + 900 * v, t, 0.15);
+  }
+
+  // Spread-weapon charge whine: pitch, brightness and pulse climb with v
+  // (0..1). v = 0 fades out fast, so it can be cut the moment 'blast' plays.
+  function setWeaponCharge(v) {
+    if (!ctx) return;
+    v = clamp01(v);
+    const t = ctx.currentTime;
+    if (v === 0) {
+      if (whineV === 0) return;
+      whineV = 0;
+      // gain only: the pitch stays put, so the tail does not chirp downward
+      whine.out.gain.setTargetAtTime(0, t, 0.01);       // about 40 ms to silence
+      return;
+    }
+    if (Math.abs(v - whineV) < 0.004) return;           // nothing audible changed
+    const f = WHINE_F0 * Math.pow(2, 2 * v);            // 220 Hz .. 880 Hz
+    const bright = 1200 + 3600 * v;
+    if (whineV === 0) {
+      // starting a new charge: snap pitch and tone while the output is still silent
+      whine.o1.frequency.setValueAtTime(f, t);
+      whine.o2.frequency.setValueAtTime(f * WHINE_RATIO, t);
+      whine.lp.frequency.setValueAtTime(bright, t);
+    } else {
+      whine.o1.frequency.setTargetAtTime(f, t, 0.03);
+      whine.o2.frequency.setTargetAtTime(f * WHINE_RATIO, t, 0.03);
+      whine.lp.frequency.setTargetAtTime(bright, t, 0.03);
+    }
+    whineV = v;
+    whine.pulse.gain.setTargetAtTime(0.12 * v * v * v, t, 0.05);   // pulse mostly near full charge
+    whine.out.gain.setTargetAtTime(0.04 + 0.06 * v, t, 0.03);
   }
 
   function setLowHeat(flag) {
@@ -846,6 +942,7 @@
     stopEngine: guard(stopEngine),
     setCharging: guard(setCharging),
     setWind: guard(setWind),
+    setWeaponCharge: guard(setWeaponCharge),
     setLowHeat: guard(setLowHeat),
     startMusic: guard(startMusic),
     stopMusic: guard(stopMusic),

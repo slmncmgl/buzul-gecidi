@@ -12,22 +12,25 @@ sesler Web Audio ile üretiliyor; hiçbir hazır görsel ya da ses dosyası kull
 | --- | --- |
 | ← → (A / D) | yön |
 | ↑ ↓ (W / S) | hızlan / yavaşla |
-| Boşluk (J / Z) | işaret fişeği |
+| Boşluk (J / Z), fare tıkı | ateş; basılı tutunca şarj olur, bırakınca yaylım atışı |
 | C | altınla kaldığın etaptan devam |
 | P / Esc | duraklat |
 | M | ses aç / kapat |
 
 Fareyle: oyunu tıklayarak başlat. Farenin o andaki konumu sıfır noktası olur; sağa / sola götürürsen
 kızak o yöne gider, ileri itersen hızlanır, geri çekersen yavaşlar, sıfır noktası civarında seyir hızında
-kalır. Tık (basılı tutunca sürekli) ateş eder. Oyun sırasında imleç gizlenir; Esc imleci geri getirir ve
+kalır. Tık ateş eder; basılı tutunca yaylım atışı şarj olur (yaylım kapalıyken basılı tutmak seri ateş eder). Oyun sırasında imleç gizlenir; Esc imleci geri getirir ve
 oyunu duraklatır, tıklayınca devam eder. Klavyeyle oynarken de herhangi bir anda tıklayıp fareye geçebilirsin.
 
-Fare hassasiyeti: klavyedeki 1 – 9 tuşlarıyla seçilir (1 en düşük, 9 en yüksek, varsayılan 5), oyun sırasında
+Fare hassasiyeti: klavyedeki 1 – 9 tuşlarıyla seçilir (1 en düşük ve varsayılan, 9 en yüksek), oyun sırasında
 da duraklatılmışken de. Duraklatma ekranındaki − / + düğmeleri ve ← / → de kademe değiştirir. Ayar tarayıcıda saklanır.
 
 Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dokunurken otomatik ateş eder.
 
 - **Isı** sürekli azalır. **Sıcak kaynakların** üstünden geçince dolar; ne kadar yavaş geçersen o kadar çok.
+- **Yaylım atışı:** ateşi basılı tut, kızağın çevresindeki halka dolsun, bırak. Şarja göre 5–11 fişek yelpaze
+  şeklinde çıkar; tam şarjda fişekler çift hasar verir. Kullandıktan sonra 15 sn kapanır (alttaki YAYLIM çubuğu
+  dolunca yeniden hazır). Kapalıyken basılı tutmak eskisi gibi seri tekli atış yapar.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
 - 12 etap bir tur. Her etapta akış biraz daha hızlanır ve yeni bir tehlike eklenir: buz bariyerleri

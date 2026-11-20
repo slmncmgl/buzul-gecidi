@@ -12,6 +12,8 @@
   // Etap ilerledikçe akış hızlanır; devam etmenin altın bedeli de etapla artar
   const speedMul = (k) => Math.min(1.75, 1 + 0.035 * (k % NSEC) + 0.12 * Math.floor(k / NSEC));
   const contCost = (k) => Math.min(200, 20 + 10 * k);
+  // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
+  const BLAST_CD = 15, BLAST_CHARGE = 1.2, BLAST_HOLD = 0.18, BLAST_MIN = 0.25;
   const FONT = '"Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif';
 
   const canvas = document.getElementById('game');
@@ -110,9 +112,10 @@
     coins: parseInt(store('bg_coins') || '0', 10) || 0,      // cüzdan: tarayıcıda saklanır
     best: parseInt(store('bg_stage') || '0', 10) || 0,       // ulaşılan en uzak etap (0 tabanlı)
     runCoins: 0, sm: 1, fog: 0, wind: 0, windWarn: 0, windT: 0, deny: 0, sensT: 0,
+    blastCd: 0, readyT: 0,
     stats: { deaths: [], gates: 0 }
   };
-  const P = { x: W / 2, wy: 40, vx: 0, speed: SPEED_CRUISE, inv: 0, fireCd: 0, tilt: 0 };
+  const P = { x: W / 2, wy: 40, vx: 0, speed: SPEED_CRUISE, inv: 0, fireCd: 0, tilt: 0, holdT: 0, charge: 0 };
   let shots = [], ents = [], orbs = [], parts = [], pops = [], coinsL = [];
   let armed = {};
   let muted = store('bg_muted') === '1';
@@ -124,18 +127,18 @@
   const inp = { left: false, right: false, up: false, down: false, fire: false };
   const touch = { on: false, id: null, lx: 0, y0: 0, y: 0, dx: 0 };
   // Fare: oyun başladığı andaki konum (0,0) kabul edilir; mx sağ/sol, my ileri/geri sapmadır
-  const mouse = { active: false, down: false, mx: 0, my: 0, sens: 0.7, level: 5 };
+  const mouse = { active: false, down: false, mx: 0, my: 0, sens: 0.35, level: 1 };
   // Fare hassasiyeti: 9 kademe, klavyede 1–9 ile seçilir, tarayıcıda saklanır (1.0 = imleçle birebir)
-  const SENS_LEVELS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.85, 1, 1.3, 1.7], SENS_DEFAULT = 5;
+  const SENS_LEVELS = [0.35, 0.45, 0.55, 0.7, 0.85, 1, 1.2, 1.45, 1.7], SENS_DEFAULT = 1;
   function setSensLevel(n) {
     mouse.level = clamp(Math.round(n) || SENS_DEFAULT, 1, 9);
     mouse.sens = SENS_LEVELS[mouse.level - 1];
-    store('bg_sens_lv', String(mouse.level));
+    store('bg_sens_lv2', String(mouse.level));
     G.sensT = 1.6;
   }
   function setSens(step) { setSensLevel(mouse.level + step); }
   (function () {
-    const v = parseInt(store('bg_sens_lv'), 10);
+    const v = parseInt(store('bg_sens_lv2'), 10);
     mouse.level = v >= 1 && v <= 9 ? v : SENS_DEFAULT;
     mouse.sens = SENS_LEVELS[mouse.level - 1];
   })();
@@ -314,6 +317,7 @@
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
+    G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0;
     G.stats.deaths = []; G.stats.gates = 0;
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.5; P.fireCd = 0.35; P.tilt = 0;
     shots.length = 0; orbs.length = 0; parts.length = 0; pops.length = 0;
@@ -338,7 +342,8 @@
     G.stats.deaths.push({ why: why, sec: G.sec, wy: Math.round(P.wy), x: Math.round(P.x) });
     if (why === 'freeze') { boom(P.x, P.wy, 26, ['#ffffff', '#bfe9ff', '#7fc8ff', '#e8f7ff'], 90); A.play('freeze'); }
     else { boom(P.x, P.wy, 34, ['#ffffff', '#ffd27a', '#ff8a3c', '#ff5a36'], 150); A.play('playerDie'); }
-    A.stopEngine(); A.setCharging(false); A.setLowHeat(false); A.setWind(0);
+    A.stopEngine(); A.setCharging(false); A.setLowHeat(false); A.setWind(0); A.setWeaponCharge(0);
+    P.charge = 0; P.holdT = 0;
   }
 
   function afterDeath() {
@@ -353,6 +358,7 @@
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0;
     G.heat = 100; shots.length = 0; orbs.length = 0;
     mouse.mx = 0; mouse.my = 0;                          // yeniden doğunca sıfır noktası da yenilenir
+    G.blastCd = 0; P.holdT = 0; P.charge = 0;            // yeni kızak, yaylım hazır
     rearm();
     G.mode = 'playing';
   }
@@ -464,11 +470,28 @@
     if (Math.random() < 0.5 + s01 * 0.5) part(P.x + rand(-2, 2), P.wy - 12, rand(-8, 8), -rand(30, 70), rand(0.15, 0.4), rand(1, 2.2), '#ffcf8a', true);
 
     // ateş
-    if (inp.fire && P.fireCd <= 0 && shots.length < 3) {
-      shots.push({ x: P.x, wy: P.wy + 14, v: 440 + P.speed });
-      P.fireCd = 0.2;
-      A.play('shoot');
+    if (G.blastCd > 0) {
+      G.blastCd -= dt;
+      if (G.blastCd <= 0) { G.blastCd = 0; G.readyT = 1.2; A.play('blastReady'); }
     }
+    G.readyT = Math.max(0, G.readyT - dt);
+    const autoRelease = touch.on || cfg.auto;       // dokunmatikte ve otomatik pilotta dolunca kendi ateşler
+    if (inp.fire) {
+      P.holdT += dt;
+      if (G.blastCd <= 0 && P.holdT > BLAST_HOLD) {
+        // yaylım hazırsa basılı tutmak şarj eder (bu sırada tekli atış yok)
+        P.charge = Math.min(1, P.charge + dt / BLAST_CHARGE);
+        if (autoRelease && P.charge >= 1) fireBlast();
+      } else if (P.fireCd <= 0 && normalShots() < 3) {
+        shots.push({ x: P.x, wy: P.wy + 14, v: 440 + P.speed, vx: 0, dmg: 1 });
+        P.fireCd = 0.2;
+        A.play('shoot');
+      }
+    } else {
+      if (P.charge >= BLAST_MIN) fireBlast();
+      P.charge = 0; P.holdT = 0;
+    }
+    A.setWeaponCharge(P.charge);
 
     // ısı
     G.heat -= HEAT_DRAIN * s.def.drain * (1 + 0.1 * s.loop) * dt;
@@ -528,6 +551,20 @@
     }
   }
 
+  function normalShots() { let n = 0; for (let i = 0; i < shots.length; i++) if (!shots[i].pellet) n++; return n; }
+  // Şarj seviyesine göre 5–11 fişek, yelpaze açısı ±16°–±42°; tam şarjda fişekler çift hasar verir
+  function fireBlast() {
+    const c = P.charge, n = 5 + Math.round(c * 6), half = (16 + 26 * c) * Math.PI / 180, v = 470;
+    for (let i = 0; i < n; i++) {
+      const a = -half + 2 * half * i / (n - 1);
+      shots.push({ x: P.x, wy: P.wy + 14, v: Math.cos(a) * v + P.speed, vx: Math.sin(a) * v, dmg: c >= 1 ? 2 : 1, pellet: true });
+    }
+    for (let i = 0; i < 16; i++) part(P.x + rand(-6, 6), P.wy + 14, rand(-110, 110), rand(40, 190), rand(0.2, 0.45), rand(1.5, 3), i % 2 ? '#fff6da' : '#ffcf8a', true);
+    G.blastCd = BLAST_CD; G.shake = Math.max(G.shake, 3 + 3 * c);
+    P.charge = 0; P.fireCd = 0.25;
+    A.setWeaponCharge(0); A.play('blast');
+  }
+
   function kill(e, byShot) {
     e.dead = true;
     const c = e.type === 'mine' ? ['#ffffff', '#cfeaff', '#ff6a5a', '#9fd3e6']
@@ -579,7 +616,7 @@
         const s = shots[j];
         if (Math.abs(s.x - e.x) < e.hw + 2 && Math.abs(s.wy - e.wy) < e.hh + 6) {
           shots.splice(j, 1);
-          e.hp--;
+          e.hp -= s.dmg || 1;
           if (e.hp <= 0) kill(e, true);
           else { e.flash = 0.14; A.play('hit'); boom(s.x, s.wy, 5, ['#ffffff', '#ffd27a'], 60); }
           break;
@@ -597,7 +634,8 @@
     for (let i = shots.length - 1; i >= 0; i--) {
       const s = shots[i];
       s.wy += s.v * dt;
-      if (sy(s.wy) < -14) { shots.splice(i, 1); continue; }
+      if (s.vx) s.x += s.vx * dt;
+      if (sy(s.wy) < -14 || s.x < -12 || s.x > W + 12) { shots.splice(i, 1); continue; }
       if (solid(s.x, s.wy)) {
         boom(s.x, s.wy, 4, ['#ffffff', '#cfeaff'], 50);
         shots.splice(i, 1);
@@ -1057,16 +1095,24 @@
 
   function drawShots() {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
     for (let i = 0; i < shots.length; i++) {
       const s = shots[i], y = sy(s.wy);
-      glow(s.x, y, 9, '255,220,140', 0.7);
-      const g = ctx.createLinearGradient(0, y, 0, y + 18);
+      const ux = s.vx || 0, uy = -(s.v - P.speed), ul = Math.hypot(ux, uy) || 1, tx = -ux / ul * 18, ty = -uy / ul * 18;
+      glow(s.x, y, s.pellet ? 8 : 9, s.dmg > 1 ? '255,170,110' : '255,220,140', 0.7);
+      const g = ctx.createLinearGradient(s.x, y, s.x + tx, y + ty);
       g.addColorStop(0, 'rgba(255,240,200,0.9)'); g.addColorStop(1, 'rgba(255,170,80,0)');
-      ctx.fillStyle = g; ctx.fillRect(s.x - 1.5, y, 3, 18);
+      ctx.strokeStyle = g; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(s.x, y); ctx.lineTo(s.x + tx, y + ty); ctx.stroke();
     }
     ctx.restore();
+    ctx.lineCap = 'butt';
     ctx.fillStyle = '#fffbe8';
-    for (let i = 0; i < shots.length; i++) ctx.fillRect(shots[i].x - 1.5, sy(shots[i].wy) - 5, 3, 9);
+    for (let i = 0; i < shots.length; i++) {
+      const s = shots[i];
+      if (s.pellet) { ctx.beginPath(); ctx.arc(s.x, sy(s.wy), 2.2, 0, 6.3); ctx.fill(); }
+      else ctx.fillRect(s.x - 1.5, sy(s.wy) - 5, 3, 9);
+    }
   }
 
   function drawOrbs() {
@@ -1112,6 +1158,19 @@
     ctx.fillStyle = '#16212f'; ctx.beginPath(); ctx.ellipse(0, -2, 3.2, 5, 0, 0, 6.3); ctx.fill();
     ctx.fillStyle = '#9fe6ff'; ctx.beginPath(); ctx.ellipse(-0.9, -3.4, 1.2, 2.2, 0, 0, 6.3); ctx.fill();
     ctx.restore();
+
+    if (P.charge > 0) {
+      const c = P.charge, full = c >= 1, pulse = full ? 0.7 + 0.3 * Math.sin(G.t * 22) : 1;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      glow(x, y - 12, 10 + 12 * c, full ? '255,250,220' : '255,200,120', (0.35 + 0.4 * c) * pulse);
+      ctx.restore();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(190,215,240,0.25)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x, y, 19, 0, 6.3); ctx.stroke();
+      ctx.strokeStyle = full ? 'rgba(255,255,255,' + pulse + ')' : '#ffcf8a';
+      ctx.beginPath(); ctx.arc(x, y, 19, -Math.PI / 2, -Math.PI / 2 + c * Math.PI * 2); ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
 
     if (G.charging) {
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -1184,6 +1243,17 @@
     const bx = 62, bw = 198, by = H - 27, bh = 11, f = clamp(G.heat / 100, 0, 1);
     const low = G.heat < 25, blink = low && Math.floor(G.t * 6) % 2 === 0;
     text('ISI', bx - 10, by + 10, 14, blink ? '#ff6a5a' : '#ffffff', 'right', 700);
+    // yaylım atışı: bekleme süresi dolarken dolar, hazır olunca parlar, şarj edilirken turuncuya döner
+    {
+      const ready = G.blastCd <= 0, yb = by - 11, fr = ready ? 1 : 1 - G.blastCd / BLAST_CD;
+      const flashOn = G.readyT > 0 && Math.floor(G.t * 10) % 2 === 0;
+      text('YAYLIM', bx - 10, yb + 6, 9, ready ? '#ffe9b8' : 'rgba(190,215,240,0.7)', 'right', 700);
+      ctx.fillStyle = 'rgba(8,18,30,0.85)'; ctx.fillRect(bx - 1, yb - 1, bw + 2, 6);
+      ctx.fillStyle = ready ? (flashOn ? '#ffffff' : '#ffe27a') : 'rgba(127,184,221,0.75)';
+      ctx.fillRect(bx, yb, bw * fr, 4);
+      if (P.charge > 0) { ctx.fillStyle = P.charge >= 1 ? '#ffffff' : '#ff9a4d'; ctx.fillRect(bx, yb, bw * P.charge, 4); }
+      if (!ready) text(Math.ceil(G.blastCd) + ' sn', bx + bw + 8, yb + 6, 9, 'rgba(190,215,240,0.8)', 'left', 700);
+    }
     ctx.fillStyle = 'rgba(8,18,30,0.85)';
     ctx.beginPath(); ctx.roundRect(bx - 2, by - 2, bw + 4, bh + 4, 7); ctx.fill();
     const cr = Math.round(92 + (255 - 92) * f), cg = Math.round(200 + (170 - 200) * f), cb = Math.round(255 + (60 - 255) * f);
@@ -1273,7 +1343,7 @@
     const cy = y0 + 226;
     const rows = IS_TOUCH
       ? [['SÜRÜKLE', 'yön'], ['YUKARI / AŞAĞI', 'hızlan / yavaşla'], ['DOKUNURKEN', 'otomatik ateş']]
-      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK', 'işaret fişeği'], ['FARE', 'yön + hız, tık: ateş'], ['P  ·  M', 'duraklat  ·  ses']];
+      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK / TIK', 'ateş'], ['BASILI TUT', 'şarj et, bırak: yaylım'], ['FARE', 'yön + hız  ·  1–9 hassasiyet'], ['P  ·  M', 'duraklat  ·  ses']];
     for (let i = 0; i < rows.length; i++) {
       text(rows[i][0], W / 2 - 10, cy + i * 20, 15, '#ffe9b8', 'right', 700);
       text(rows[i][1], W / 2 + 10, cy + i * 20, 15, 'rgba(225,238,250,0.92)', 'left', 500);
@@ -1383,7 +1453,7 @@
     G: G, P: P, cfg: cfg, start: startGame, render: render,
     mouse: mouse,
     step: function (n, dt) { for (let i = 0; i < n; i++) update(dt || 1 / 60); },
-    setSens: setSens, setSensLevel: setSensLevel, startAt: startGame, tryContinue: tryContinue, btn: BTN,
+    setSens: setSens, setSensLevel: setSensLevel, startAt: startGame, keys: keys, tryContinue: tryContinue, btn: BTN,
     counts: function () { return { ents: ents.length, shots: shots.length, orbs: orbs.length, parts: parts.length, coins: coinsL.length }; }
   };
 })();
