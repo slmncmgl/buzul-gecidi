@@ -162,6 +162,24 @@
     Space: 'fire', KeyJ: 'fire', KeyZ: 'fire'
   };
 
+  // Test hilesi: 1 + 3 + 5 tuşları 3 sn basılı tutulursa bir sonraki bekçinin alanının hemen öncesine atlar
+  const digits = {};
+  let sensBeforeCombo = 0, comboT = 0;
+  function jumpToBoss() {
+    const playing = G.mode === 'playing' || G.mode === 'dying' || G.mode === 'paused';
+    let k = (playing ? Math.floor(G.sec / NSEC) : 0) * NSEC + NSEC - 1;
+    const bossY = function (kk) { const sp = sec(kk).spawns; for (let i = 0; i < sp.length; i++) if (sp[i].type === 'boss') return sp[i].y; return sec(kk).gateY - 4000; };
+    if (playing && G.sec === k && P.wy > bossY(k) - 700) k += NSEC;      // bu bekçi geçildiyse sıradaki tura
+    if (G.mode === 'paused') togglePause();
+    startGame(k);
+    const y = bossY(k) - 380 - 520, t = terrain(y, T1);
+    P.wy = y; P.x = (t.L + t.R) / 2; G.checkpoint = y; mouse.mx = P.x - W / 2;
+    G.cheated = true;
+    if (sensBeforeCombo) setSensLevel(sensBeforeCombo);
+    G.sensT = 0;
+    pop(P.x, P.wy + 120, 'TEST: BEKÇİYE ATLANDI', '#7dffb0');
+  }
+
   function firstGesture() { A.init(); A.setMuted(muted); }
 
   window.addEventListener('keydown', function (e) {
@@ -170,7 +188,11 @@
     if (m) { keys[m] = true; e.preventDefault(); }
     // fare hassasiyeti: her an 1–9 (ya da − / +), duraklatılmışken ← / →
     const dg = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
-    if (dg && !e.repeat) { setSensLevel(+dg[1]); e.preventDefault(); return; }
+    if (dg && !e.repeat) {
+      if (!digits[1] && !digits[3] && !digits[5]) sensBeforeCombo = mouse.level;   // 1+3+5 hilesi hassasiyeti bozmasın
+      digits[+dg[1]] = true;
+      setSensLevel(+dg[1]); e.preventDefault(); return;
+    }
     if (e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract') { setSens(-1); e.preventDefault(); return; }
     if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') { setSens(1); e.preventDefault(); return; }
     if (G.mode === 'paused' && (m === 'left' || m === 'right')) { setSens(m === 'left' ? -1 : 1); return; }
@@ -193,8 +215,11 @@
       muted = !muted; A.setMuted(muted); store('bg_muted', muted ? '1' : '0');
     }
   });
-  window.addEventListener('keyup', function (e) { const m = KEYMAP[e.code]; if (m) keys[m] = false; });
-  window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; mouse.down = false; });
+  window.addEventListener('keyup', function (e) {
+    const m = KEYMAP[e.code]; if (m) keys[m] = false;
+    const dg = /^(?:Digit|Numpad)([1-9])$/.exec(e.code); if (dg) digits[+dg[1]] = false;
+  });
+  window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; mouse.down = false; digits[1] = digits[3] = digits[5] = false; });
 
   function toLogical(e) {
     const r = canvas.getBoundingClientRect();
@@ -337,6 +362,7 @@
     k = k > 0 ? k : 0;
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
+    G.cheated = false;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
     G.stats.deaths = []; G.stats.gates = 0;
@@ -371,7 +397,7 @@
     G.lives--;
     if (G.lives <= 0) {
       G.mode = 'gameover'; G.overT = 0;
-      if (G.score > G.hi) { G.hi = G.score; G.newHi = true; store('bg_hi', String(G.hi)); }
+      if (G.score > G.hi && !G.cheated) { G.hi = G.score; G.newHi = true; store('bg_hi', String(G.hi)); }
       A.stopMusic();
       mouse.down = false; unlockPointer();
       return;
@@ -567,7 +593,7 @@
       G.heat = Math.min(100, G.heat + 25);
       G.checkpoint = gy + 24;
       G.sec++; G.stats.gates++; G.flash = 0.35;
-      if (G.sec > G.best) { G.best = G.sec; store('bg_stage', String(G.best)); }
+      if (G.sec > G.best && !G.cheated) { G.best = G.sec; store('bg_stage', String(G.best)); }
       if (G.sec % NSEC === 0) { addScore(5000); pop(W / 2, gy + 80, 'TUR TAMAM  +5000', '#7dffb0'); A.play('lapDone'); }
       else A.play('gate');
       arm(G.sec + 1);
@@ -812,6 +838,8 @@
   let cursorHidden = false;
   function update(dt) {
     G.t += dt;
+    if (digits[1] && digits[3] && digits[5]) { comboT += dt; if (comboT >= 3) { comboT = 0; digits[1] = digits[3] = digits[5] = false; jumpToBoss(); } }
+    else comboT = 0;
     const hide = mouse.active && G.mode === 'playing';
     if (hide !== cursorHidden) { cursorHidden = hide; canvas.style.cursor = hide ? 'none' : ''; }
     G.shake = Math.max(0, G.shake - dt * 22);
@@ -1719,6 +1747,7 @@
         text(IS_TOUCH ? 'düğmelere dokun' : '1 – 9 tuşlarıyla ayarla (oyun sırasında da)', W / 2, 476, 12.5, 'rgba(190,215,240,0.85)', 'center', 500);
       }
     }
+    if (comboT > 0.3) text('BEKÇİYE ATLANIYOR  ' + Math.ceil(3 - comboT), W / 2, 140, 16, '#7dffb0', 'center', 700);
     // sürüm etiketi: karartmaların da üstünde, oyun sırasında dahil her zaman görünür
     ctx.globalAlpha = 1;
     text(VERSION, W - 6, H - 5, 12, '#ffffff', 'right', 700);
