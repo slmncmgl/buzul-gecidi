@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Buzul Geçidi</title>
+<meta name="description" content="Buzul Geçidi: donmuş bir fiyortta ısı kuryeliği. Tarayıcıda oynanan özgün bir arcade oyunu.">
+<meta name="theme-color" content="#060d16">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c2236'/%3E%3Cpath d='M16 5l8 20H8z' fill='%23f26a1b'/%3E%3Cpath d='M16 5L8 25h8z' fill='%23ff9a4d'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #05090f radial-gradient(120% 90% at 50% 10%, #0d2233 0%, #05090f 62%);
+    color: #dbe7f3;
+    font-family: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .stage {
+    height: 100dvh; min-height: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 40px;
+  }
+  .play { flex: 0 1 auto; height: 100%; display: flex; align-items: center; justify-content: center; min-width: 0; }
+  canvas {
+    display: block; touch-action: none; outline: none;
+    background: #0c2236;
+    box-shadow: 0 0 0 1px rgba(159, 211, 230, .14), 0 30px 80px rgba(0, 0, 0, .6);
+  }
+  .side { flex: 0 0 210px; display: none; font-size: 17px; line-height: 1.45; }
+  .side h1 { margin: 0 0 10px; font-size: 40px; line-height: .95; letter-spacing: .01em; color: #fff; }
+  .side h1 span { color: #ff9a4d; display: block; }
+  .side h2 { margin: 0 0 12px; font-size: 14px; font-weight: 500; letter-spacing: .14em; color: #ffcf8a; }
+  .side p { margin: 0 0 14px; color: #b4c6d8; }
+  .side dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; }
+  .side dt { font-weight: 700; color: #ffe9b8; white-space: nowrap; }
+  .side dd { margin: 0; color: #b4c6d8; }
+  .legend { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 7px; color: #b4c6d8; }
+  .legend b { color: #fff; font-weight: 700; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; }
+  @media (min-width: 900px) and (min-height: 480px) { .side { display: block; } }
+  noscript { position: fixed; inset: 0; display: grid; place-items: center; font-size: 22px; }
+</style>
+</head>
+<body>
+<main class="stage">
+  <aside class="side">
+    <h2>KUZEY HATTI ISI KURYESİ</h2>
+    <h1>BUZUL <span>GEÇİDİ</span></h1>
+    <p>Kasabalar donmak üzere. Kızağınla fiyordu geç, ısın bitmeden bir sonraki fenere ulaş.</p>
+    <p>Sıcak kaynakların üstünden ne kadar yavaş geçersen o kadar çok ısı toplarsın. On iki etap, sonra daha zorlu yeni bir tur.</p>
+  </aside>
+
+  <div class="play">
+    <canvas id="game" width="360" height="640" tabindex="0" aria-label="Buzul Geçidi oyun alanı"></canvas>
+  </div>
+
+  <aside class="side">
+    <h2>KONTROLLER</h2>
+    <dl>
+      <dt>← →</dt><dd>yön (A / D)</dd>
+      <dt>↑ ↓</dt><dd>hızlan / yavaşla (W / S)</dd>
+      <dt>BOŞLUK</dt><dd>işaret fişeği</dd>
+      <dt>P</dt><dd>duraklat</dd>
+      <dt>M</dt><dd>ses aç / kapat</dd>
+    </dl>
+    <ul class="legend">
+      <li><span class="dot" style="background:#ffba68"></span><b>Sıcak kaynak</b> ısı verir</li>
+      <li><span class="dot" style="background:#b9d6ea"></span><b>Buz mayını</b> 30 puan</li>
+      <li><span class="dot" style="background:#8a4fd6"></span><b>Devriye botu</b> 60 puan</li>
+      <li><span class="dot" style="background:#ff5fb8"></span><b>Süzülen dron</b> 100 puan</li>
+      <li><span class="dot" style="background:#5c6d86"></span><b>Gözcü kulesi</b> 150 puan</li>
+      <li><span class="dot" style="background:#ffd682"></span><b>Fener</b> kayıt noktası</li>
+    </ul>
+  </aside>
+</main>
+<noscript>Bu oyun için JavaScript gerekli.</noscript>
+<script src="src/level.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
