@@ -34,6 +34,10 @@ Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dok
 - **Nükleer patlama:** X tuşu ya da sağ tık (telefonda ikinci parmak). Ekrandaki düşmanları ve mermileri siler,
   bekçiye 8 hasar verir; girdap ve ışık çiti kalır. Oyun başında hazırdır, kullanınca 60 sn bekler; bekleme can
   kaybedince sıfırlanmaz.
+- **Silah güçlendirmesi:** vurduğun düşmanlardan %10 şansla turuncu bir güçlendirme düşer; her biri silahı +%20
+  güçlendirir, bir turda en fazla +%100. Atış hızlanır, +%40'ta çift, +%80'de üçlü atış, +%100'de çift hasar.
+  Yaylım daha çok fişek atar ve daha çabuk dolar, +%100'de çift gider; nükleer daha çabuk dolar. Güç, yolculuk
+  bitince sıfırlanır.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
 - 18 etap bir tur. Her etapta akış biraz daha hızlanır ve etapların kendi tehlikesi vardır: buz bariyerleri
