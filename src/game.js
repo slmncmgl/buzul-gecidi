@@ -837,7 +837,7 @@
     ctx.fillText(s, x, y);
   }
   let ROUND = 0;                 // > 0 iken poly() köşeleri bu kalınlıkta yuvarlatır
-  const ES = 1.32, PS = 1.35;    // düşman ve kızak çizim ölçeği (çarpışma kutuları aynı kalır)
+  const ES = 0.99, PS = 1.01;    // düşman ve kızak çizim ölçeği (çarpışma kutuları aynı kalır)
   function poly(pts) {
     ctx.beginPath();
     ctx.moveTo(pts[0], pts[1]);
@@ -988,7 +988,7 @@
         const o = dd[i];
         if (o.y > yHi) continue;
         if (o.y < yLo) break;
-        const x = o.x, y = sy(o.y), s = o.s * 1.18;
+        const x = o.x, y = sy(o.y), s = o.s * 0.9;
         if (o.k === 0) {
           ctx.fillStyle = 'rgba(20,40,60,0.16)';
           ctx.beginPath(); ctx.ellipse(x + 3.5 * s, y + 1, 5.5 * s, 2.4 * s, 0, 0, 6.3); ctx.fill();
@@ -1227,7 +1227,7 @@
     for (let i = 0; i < coinsL.length; i++) {
       const c = coinsL[i], y = sy(c.wy);
       if (y < -20 || y > H + 20) continue;
-      const big = c.v > 1, r = big ? 9.5 : 6, squash = 0.35 + 0.65 * Math.abs(Math.cos(G.t * 3.2 + c.ph));
+      const big = c.v > 1, r = big ? 7.1 : 4.5, squash = 0.35 + 0.65 * Math.abs(Math.cos(G.t * 3.2 + c.ph));
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       glow(c.x, y, big ? 20 : 11, '255,205,70', big ? 0.5 : 0.3);
       ctx.restore();
@@ -1393,9 +1393,9 @@
       ctx.restore();
       ctx.lineCap = 'round';
       ctx.strokeStyle = 'rgba(190,215,240,0.25)'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(x, y, 25, 0, 6.3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 19, 0, 6.3); ctx.stroke();
       ctx.strokeStyle = full ? 'rgba(255,255,255,' + pulse + ')' : '#ffcf8a';
-      ctx.beginPath(); ctx.arc(x, y, 25, -Math.PI / 2, -Math.PI / 2 + c * Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 19, -Math.PI / 2, -Math.PI / 2 + c * Math.PI * 2); ctx.stroke();
       ctx.lineCap = 'butt';
     }
 
