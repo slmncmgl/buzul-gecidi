@@ -13,6 +13,7 @@
   var MIN_PASS = 46;    // ada yanındaki geçitlerin en dar hali
 
   /* Etap tanımları.
+   * pal: günün saati (0 gündüz, 1 akşamüstü, 2 gece, 3 aurora gecesi, 4 şafak),
    * cps: uzunluk (kontrol noktası sayısı), minHalf/maxHalf: kanal yarı genişliği,
    * shift: iki kontrol noktası arasında kanalın en fazla kayabileceği mesafe,
    * gap: düşmanlar arası mesafe aralığı, mix: düşman türü ağırlıkları,
@@ -21,17 +22,17 @@
    */
   var DEFS = [
     { name: 'Sakin Körfez',   pal: 0, cps: 12, minHalf: 78,  maxHalf: 135, shift: 50,  islands: 1, gap: [200, 300], form: 0.10, mix: { mine: 3, boat: 1 }, ventGap: 800, drain: 0.9 },
-    { name: 'Çam Kıyısı',     pal: 0, cps: 16, minHalf: 66,  maxHalf: 135, shift: 62,  islands: 2, gap: [170, 260], form: 0.20, mix: { mine: 3, boat: 3, skim: 1, ice: 1 }, ventGap: 900, drain: 1 },
-    { name: 'İkiz Adalar',    pal: 0, cps: 18, minHalf: 60,  maxHalf: 150, shift: 70,  islands: 4, gap: [150, 240], form: 0.25, mix: { mine: 3, boat: 3, skim: 2, turret: 1, ice: 1 }, ventGap: 950, drain: 1 },
-    { name: 'Sisli Boğaz',    pal: 1, cps: 18, minHalf: 54,  maxHalf: 112, shift: 76,  islands: 2, gap: [150, 230], form: 0.25, mix: { mine: 3, boat: 3, skim: 2, turret: 1, hunter: 1 }, ventGap: 1000, drain: 1, fog: 0.9 },
-    { name: 'Kırık Buzullar', pal: 1, cps: 20, minHalf: 56,  maxHalf: 150, shift: 70,  islands: 5, gap: [140, 220], form: 0.30, mix: { ice: 4, mine: 3, boat: 2, skim: 2, turret: 1, hunter: 1 }, ventGap: 1050, drain: 1.05 },
-    { name: 'Kurt Geçidi',    pal: 1, cps: 20, minHalf: 44,  maxHalf: 88,  shift: 74,  islands: 0, gap: [140, 220], form: 0.30, mix: { hunter: 4, boat: 2, skim: 2, mine: 2 }, ventGap: 1050, drain: 1.05 },
-    { name: 'Aurora Düzlüğü', pal: 2, cps: 20, minHalf: 100, maxHalf: 160, shift: 40,  islands: 4, gap: [100, 170], form: 0.35, mix: { turret: 4, boat: 3, skim: 3, mine: 2, hunter: 2 }, ventGap: 1100, drain: 1.1 },
-    { name: 'Yılan Kanal',    pal: 2, cps: 20, minHalf: 46,  maxHalf: 78,  shift: 104, islands: 0, gap: [150, 230], form: 0.30, mix: { mine: 3, boat: 2, skim: 2, ice: 2 }, ventGap: 1100, drain: 1.1 },
-    { name: 'Fener Adaları',  pal: 2, cps: 22, minHalf: 62,  maxHalf: 156, shift: 70,  islands: 6, gap: [120, 200], form: 0.35, mix: { boat: 4, turret: 3, mine: 2, skim: 2, hunter: 2, ice: 1 }, ventGap: 1150, drain: 1.15 },
-    { name: 'Fırtına Hattı',  pal: 3, cps: 20, minHalf: 70,  maxHalf: 140, shift: 80,  islands: 2, gap: [110, 180], form: 0.40, mix: { skim: 6, boat: 2, hunter: 2, mine: 1, turret: 1 }, ventGap: 1150, drain: 1.2, wind: 60 },
-    { name: 'Dar Boğaz',      pal: 3, cps: 20, minHalf: 40,  maxHalf: 72,  shift: 88,  islands: 0, gap: [140, 210], form: 0.35, mix: { mine: 4, ice: 3, turret: 2, boat: 2, skim: 2, hunter: 1 }, ventGap: 1200, drain: 1.2, fog: 0.6 },
-    { name: 'Kuzey Kapısı',   pal: 3, cps: 26, minHalf: 50,  maxHalf: 156, shift: 90,  islands: 5, gap: [95, 170],  form: 0.45, mix: { mine: 3, boat: 3, skim: 3, turret: 3, hunter: 2, ice: 2 }, ventGap: 1200, drain: 1.25, wind: 40 }
+    { name: 'Çam Kıyısı',     pal: 1, cps: 16, minHalf: 66,  maxHalf: 135, shift: 62,  islands: 2, gap: [170, 260], form: 0.20, mix: { mine: 3, boat: 3, skim: 1, ice: 1 }, ventGap: 900, drain: 1 },
+    { name: 'İkiz Adalar',    pal: 2, cps: 18, minHalf: 60,  maxHalf: 150, shift: 70,  islands: 4, gap: [150, 240], form: 0.25, mix: { mine: 3, boat: 3, skim: 2, turret: 1, ice: 1 }, ventGap: 950, drain: 1 },
+    { name: 'Sisli Boğaz',    pal: 4, cps: 18, minHalf: 54,  maxHalf: 112, shift: 76,  islands: 2, gap: [150, 230], form: 0.25, mix: { mine: 3, boat: 3, skim: 2, turret: 1, hunter: 1 }, ventGap: 1000, drain: 1, fog: 0.9 },
+    { name: 'Kırık Buzullar', pal: 0, cps: 20, minHalf: 56,  maxHalf: 150, shift: 70,  islands: 5, gap: [140, 220], form: 0.30, mix: { ice: 4, mine: 3, boat: 2, skim: 2, turret: 1, hunter: 1 }, ventGap: 1050, drain: 1.05 },
+    { name: 'Kurt Geçidi',    pal: 2, cps: 20, minHalf: 44,  maxHalf: 88,  shift: 74,  islands: 0, gap: [140, 220], form: 0.30, mix: { hunter: 4, boat: 2, skim: 2, mine: 2 }, ventGap: 1050, drain: 1.05 },
+    { name: 'Aurora Düzlüğü', pal: 3, cps: 20, minHalf: 100, maxHalf: 160, shift: 40,  islands: 4, gap: [100, 170], form: 0.35, mix: { turret: 4, boat: 3, skim: 3, mine: 2, hunter: 2 }, ventGap: 1100, drain: 1.1 },
+    { name: 'Yılan Kanal',    pal: 3, cps: 20, minHalf: 46,  maxHalf: 78,  shift: 104, islands: 0, gap: [150, 230], form: 0.30, mix: { mine: 3, boat: 2, skim: 2, ice: 2 }, ventGap: 1100, drain: 1.1 },
+    { name: 'Fener Adaları',  pal: 4, cps: 22, minHalf: 62,  maxHalf: 156, shift: 70,  islands: 6, gap: [120, 200], form: 0.35, mix: { boat: 4, turret: 3, mine: 2, skim: 2, hunter: 2, ice: 1 }, ventGap: 1150, drain: 1.15 },
+    { name: 'Fırtına Hattı',  pal: 0, cps: 20, minHalf: 70,  maxHalf: 140, shift: 80,  islands: 2, gap: [110, 180], form: 0.40, mix: { skim: 6, boat: 2, hunter: 2, mine: 1, turret: 1 }, ventGap: 1150, drain: 1.2, wind: 60 },
+    { name: 'Dar Boğaz',      pal: 1, cps: 20, minHalf: 40,  maxHalf: 72,  shift: 88,  islands: 0, gap: [140, 210], form: 0.35, mix: { mine: 4, ice: 3, turret: 2, boat: 2, skim: 2, hunter: 1 }, ventGap: 1200, drain: 1.2, fog: 0.6 },
+    { name: 'Kuzey Kapısı',   pal: 2, cps: 26, minHalf: 50,  maxHalf: 156, shift: 90,  islands: 5, gap: [95, 170],  form: 0.45, mix: { mine: 3, boat: 3, skim: 3, turret: 3, hunter: 2, ice: 2 }, ventGap: 1200, drain: 1.25, wind: 40 }
   ];
 
   // Etapların tur içindeki başlangıç satırları

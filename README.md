@@ -29,13 +29,15 @@ Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dok
 
 - **Isı** sürekli azalır. **Sıcak kaynakların** üstünden geçince dolar; ne kadar yavaş geçersen o kadar çok.
 - **Yaylım atışı:** ateşi basılı tut, kızağın çevresindeki halka dolsun, bırak. Şarja göre 5–11 fişek yelpaze
-  şeklinde çıkar; tam şarjda fişekler çift hasar verir. Kullandıktan sonra 15 sn kapanır (alttaki YAYLIM çubuğu
+  şeklinde çıkar; tam şarjda fişekler çift hasar verir. Kullandıktan sonra 10 sn kapanır (alttaki YAYLIM çubuğu
   dolunca yeniden hazır). Kapalıyken basılı tutmak eskisi gibi seri tekli atış yapar.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
 - 12 etap bir tur. Her etapta akış biraz daha hızlanır ve yeni bir tehlike eklenir: buz bariyerleri
   (ateşle kırılır), peşine düşen avcılar, sisli etaplar (ileriyi göremezsin), rüzgârlı etaplar (kızağı yana iter).
   Tur bitince etaplar yeni bir düzenle, daha hızlı düşmanlarla baştan başlar.
+- **Gece ve gündüz:** etaplar gündüz, akşamüstü, gece ve şafak diye döner. Gece uzaklar kararır; kızağın farı,
+  sıcak kaynaklar, fenerler, altınlar ve düşmanların ışıkları karanlıkta seçilir.
 - **Altın** topla. Altınların ve ulaştığın en uzak etap bu tarayıcıda saklanır (`localStorage`).
   Yolculuk bitince, ya da daha sonra başlık ekranından, altın harcayıp kaldığın etabın başından
   devam edebilirsin (C tuşu ya da düğme). Bedel etapla artar: 2. etap 30 altın, her etap +10.

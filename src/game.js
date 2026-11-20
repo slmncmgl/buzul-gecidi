@@ -13,7 +13,7 @@
   const speedMul = (k) => Math.min(1.75, 1 + 0.035 * (k % NSEC) + 0.12 * Math.floor(k / NSEC));
   const contCost = (k) => Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
-  const BLAST_CD = 15, BLAST_CHARGE = 1.2, BLAST_HOLD = 0.18, BLAST_MIN = 0.25;
+  const BLAST_CD = 10, BLAST_CHARGE = 1.2, BLAST_HOLD = 0.18, BLAST_MIN = 0.25;
   const FONT = '"Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif';
 
   const canvas = document.getElementById('game');
@@ -50,9 +50,10 @@
   // ------------------------------------------------------------ renk paletleri
   function hex(s) { const n = parseInt(s.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
   const PALS = [
-    { water1: '#17344d', water2: '#0c2236', streak: '#41708f', snow: '#e6dde7', snow2: '#f8f1f5', ice: '#9fd3e6', tree: '#27504a', aur1: '#ff9a7a', aur2: '#c56bd6' }, // alacakaranlık
+    { water1: '#4596bd', water2: '#2c73a0', streak: '#9bd6ee', snow: '#eef4fa', snow2: '#ffffff', ice: '#bfe9f7', tree: '#2f6b4a', aur1: '#ffffff', aur2: '#c8f0ff' }, // gündüz
+    { water1: '#17344d', water2: '#0c2236', streak: '#41708f', snow: '#e6dde7', snow2: '#f8f1f5', ice: '#9fd3e6', tree: '#27504a', aur1: '#ff9a7a', aur2: '#c56bd6' }, // akşamüstü
     { water1: '#0c2037', water2: '#06121f', streak: '#2a5078', snow: '#c6d4e8', snow2: '#e0e9f5', ice: '#7fb8dd', tree: '#1c3a44', aur1: '#4fd6ff', aur2: '#5a7dff' }, // gece
-    { water1: '#08272d', water2: '#04151a', streak: '#22645f', snow: '#c9ecdf', snow2: '#e6fbf2', ice: '#6fe0c0', tree: '#17403a', aur1: '#57ffa8', aur2: '#b06bff' }, // aurora
+    { water1: '#08272d', water2: '#04151a', streak: '#22645f', snow: '#c9ecdf', snow2: '#e6fbf2', ice: '#6fe0c0', tree: '#17403a', aur1: '#57ffa8', aur2: '#b06bff' }, // aurora gecesi
     { water1: '#2b375b', water2: '#182040', streak: '#5a6a9e', snow: '#f4e1d4', snow2: '#fff4ec', ice: '#ffc2a0', tree: '#3a4a52', aur1: '#ffb36b', aur2: '#ff7aa8' }  // şafak
   ].map(function (p) { const o = {}; for (const k in p) o[k] = hex(p[k]); return o; });
   const pal = {}, col = {};
@@ -67,6 +68,12 @@
   }
   function rgba(k, a) { const c = pal[k]; return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')'; }
   palUpdate(1, PALS[0]);
+  // Her paletin karanlık miktarı (0 gündüz, 1 gece): gece görüş daralır, ışıklar öne çıkar
+  const PAL_NIGHT = [0, 0.35, 1, 0.85, 0.3];
+  function setPal(dt, idx) {
+    palUpdate(dt * 0.6, PALS[idx]);
+    G.night += (PAL_NIGHT[idx] - G.night) * Math.min(1, dt * 0.85);
+  }
 
   // ------------------------------------------------------------ arazi
   const secCache = new Map();
@@ -112,7 +119,7 @@
     coins: parseInt(store('bg_coins') || '0', 10) || 0,      // cüzdan: tarayıcıda saklanır
     best: parseInt(store('bg_stage') || '0', 10) || 0,       // ulaşılan en uzak etap (0 tabanlı)
     runCoins: 0, sm: 1, fog: 0, wind: 0, windWarn: 0, windT: 0, deny: 0, sensT: 0,
-    blastCd: 0, readyT: 0,
+    blastCd: 0, readyT: 0, night: 0,
     stats: { deaths: [], gates: 0 }
   };
   const P = { x: W / 2, wy: 40, vx: 0, speed: SPEED_CRUISE, inv: 0, fireCd: 0, tilt: 0, holdT: 0, charge: 0 };
@@ -709,14 +716,14 @@
 
     if (G.mode === 'title') {
       P.wy += 55 * dt; scroll = 55;
-      palUpdate(dt, PALS[LV.DEFS[LV.sectionAtRow(Math.floor(P.wy / ROW)) % NSEC].pal]);
+      setPal(dt, LV.DEFS[LV.sectionAtRow(Math.floor(P.wy / ROW)) % NSEC].pal);
       G.fog *= 1 - Math.min(1, dt * 2); G.wind = 0;
       A.stopEngine(); A.setWind(0);
     } else if (G.mode === 'playing') {
       updatePlayer(dt);
       updateShots(dt); updateEnts(dt); updateOrbs(dt);
       scroll = P.speed;
-      palUpdate(dt, PALS[sec(G.sec).def.pal]);
+      setPal(dt, sec(G.sec).def.pal);
       G.fog += ((sec(G.sec).def.fog || 0) - G.fog) * Math.min(1, dt * 0.9);
     } else if (G.mode === 'dying') {
       updateEnts(dt); updateOrbs(dt);
@@ -900,7 +907,7 @@
           poly([x - 3 * s, y - 5 * s, x + 2 * s, y - 6.5 * s, x + 1 * s, y - 3 * s]);
         } else {
           ctx.save(); ctx.globalCompositeOperation = 'lighter';
-          glow(x, y - 3, 16, '255,200,110', 0.28 + 0.06 * Math.sin(G.t * 3 + o.y));
+          glow(x, y - 3, 16, '255,200,110', (0.28 + 0.06 * Math.sin(G.t * 3 + o.y)) * (0.15 + 0.85 * G.night));
           ctx.restore();
           ctx.fillStyle = '#5a3a2c'; ctx.fillRect(x - 7, y - 7, 14, 7);
           ctx.fillStyle = col.snow2; poly([x - 9, y - 6.5, x, y - 13, x + 9, y - 6.5]);
@@ -1093,6 +1100,71 @@
     }
   }
 
+  function drawNight() {
+    const n = G.night;
+    if (n < 0.03) return;
+    const playing = G.mode !== 'title';
+    // kızağın çevresi ve önü aydınlık, uzaklar karanlık
+    const cx = playing ? P.x : W / 2, cy = PSY - 70;
+    const g = ctx.createRadialGradient(cx, cy, 50, cx, cy, 300);
+    g.addColorStop(0, 'rgba(3,8,22,' + (playing ? 0 : 0.2 * n) + ')');
+    g.addColorStop(0.45, 'rgba(3,8,22,' + (0.3 * n) + ')');
+    g.addColorStop(1, 'rgba(3,8,22,' + (0.62 * n) + ')');
+    ctx.fillStyle = g; ctx.fillRect(-12, -12, W + 24, H + 24);
+
+    // ışık kaynakları karanlığı deler
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const kA = LV.sectionAtRow(Math.max(0, vr.gA)), kB = LV.sectionAtRow(Math.max(0, vr.gB));
+    for (let k = kA; k <= kB; k++) {
+      const s = sec(k), vs = s.vents;
+      for (let i = 0; i < vs.length; i++) {
+        const y = sy(vs[i].y);
+        if (y > -50 && y < H + 50) glow(vs[i].x, y, 40, '255,170,80', 0.32 * n);
+      }
+      const gy = sy(s.gateY);
+      if (gy > -40 && gy < H + 40) {
+        const rgb = playing && k < G.sec ? '125,255,176' : '255,214,130';
+        glow(W / 2 - GATE - 3, gy - 9, 40, rgb, 0.4 * n); glow(W / 2 + GATE + 3, gy - 9, 40, rgb, 0.4 * n);
+      }
+    }
+    if (playing) {
+      for (let i = 0; i < coinsL.length; i++) {
+        const y = sy(coinsL[i].wy);
+        if (y > -20 && y < H + 20) glow(coinsL[i].x, y, coinsL[i].v > 1 ? 16 : 10, '255,205,70', 0.4 * n);
+      }
+      for (let i = 0; i < ents.length; i++) {
+        const e = ents[i], y = sy(e.wy);
+        if (y < -30 || y > H + 30 || e.dead) continue;
+        if (e.type === 'mine') glow(e.x, y, 12, '255,90,90', 0.4 * n);
+        else if (e.type === 'hunter') glow(e.x, y, 18, '255,80,70', 0.45 * n);
+        else if (e.type === 'ice') glow(e.x, y, 12, '190,230,255', 0.2 * n);
+        else if (e.type === 'turret') glow(e.x, y, 16, '255,150,220', 0.35 * n);
+        else glow(e.x, y, 16, '255,122,209', 0.35 * n);
+      }
+      for (let i = 0; i < shots.length; i++) glow(shots[i].x, sy(shots[i].wy), 18, '255,220,140', 0.45 * n);
+      for (let i = 0; i < orbs.length; i++) glow(orbs[i].x, sy(orbs[i].wy), 18, '255,90,170', 0.5 * n);
+    }
+    ctx.restore();
+  }
+
+  // Günün saati: gündüz güneş, gece hilal
+  function todIcon(x, y) {
+    if (G.night < 0.5) {
+      const dim = 1 - G.night;
+      ctx.strokeStyle = 'rgba(255,217,90,' + (0.5 + 0.5 * dim) + ')'; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let q = 0; q < 8; q++) { const a = q * Math.PI / 4; ctx.moveTo(x + Math.cos(a) * 4.6, y + Math.sin(a) * 4.6); ctx.lineTo(x + Math.cos(a) * 6.6, y + Math.sin(a) * 6.6); }
+      ctx.stroke();
+      ctx.fillStyle = G.night > 0.2 ? '#ffb36b' : '#ffd95a';
+      ctx.beginPath(); ctx.arc(x, y, 3.3, 0, 6.3); ctx.fill();
+    } else {
+      ctx.fillStyle = '#e8f0ff';
+      ctx.beginPath(); ctx.arc(x, y, 4.6, 0, 6.3); ctx.fill();
+      ctx.fillStyle = 'rgb(6,14,24)';
+      ctx.beginPath(); ctx.arc(x + 2.4, y - 1.2, 4, 0, 6.3); ctx.fill();
+    }
+  }
+
   function drawShots() {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
@@ -1132,7 +1204,7 @@
     // far ışığı
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     const g = ctx.createLinearGradient(0, y - 10, 0, y - 140);
-    g.addColorStop(0, 'rgba(255,232,180,0.2)'); g.addColorStop(1, 'rgba(255,232,180,0)');
+    g.addColorStop(0, 'rgba(255,232,180,' + (0.05 + 0.27 * G.night) + ')'); g.addColorStop(1, 'rgba(255,232,180,0)');
     ctx.fillStyle = g;
     poly([x - 3, y - 10, x - 36 + t * 26, y - 140, x + 36 + t * 26, y - 140, x + 3, y - 10]);
     ctx.restore();
@@ -1206,7 +1278,7 @@
 
   function drawVignette() {
     const g = ctx.createRadialGradient(W / 2, H * 0.6, H * 0.28, W / 2, H * 0.55, H * 0.78);
-    g.addColorStop(0, 'rgba(2,6,12,0)'); g.addColorStop(1, 'rgba(2,6,12,0.55)');
+    g.addColorStop(0, 'rgba(2,6,12,0)'); g.addColorStop(1, 'rgba(2,6,12,' + (0.2 + 0.35 * G.night) + ')');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     if (G.flash > 0) { ctx.fillStyle = 'rgba(255,236,190,' + (G.flash * 0.5) + ')'; ctx.fillRect(0, 0, W, H); }
   }
@@ -1226,7 +1298,9 @@
     coinIcon(18, 50, 5, 1);
     text(String(G.coins), 28, 55, 15, '#ffd95a', 'left', 700);
     const loop = Math.floor(G.sec / NSEC);
-    text('ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : ''), W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);
+    const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
+    text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);
+    todIcon(W / 2 - ctx.measureText(stageLbl).width / 2 - 11, 11.5);
     text(LV.DEFS[G.sec % NSEC].name.toLocaleUpperCase('tr'), W / 2, 33, 15, '#ffe9b8', 'center', 700);
     text('KIZAK', W - 12, 15, 10, 'rgba(190,215,240,0.8)', 'right', 500);
     const spare = Math.max(0, G.lives - (G.mode === 'dying' ? 1 : 0));
@@ -1401,6 +1475,7 @@
       drawCoins(); drawEnts(); drawShots(); drawOrbs();
       if (G.mode === 'playing' || G.mode === 'paused') drawPlayer();
     }
+    drawNight();
     drawParts();
     drawFog();
     drawSnow();
