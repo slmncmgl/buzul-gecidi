@@ -552,7 +552,7 @@
         const n = shotCount(), dm = 1 + Math.floor(G.power / 5);       // +%50: çift, +%100: üçlü, +%125: çift hasar, +%200: dörtlü, +%250: üç kat hasar
         for (let i = 0; i < n; i++) shots.push({ x: P.x + (i - (n - 1) / 2) * 9, wy: P.wy + 14, v: 440 + P.speed, vx: 0, dmg: dm });
         P.fireCd = Math.max(0.11, 0.2 / (1 + 0.1 * G.power));
-        A.play('shoot');
+        A.play(n > 1 ? 'shoot2' : 'shoot');
       }
     } else {
       if (P.charge >= BLAST_MIN) fireBlast();
@@ -574,6 +574,7 @@
       G.heat = Math.min(100, G.heat + HEAT_CHARGE * sm * dt);
       if (Math.random() < 0.6) part(P.x + rand(-9, 9), P.wy + rand(-8, 10), rand(-10, 10), rand(10, 50), rand(0.3, 0.7), rand(1.5, 3), '#ffd9a0', true);
     }
+    if (charging && !G.charging) A.play('vent');
     G.charging = charging;
     A.setCharging(charging);
     A.setLowHeat(G.heat < 25);
@@ -635,7 +636,7 @@
     const msg = G.power === 2 ? 'ÇİFT ATIŞ' : G.power === 4 ? 'ÜÇLÜ ATIŞ' : G.power === 5 ? 'ÇİFT YAYLIM' : G.power === 8 ? 'DÖRTLÜ ATIŞ' : G.power === POWER_MAX ? 'ÜÇLÜ YAYLIM · TAM GÜÇ' : 'SİLAH +' + POWER_STEP * G.power + '%';
     pop(P.x, P.wy + 34, msg, '#ff9a4d');
     G.flash = Math.max(G.flash, 0.2);
-    A.play('bigCoin');
+    A.play('powerUp');
   }
   function fireBlast() {
     const c = P.charge;
@@ -738,7 +739,7 @@
       : e.type === 'hunter' ? ['#ffffff', '#ffd27a', '#ff6a5a', '#ff3d55'] : ['#ffffff', '#ffd27a', '#d58bff', '#ff7ad1'];
     boom(e.x, e.wy, e.type === 'turret' ? 26 : e.type === 'ice' ? 9 : 16, c, e.type === 'turret' ? 130 : 100);
     G.shake = Math.max(G.shake, e.type === 'turret' ? 5 : 3);
-    A.play(e.type === 'ice' ? 'shatter' : 'explode');
+    A.play(e.type === 'ice' ? 'shatter' : e.type === 'turret' || e.type === 'boss' ? 'bigExplode' : 'explode');
     if (byShot && e.type !== 'ice' && e.type !== 'boss' && G.power < POWER_MAX && Math.random() < POWER_DROP && !solid(e.x, e.wy)) {
       coinsL.push({ x: e.x, wy: e.wy, v: 0, pw: true, ph: 0 });        // silah güçlendirmesi düşer
     }

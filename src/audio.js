@@ -731,16 +731,21 @@
 
   // ------------------------------------------------------------- one-shots
   const SFX = {
-    // Laser "pew", late-90s PC shooter style: a hollow square tone that stays high for a moment
-    // and then dives (a straight-line fall, not an exponential one), a little grit on top.
+    // Single shot: a short, soft low "thup". A quick low thump (about 280 -> 170 Hz) that is over
+    // in a tenth of a second, with a faint breath of mid noise right behind it.
     shoot: function (t) {
-      const d = (Math.random() * 2 - 1) * 40;
-      voice(sfxBus, t, {
-        type: 'square', f: 2080, f2: 240, lin: true, glide: 0.19, dur: 0.2, vol: 0.13, attack: 0.002, hold: 0.06, detune: d,
-        filter: { type: 'lowpass', f: 4800, f2: 1500, q: 0.9 }
-      });
-      voice(sfxBus, t, { type: 'sawtooth', f: 1040, f2: 120, lin: true, glide: 0.19, dur: 0.2, vol: 0.06, attack: 0.002, hold: 0.05, detune: d });
-      crunch(sfxBus, t, { dur: 0.09, vol: 0.05, rate: 1.6, rate2: 0.5, attack: 0.002, lp: 5000 });
+      const k = 0.96 + Math.random() * 0.08;
+      voice(sfxBus, t, { type: 'triangle', f: 285 * k, f2: 165 * k, dur: 0.1, vol: 0.34, attack: 0.002, hold: 0.012 });
+      voice(sfxBus, t, { type: 'sine', f: 215 * k, f2: 150 * k, dur: 0.13, vol: 0.2, attack: 0.002, hold: 0.02 });
+      noise(sfxBus, t + 0.02, { dur: 0.08, vol: 0.05, attack: 0.01, ftype: 'bandpass', f: 2200, q: 0.8 });
+    },
+
+    // Double / triple shot: the same thump a little higher, tighter and fuller
+    shoot2: function (t) {
+      const k = 0.96 + Math.random() * 0.08;
+      voice(sfxBus, t, { type: 'triangle', f: 330 * k, f2: 200 * k, dur: 0.085, vol: 0.36, attack: 0.002, hold: 0.012 });
+      voice(sfxBus, t, { type: 'sine', f: 245 * k, f2: 170 * k, dur: 0.11, vol: 0.22, attack: 0.002, hold: 0.02 });
+      noise(sfxBus, t + 0.015, { dur: 0.07, vol: 0.06, attack: 0.01, ftype: 'bandpass', f: 2400, q: 0.8 });
     },
 
     // short metallic FM ping
@@ -766,15 +771,41 @@
       }
     },
 
-    // Enemy destroyed: lo-fi sampled-explosion character. Dark clocked noise that starts in the
-    // low mids, drops to a rumble within the first third and then rolls on; loud body, no bright
-    // hiss and no tonal sweep (those read as a balloon pop).
+    // Enemy destroyed: a hard crack around 2 kHz for the first tenth of a second, then a deep
+    // rumble (40-150 Hz) that stays loud and rolls away. Shortened from the reference length
+    // because kills come in quick succession.
     explode: function (t) {
-      const k = 0.85 + Math.random() * 0.3;
-      crunch(sfxBus, t, { dur: 0.62, vol: 0.34, rate: 0.85 * k, rate2: 0.1, glide: 0.22, attack: 0.02, hold: 0.1, lp: 4500 });
-      crunch(sfxFx, t + 0.02, { dur: 0.8, vol: 0.14, rate: 0.3 * k, rate2: 0.045, glide: 0.35, attack: 0.03, hold: 0.15, lp: 1500 });
-      // rumble underneath
-      voice(sfxBus, t, { type: 'triangle', f: 84 * k, f2: 46, dur: 0.6, vol: 0.24, attack: 0.03, hold: 0.15 });
+      const k = 0.9 + Math.random() * 0.2;
+      noise(sfxBus, t, { dur: 0.11, vol: 0.3, attack: 0.002, ftype: 'bandpass', f: 2000 * k, q: 1.4 });
+      crunch(sfxBus, t + 0.03, { dur: 1.3, vol: 0.34, rate: 0.22 * k, rate2: 0.05, glide: 0.5, attack: 0.04, hold: 0.45, lp: 420 });
+      voice(sfxBus, t + 0.03, { type: 'triangle', f: 120 * k, f2: 44, glide: 0.6, dur: 1.2, vol: 0.3, attack: 0.03, hold: 0.4 });
+      voice(sfxBus, t + 0.03, { type: 'sine', f: 64 * k, f2: 43, dur: 1.35, vol: 0.26, attack: 0.04, hold: 0.5 });
+    },
+
+    // Big explosion (turret, guardian): swells in over a third of a second, a long heavy rumble
+    // (60-170 Hz) for two seconds, then a tail that thins out into the low mids. About 3 s.
+    bigExplode: function (t) {
+      crunch(sfxBus, t, { dur: 2.9, vol: 0.4, rate: 0.28, rate2: 0.07, glide: 1.6, attack: 0.33, hold: 1.0, lp: 520 });
+      crunch(sfxFx, t + 0.1, { dur: 3.1, vol: 0.14, rate: 0.5, rate2: 0.16, attack: 0.4, hold: 1.2, lp: 900 });
+      voice(sfxBus, t, { type: 'triangle', f: 150, f2: 64, glide: 1.4, dur: 2.6, vol: 0.34, attack: 0.3, hold: 0.9 });
+      voice(sfxBus, t, { type: 'sine', f: 86, f2: 60, dur: 2.8, vol: 0.3, attack: 0.3, hold: 1.1 });
+      // tail: what is left hums a little higher as it dies
+      voice(sfxFx, t + 2.2, { type: 'triangle', f: 250, f2: 320, dur: 1.0, vol: 0.07, attack: 0.3, hold: 0.2 });
+    },
+
+    // Weapon power-up collected: a fast, very high two-note trill (about 2.9 and 3.7 kHz, a note
+    // every 60 ms) that creeps upward over half a second.
+    powerUp: function (t) {
+      for (let i = 0; i < 10; i++) {
+        const f = (i % 2 ? 3680 : 2890) * (1 + 0.004 * i);
+        voice(sfxBus, t + i * 0.058, { type: 'sine', f: f, dur: 0.062, vol: i === 0 || i === 9 ? 0.07 : 0.1, attack: 0.004, hold: 0.045, fm: { ratio: 1.26, index: 0.35, index2: 0.3 } });
+      }
+    },
+
+    // Touching a heat source: a quick two-tone blip (about 480 and 560 Hz), under a fifth of a second
+    vent: function (t) {
+      const seq = [480, 560, 480, 560];
+      for (let i = 0; i < 4; i++) voice(sfxBus, t + i * 0.042, { type: 'triangle', f: seq[i], dur: 0.05, vol: 0.2, attack: 0.004, hold: 0.032 });
     },
 
     // Ice block breaking: a quick scatter of glassy FM pings, no noise burst
