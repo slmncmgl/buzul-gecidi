@@ -189,6 +189,50 @@
 
   function firstGesture() { A.init(); A.setMuted(muted); }
 
+  // ------------------------------------------------------------ oyun kolu (Gamepad API, standart dizilim)
+  // Sol çubuk / yön tuşları: yön ve hız · RT / LT: hızlan / yavaşla · A: ateş (basılı tut: yaylım)
+  // X, B ya da RB: nükleer · Y: altınla devam · Start: başlat / duraklat · Back: ses
+  const pad = { gp: null, ax: 0, up: false, down: false, fire: false, prev: [] };
+  function padRumble(ms, strong) {
+    try {
+      const v = pad.gp && pad.gp.vibrationActuator;
+      if (v && v.playEffect) v.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: strong * 0.6 });
+    } catch (err) { /* titreşim yoksa sessizce geç */ }
+  }
+  function pollPad() {
+    pad.ax = 0; pad.up = pad.down = pad.fire = false; pad.gp = null;
+    let list = [];
+    try { list = navigator.getGamepads ? navigator.getGamepads() : []; } catch (err) { return; }
+    let gp = null;
+    for (let i = 0; i < list.length; i++) if (list[i] && list[i].connected && list[i].buttons.length >= 4) { gp = list[i]; break; }
+    if (!gp) { pad.prev.length = 0; return; }
+    pad.gp = gp;
+    const b = function (i) { const q = gp.buttons[i]; return !!(q && (q.pressed || q.value > 0.35)); };
+    const hit = [];
+    for (let i = 0; i < 16; i++) { const now = b(i); hit[i] = now && !pad.prev[i]; pad.prev[i] = now; }
+    let x = gp.axes[0] || 0;
+    const y = gp.axes[1] || 0;
+    x = Math.abs(x) < 0.18 ? 0 : (x - Math.sign(x) * 0.18) / 0.82;       // ölü bölge
+    if (b(14)) x = -1; else if (b(15)) x = 1;
+    pad.ax = x;
+    pad.up = y < -0.5 || b(12) || b(7);
+    pad.down = y > 0.5 || b(13) || b(6);
+    pad.fire = b(0);
+    if (G.mode === 'playing' && mouse.active && (x || pad.up || pad.down || pad.fire)) mouse.active = false;   // kolu tutan kolla oynar
+    if (hit[0] || hit[9]) {
+      firstGesture();
+      if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) startGame(0);
+      else if (G.mode === 'paused' || hit[9]) togglePause();
+    }
+    if (hit[1] || hit[2] || hit[5]) nuke();
+    if (hit[3]) {
+      firstGesture();
+      if (G.mode === 'title') tryContinue(G.best);
+      else if (G.mode === 'gameover' && G.overT > 0.8) tryContinue(G.sec);
+    }
+    if (hit[8]) { muted = !muted; A.setMuted(muted); store('bg_muted', muted ? '1' : '0'); }
+  }
+
   window.addEventListener('keydown', function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const m = KEYMAP[e.code];
@@ -395,7 +439,7 @@
 
   function die(why) {
     if (G.mode !== 'playing') return;
-    G.mode = 'dying'; G.deathT = 1.5; G.shake = 9;
+    G.mode = 'dying'; G.deathT = 1.5; G.shake = 9; padRumble(450, 1);
     G.deathMsg = why === 'freeze' ? 'ISI BİTTİ — DONDUN' : why === 'beam' ? 'IŞIK ÇİTİNE ÇARPTIN' : why === 'whirl' ? 'GİRDABA KAPILDIN' : 'KIZAK PARÇALANDI';
     G.stats.deaths.push({ why: why, sec: G.sec, wy: Math.round(P.wy), x: Math.round(P.x) });
     if (why === 'freeze') { boom(P.x, P.wy, 26, ['#ffffff', '#bfe9ff', '#7fc8ff', '#e8f7ff'], 90); A.play('freeze'); }
@@ -468,7 +512,7 @@
   function updatePlayer(dt) {
     if (cfg.auto) autopilot();
     else {
-      inp.left = !!keys.left; inp.right = !!keys.right; inp.up = !!keys.up; inp.down = !!keys.down; inp.fire = !!keys.fire;
+      inp.left = !!keys.left; inp.right = !!keys.right; inp.up = !!keys.up || pad.up; inp.down = !!keys.down || pad.down; inp.fire = !!keys.fire || pad.fire;
     }
 
     const s = sec(G.sec);
@@ -502,7 +546,7 @@
       P.x = nx;
       if (mouse.down) inp.fire = true;
     } else {
-      const ax = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+      const ax = pad.ax || (inp.right ? 1 : 0) - (inp.left ? 1 : 0);      // kol çubuğu oransal, klavye tam
       P.vx = approach(P.vx, ax * lat, 1500 * dt);
       P.x += (P.vx + G.wind) * dt;
     }
@@ -727,6 +771,7 @@
       const a = Math.random() * 6.283, v = rand(120, 420);
       part(P.x, P.wy, Math.cos(a) * v, Math.sin(a) * v + P.speed, rand(0.4, 0.9), rand(2, 4), i % 3 ? '#fff6da' : '#ffb347', true);
     }
+    padRumble(600, 0.9);
     G.nukeCd = nukeCdMax(); G.nukeT = 0.8; G.flash = 0.7; G.shake = 13;
     A.play('nuke');
   }
@@ -870,6 +915,7 @@
   let cursorHidden = false;
   function update(dt) {
     G.t += dt;
+    pollPad();
     if ((digits[1] && digits[3] && digits[5]) || digits.b) { comboT += dt; if (comboT >= 3) { comboT = 0; digits[1] = digits[3] = digits[5] = digits.b = false; jumpToBoss(); } }
     else comboT = 0;
     const hide = mouse.active && G.mode === 'playing';

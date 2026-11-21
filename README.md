@@ -17,6 +17,10 @@ sesler Web Audio ile üretiliyor; hiçbir hazır görsel ya da ses dosyası kull
 | P / Esc | duraklat |
 | M | ses aç / kapat |
 
+Oyun koluyla (Xbox dizilimi; PlayStation ve benzerleri aynı yerdeki tuşlarla): sol çubuk ya da yön tuşları yön ve
+hız, RT / LT hızlan / yavaşla, A ateş (basılı tut: yaylım), X, B ya da RB nükleer, Y altınla devam, Start başlat /
+duraklat, Back ses. Çarpınca ve nükleerde kol titrer. Kolu oynatınca fare devreden çıkar, tıklayınca geri gelir.
+
 Fareyle: oyunu tıklayarak başlat. Farenin o andaki konumu sıfır noktası olur; sağa / sola götürürsen
 kızak o yöne gider, ileri itersen hızlanır, geri çekersen yavaşlar, sıfır noktası civarında seyir hızında
 kalır. Tık ateş eder; basılı tutunca yaylım atışı şarj olur (yaylım kapalıyken basılı tutmak seri ateş eder). Oyun sırasında imleç gizlenir; Esc imleci geri getirir ve
