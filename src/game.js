@@ -992,11 +992,14 @@
   }
 
   let cursorHidden = false;
+  let sideHidden = false;
   function update(dt) {
     G.t += dt;
     pollPad();
     if ((digits[1] && digits[3] && digits[5]) || digits.b) { comboT += dt; if (comboT >= 3) { comboT = 0; digits[1] = digits[3] = digits[5] = digits.b = false; jumpToBoss(); } }
     else comboT = 0;
+    const inPlay = G.mode === 'playing' || G.mode === 'dying';
+    if (inPlay !== sideHidden) { sideHidden = inPlay; document.body.classList.toggle('playing', inPlay); }
     const hide = mouse.active && G.mode === 'playing';
     if (hide !== cursorHidden) { cursorHidden = hide; canvas.style.cursor = hide ? 'none' : ''; }
     G.shake = Math.max(0, G.shake - dt * 22);

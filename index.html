@@ -59,6 +59,9 @@
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; }
   @media (min-width: 900px) and (min-height: 480px) { .side { display: block; } }
   noscript { position: fixed; inset: 0; display: grid; place-items: center; font-size: 22px; }
+  /* oyun sürerken yan bilgiler gizlenir; duraklatınca, menüde ve oyun sonunda geri gelir */
+  .side { transition: opacity .25s; }
+  body.playing .side { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -115,8 +118,8 @@
 </main>
 <noscript>Bu oyun için JavaScript gerekli.</noscript>
 <!-- Her yayında üç betikteki ?v= sayısını birlikte artır: oyun bu sayıyı ekranda sürüm olarak gösterir -->
-<script src="src/level.js?v=33"></script>
-<script src="src/audio.js?v=33"></script>
-<script src="src/game.js?v=33"></script>
+<script src="src/level.js?v=34"></script>
+<script src="src/audio.js?v=34"></script>
+<script src="src/game.js?v=34"></script>
 </body>
 </html>
