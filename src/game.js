@@ -194,6 +194,7 @@
     const m = KEYMAP[e.code];
     if (m) { keys[m] = true; e.preventDefault(); }
     // fare hassasiyeti: her an 1–9 (ya da − / +), duraklatılmışken ← / →
+    if (e.code === 'KeyB') digits.b = true;      // B'yi 3 sn basılı tut: bekçiye atla (1+3+5 ile aynı)
     const dg = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
     if (dg && !e.repeat) {
       if (!digits[1] && !digits[3] && !digits[5]) sensBeforeCombo = mouse.level;   // 1+3+5 hilesi hassasiyeti bozmasın
@@ -225,8 +226,9 @@
   window.addEventListener('keyup', function (e) {
     const m = KEYMAP[e.code]; if (m) keys[m] = false;
     const dg = /^(?:Digit|Numpad)([1-9])$/.exec(e.code); if (dg) digits[+dg[1]] = false;
+    if (e.code === 'KeyB') digits.b = false;
   });
-  window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; mouse.down = false; digits[1] = digits[3] = digits[5] = false; });
+  window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; mouse.down = false; digits[1] = digits[3] = digits[5] = digits.b = false; });
 
   function toLogical(e) {
     const r = canvas.getBoundingClientRect();
@@ -867,7 +869,7 @@
   let cursorHidden = false;
   function update(dt) {
     G.t += dt;
-    if (digits[1] && digits[3] && digits[5]) { comboT += dt; if (comboT >= 3) { comboT = 0; digits[1] = digits[3] = digits[5] = false; jumpToBoss(); } }
+    if ((digits[1] && digits[3] && digits[5]) || digits.b) { comboT += dt; if (comboT >= 3) { comboT = 0; digits[1] = digits[3] = digits[5] = digits.b = false; jumpToBoss(); } }
     else comboT = 0;
     const hide = mouse.active && G.mode === 'playing';
     if (hide !== cursorHidden) { cursorHidden = hide; canvas.style.cursor = hide ? 'none' : ''; }
