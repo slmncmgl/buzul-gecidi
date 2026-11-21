@@ -39,8 +39,8 @@
 
   const BEEP_PERIOD = 0.6;    // low-heat alarm interval (s)
 
-  const WHINE_F0 = 220;       // weapon charge whine: pitch at v = 0 (two octaves up at v = 1)
-  const WHINE_RATIO = 2.008;  // second oscillator: an octave up, slightly sharp
+  const WHINE_F0 = 150;       // weapon charge whine: pitch at v = 0 (two octaves up at v = 1)
+  const WHINE_RATIO = 1.502;  // second oscillator: an octave up, slightly sharp
 
   // ------------------------------------------------------------ music data
   // Original piece in E minor, 32 bars, one chord per bar:
@@ -148,6 +148,8 @@
   let engine = null;          // { out, lp, o1, o2, sub, hiss, hissGain }
   let engineOn = false;
   let engineV = -1;
+  let engineT = 0;
+  let engineRate = 0;
   let charge = null;          // { out }
   let chargeOn = false;
   let wind = null;            // { out, filter }
@@ -538,13 +540,13 @@
     lfo.connect(lfoDepth);
     lfoDepth.connect(lp.frequency);
 
-    const o1 = runningOsc('sawtooth', 116);
-    const g1 = gainNode(0.4);
+    const o1 = runningOsc('triangle', 116);
+    const g1 = gainNode(0.5);
     o1.connect(g1);
     g1.connect(lp);
 
-    const o2 = runningOsc('sawtooth', 116 * 1.009);
-    const g2 = gainNode(0.4);
+    const o2 = runningOsc('sine', 116 * 3.01);      // turbine whistle
+    const g2 = gainNode(0.1);
     o2.connect(g2);
     g2.connect(lp);
 
@@ -563,7 +565,18 @@
     hissGain.connect(out);
     hissSrc.start(0);
 
-    engine = { out: out, lp: lp, o1: o1, o2: o2, sub: sub, hiss: hiss, hissGain: hissGain };
+    // air brake: dark noise that only opens while slowing down
+    const brakeSrc = ctx.createBufferSource();
+    brakeSrc.buffer = noiseBuf;
+    brakeSrc.loop = true;
+    const brake = filterNode('lowpass', 700, 0.7);
+    const brakeGain = gainNode(0);
+    brakeSrc.connect(brake);
+    brake.connect(brakeGain);
+    brakeGain.connect(out);
+    brakeSrc.start(0, 0.41);
+
+    engine = { out: out, lp: lp, o1: o1, o2: o2, sub: sub, hiss: hiss, hissGain: hissGain, brake: brake, brakeGain: brakeGain };
   }
 
   // Thermal-vent charging loop: warm energy being absorbed. A triangle LFO
@@ -648,38 +661,34 @@
     wind = { out: out, filter: filter };
   }
 
-  // Weapon charge whine: thin and "electric" (saw + octave square through a
-  // highpass), nothing like the warm thermal-vent loop. A slow LFO adds the
-  // pulse; its depth is opened by setWeaponCharge() as the charge fills.
+  // Weapon charge: energy gathering. A soft triangle tone with a fifth above it, chopped by a
+  // pulse that starts slow and races as the charge fills ("wub .. wub . wub wubwubwub").
   // Always running, silent until setWeaponCharge(v > 0).
   function buildWhine() {
     const out = gainNode(0);
     out.connect(loopBus);         // dry only: it must fall silent the moment 'blast' plays
 
-    const vca = gainNode(1);
+    const vca = gainNode(0.5);
     vca.connect(out);
-    const lfo = runningOsc('sine', 5.5);
-    const pulse = gainNode(0);
+    const lfo = runningOsc('sine', 6);
+    const pulse = gainNode(0.5);
     lfo.connect(pulse);
     pulse.connect(vca.gain);
 
-    const lp = filterNode('lowpass', 1200, 2.5);
+    const lp = filterNode('lowpass', 700, 1.5);
     lp.connect(vca);
 
-    const hp = filterNode('highpass', 700, 0.7);
-    hp.connect(lp);
-
-    const o1 = runningOsc('sawtooth', WHINE_F0);
-    const g1 = gainNode(0.5);
+    const o1 = runningOsc('triangle', WHINE_F0);
+    const g1 = gainNode(0.6);
     o1.connect(g1);
-    g1.connect(hp);
+    g1.connect(lp);
 
-    const o2 = runningOsc('square', WHINE_F0 * WHINE_RATIO);
-    const g2 = gainNode(0.14);
+    const o2 = runningOsc('sine', WHINE_F0 * WHINE_RATIO);
+    const g2 = gainNode(0.25);
     o2.connect(g2);
-    g2.connect(hp);
+    g2.connect(lp);
 
-    whine = { out: out, o1: o1, o2: o2, lp: lp, pulse: pulse };
+    whine = { out: out, o1: o1, o2: o2, lp: lp, pulse: pulse, lfo: lfo };
   }
 
   // ------------------------------------------------------------- lifecycle
@@ -1024,27 +1033,36 @@
   }
 
   // ----------------------------------------------------------------- loops
+  // Turbine: a soft hum with a whistle above it and a rush of air. Speeding up opens a bright
+  // surge on top; slowing down brings in a dark air-brake hush instead.
   function setEngine(v) {
     if (!ctx) return;
     v = clamp01(v);
-    if (engineOn && Math.abs(v - engineV) < 0.004) return;   // nothing audible changed
     const t = ctx.currentTime;
-    const f = 104 + 96 * v;                                   // saws; the sub sits an octave below
+    const rate = engineOn && t > engineT ? (v - engineV) / Math.max(0.008, t - engineT) : 0;   // throttle change per second
+    if (engineOn && Math.abs(v - engineV) < 0.0005 && engineRate === 0) return;                // steady: nothing to do
+    const up = clamp01(rate * 0.8), down = clamp01(-rate * 0.8);
+    const f = 70 + 125 * v;
     engineOn = true;
     engineV = v;
+    engineT = t;
+    engineRate = Math.abs(rate) < 0.01 ? 0 : rate;
     engine.o1.frequency.setTargetAtTime(f, t, 0.09);
-    engine.o2.frequency.setTargetAtTime(f * 1.009, t, 0.09);
+    engine.o2.frequency.setTargetAtTime(f * 3.01, t, 0.09);
     engine.sub.frequency.setTargetAtTime(f * 0.5, t, 0.09);
-    engine.lp.frequency.setTargetAtTime(300 + 1500 * v, t, 0.09);
-    engine.hiss.frequency.setTargetAtTime(600 + 1500 * v, t, 0.12);
-    engine.hissGain.gain.setTargetAtTime(0.03 + 0.09 * v, t, 0.12);
-    engine.out.gain.setTargetAtTime(0.03 + 0.022 * v, t, 0.1);
+    engine.lp.frequency.setTargetAtTime(260 + 900 * v + 900 * up, t, 0.09);
+    engine.hiss.frequency.setTargetAtTime(500 + 2300 * v + 1200 * up, t, 0.1);
+    engine.hissGain.gain.setTargetAtTime(0.05 + 0.13 * v + 0.32 * up, t, 0.1);
+    engine.brake.frequency.setTargetAtTime(750 - 350 * down, t, 0.1);
+    engine.brakeGain.gain.setTargetAtTime(0.5 * down, t, down > 0 ? 0.06 : 0.18);
+    engine.out.gain.setTargetAtTime(0.035 + 0.03 * v, t, 0.1);
   }
 
   function stopEngine() {
     if (!ctx || !engineOn) return;
     engineOn = false;
     engineV = -1;
+    engineRate = 0;
     engine.out.gain.setTargetAtTime(0, ctx.currentTime, 0.12);
   }
 
@@ -1081,8 +1099,8 @@
       return;
     }
     if (Math.abs(v - whineV) < 0.004) return;           // nothing audible changed
-    const f = WHINE_F0 * Math.pow(2, 2 * v);            // 220 Hz .. 880 Hz
-    const bright = 1200 + 3600 * v;
+    const f = WHINE_F0 * Math.pow(2, 1.6 * v);          // 150 Hz .. 455 Hz
+    const bright = 700 + 2600 * v;
     if (whineV === 0) {
       // starting a new charge: snap pitch and tone while the output is still silent
       whine.o1.frequency.setValueAtTime(f, t);
@@ -1094,8 +1112,8 @@
       whine.lp.frequency.setTargetAtTime(bright, t, 0.03);
     }
     whineV = v;
-    whine.pulse.gain.setTargetAtTime(0.12 * v * v * v, t, 0.05);   // pulse mostly near full charge
-    whine.out.gain.setTargetAtTime(0.03 + 0.045 * v, t, 0.03);
+    whine.lfo.frequency.setTargetAtTime(6 + 26 * v * v, t, 0.04);  // pulse races as the charge fills
+    whine.out.gain.setTargetAtTime(0.07 + 0.07 * v, t, 0.03);
   }
 
   function setLowHeat(flag) {
