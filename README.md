@@ -26,7 +26,7 @@ kızak o yöne gider, ileri itersen hızlanır, geri çekersen yavaşlar, sıfı
 kalır. Tık ateş eder; basılı tutunca yaylım atışı şarj olur (yaylım kapalıyken basılı tutmak seri ateş eder). Oyun sırasında imleç gizlenir; Esc imleci geri getirir ve
 oyunu duraklatır, tıklayınca devam eder. Klavyeyle oynarken de herhangi bir anda tıklayıp fareye geçebilirsin.
 
-Fare hassasiyeti: klavyedeki 1 – 9 tuşlarıyla seçilir (1 en düşük ve varsayılan, 9 en yüksek), oyun sırasında
+Hareket hassasiyeti (fare, klavye ve oyun kolu için ortak): klavyedeki 1 – 9 tuşlarıyla seçilir (1 en düşük ve varsayılan, 9 en yüksek), oyun sırasında
 da duraklatılmışken de. Duraklatma ekranındaki − / + düğmeleri ve ← / → de kademe değiştirir. Ayar tarayıcıda saklanır.
 
 Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); tekli ateş hep otomatiktir. Sağ alttaki YAYLIM
@@ -44,6 +44,10 @@ ekranı temizler. Düğmelerin çevresindeki halka bekleme süresini gösterir.
   güçlendirir, en fazla +%250. Atış hızlanır; +%50'de çift, +%100'de üçlü, +%200'de dörtlü atış; +%125'te çift,
   +%250'de üç kat hasar. Yaylım daha çok fişek atar ve daha çabuk dolar, +%125'te çift, +%250'de üçlü gider;
   nükleer daha çabuk dolar. Güç, yolculuk bitince sıfırlanır.
+- **Kalkan:** silah tam güce (+%250) ulaşınca güçlendirmelerin yerine mavi kalkan düşer (en çok 2). Bir düşman
+  çarpmasını, mermiyi ya da ışık çitini emer; kıyıya çarpmayı ve girdabı emmez.
+- **Kanat yardımcıları:** vurduğun düşmanlardan %5 şansla yeşil bir kutu düşer. İki yanında uçan yardımcılar
+  ekrandaki en yakın düşmanlara güdümlü misil atar; can kaybedince giderler.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
 - 20 etap bir tur. Her etapta akış biraz daha hızlanır ve etapların kendi tehlikesi vardır: buz bariyerleri

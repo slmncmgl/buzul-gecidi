@@ -14,6 +14,7 @@
   const contCost = (k) => Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
   // Silah gücü: düşmanlardan %10 şansla düşen güçlendirme başına +%20; bir turda en fazla +%100 (5 adet)
+  const WING_DROP = 0.05, SHIELD_MAX = 2, WING_CD = 1.4;      // kanat yardımcıları: %5 düşer; kalkan: silah tam güçteyken düşer
   const POWER_DROP = 0.2, POWER_MAX = 10, POWER_STEP = 25, BOSS_EVERY = 10;      // her güçlendirme +%25, en çok +%250
   const shotCount = () => G.power >= 8 ? 4 : G.power >= 4 ? 3 : G.power >= 2 ? 2 : 1;
   const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power));
@@ -429,7 +430,7 @@
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.cheated = false;
-    G.power = 0; G.powerBase = 0; G.blastEcho = null;
+    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = false; G.wingCd = 0;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
     G.stats.deaths = []; G.stats.gates = 0;
@@ -449,8 +450,14 @@
     }
   }
 
-  function die(why) {
+  function die(why, hard) {
     if (G.mode !== 'playing') return;
+    if (G.shield > 0 && !hard && (why === 'crash' || why === 'beam')) {      // kalkan: düşman, mermi ve ışık çitini bir kez emer (kıyı ve girdap hariç)
+      G.shield--; P.inv = 1.3; G.flash = Math.max(G.flash, 0.3); G.shake = Math.max(G.shake, 6); padRumble(200, 0.6);
+      boom(P.x, P.wy, 18, ['#ffffff', '#bfe4ff', '#5fb4ff'], 130);
+      pop(P.x, P.wy + 40, G.shield ? 'KALKAN −1' : 'KALKAN KIRILDI', '#8fd0ff'); A.play('shatter');
+      return;
+    }
     G.mode = 'dying'; G.deathT = 1.5; G.shake = 9; padRumble(450, 1);
     G.deathMsg = why === 'freeze' ? 'ISI BİTTİ — DONDUN' : why === 'beam' ? 'IŞIK ÇİTİNE ÇARPTIN' : why === 'whirl' ? 'GİRDABA KAPILDIN' : 'KIZAK PARÇALANDI';
     G.stats.deaths.push({ why: why, sec: G.sec, wy: Math.round(P.wy), x: Math.round(P.x) });
@@ -469,7 +476,7 @@
       mouse.down = false; unlockPointer();
       return;
     }
-    P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0;
+    P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0; G.wing = false;
     G.heat = 100; shots.length = 0; orbs.length = 0;
     mouse.mx = 0; mouse.my = 0;                          // yeniden doğunca sıfır noktası da yenilenir
     G.blastCd = 0; P.holdT = 0; P.charge = 0;            // yeni kızak, yaylım hazır
@@ -488,7 +495,7 @@
       part(x, wy, Math.cos(a) * v, Math.sin(a) * v, rand(0.3, 0.9), rand(1.5, 3.5), colors[i % colors.length], true);
     }
   }
-  function pop(x, wy, text, color) { pops.push({ x: clamp(x, 34, W - 34), wy: wy, text: text, life: 1.1, color: color || '#ffe9b8' }); }
+  function pop(x, wy, text, color) { pops.push({ x: clamp(x, 70, W - 70), wy: wy, text: text, life: 1.1, color: color || '#ffe9b8' }); }
 
   // ------------------------------------------------------------ otomatik pilot (yalnızca test: ?auto)
   function segOf(t, x, out) {
@@ -529,16 +536,16 @@
 
     const s = sec(G.sec);
     const sm = G.sm = speedMul(G.sec), vMin = SPEED_MIN * sm, vCr = SPEED_CRUISE * sm, vMax = SPEED_MAX * sm;
-    const lat = 126 * Math.sqrt(sm);     // klavye yan hızı (180 fazla sıçratıyordu)
+    const lat = 126 * Math.sqrt(sm) * Math.sqrt(mouse.sens / SENS_LEVELS[0]);     // klavye yan hızı (180 fazla sıçratıyordu)
 
     // rüzgâr: önce uyarı, sonra birkaç saniyelik yan itiş
     const w0 = s.info.wind || 0;
     if (w0) {
       G.windT += dt;
       const c = G.windT % 6.5, dir = hash(Math.floor(G.windT / 6.5) + G.sec * 7.3) < 0.5 ? -1 : 1;
-      const env = c < 1.4 ? 0 : c < 2 ? (c - 1.4) / 0.6 : c < 4.2 ? 1 : c < 4.8 ? (4.8 - c) / 0.6 : 0;
+      const env = c < 1.2 ? 0 : c < 1.6 ? (c - 1.2) / 0.4 : c < 2.8 ? 1 : c < 3.2 ? (3.2 - c) / 0.4 : 0;      // 1,2 sn uyarı, ~1,6 sn esinti
       G.wind = w0 * dir * env * (1 + 0.15 * s.loop);
-      G.windWarn = c > 0.2 && c < 4.8 ? dir : 0;
+      G.windWarn = c > 0.2 && c < 3.2 ? dir : 0;
     } else { G.wind = 0; G.windWarn = 0; G.windT = 0; }
     A.setWind(Math.min(1, Math.abs(G.wind) / 60));
 
@@ -597,6 +604,7 @@
     G.readyT = Math.max(0, G.readyT - dt);
     if (G.blastEcho) { G.blastEcho.t -= dt; if (G.blastEcho.t <= 0) { pellets(G.blastEcho.c); A.play('blast'); if (--G.blastEcho.n > 0) G.blastEcho.t = 0.16; else G.blastEcho = null; } }
     if (G.nukeCd > 0) { G.nukeCd -= dt; if (G.nukeCd <= 0) { G.nukeCd = 0; A.play('blastReady'); pop(P.x, P.wy + 40, 'NÜKLEER HAZIR', '#7dffb0'); } }
+    if (G.wing) wingFire(dt);
     const autoRelease = cfg.auto;       // otomatik pilotta dolunca kendi ateşler
     const shootNormal = function () {
       if (P.fireCd > 0 || normalShots() >= 3 * shotCount()) return;
@@ -650,7 +658,7 @@
       const c = coinsL[i];
       if (Math.abs(P.x - c.x) < 12 + c.v && Math.abs(P.wy - c.wy) < 14 + c.v) {
         coinsL.splice(i, 1);
-        if (c.pw) { powerUp(); continue; }
+        if (c.pw) { if (c.k === 'sh') shieldUp(); else if (c.k === 'wing') wingUp(); else powerUp(); continue; }
         G.coins += c.v; G.runCoins += c.v; store('bg_coins', String(G.coins));
         addScore(10 * c.v);
         A.play(c.v > 1 ? 'bigCoin' : 'coin');
@@ -661,7 +669,7 @@
 
     // kıyıya ya da adaya çarpma
     if (solid(P.x - 5, P.wy - 7) || solid(P.x + 5, P.wy - 7) || solid(P.x - 5, P.wy + 6) || solid(P.x + 5, P.wy + 6) || solid(P.x, P.wy + 11)) {
-      die('crash'); return;
+      die('crash', true); return;
     }
 
     // fener kapısı
@@ -685,7 +693,7 @@
     }
   }
 
-  function normalShots() { let n = 0; for (let i = 0; i < shots.length; i++) if (!shots[i].pellet) n++; return n; }
+  function normalShots() { let n = 0; for (let i = 0; i < shots.length; i++) if (!shots[i].pellet && !shots[i].homing) n++; return n; }
   // Şarj seviyesine göre 5–11 fişek, yelpaze açısı ±16°–±42°; tam şarjda fişekler çift hasar verir
   function pellets(c) {
     const n = 5 + Math.round(c * 6) + Math.min(8, G.power), half = (16 + 26 * c) * Math.PI / 180, v = 470;
@@ -702,6 +710,33 @@
     pop(P.x, P.wy + 34, msg, '#ff9a4d');
     G.flash = Math.max(G.flash, 0.2);
     A.play('powerUp');
+  }
+  function shieldUp() {
+    if (G.shield >= SHIELD_MAX) { addScore(200); pop(P.x, P.wy + 30, '+200', '#8fd0ff'); return; }
+    G.shield++;
+    pop(P.x, P.wy + 34, G.shield > 1 ? 'ÇİFT KALKAN' : 'KALKAN', '#8fd0ff'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
+  }
+  function wingUp() {
+    G.wing = true; G.wingCd = 0.4;
+    pop(P.x, P.wy + 34, 'KANAT YARDIMCILARI', '#7dffb0'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
+  }
+  // Kanat yardımcıları: iki yanda uçar, ekrandaki en yakın düşmanlara güdümlü misil atar. Can kaybedince gider.
+  function wingFire(dt) {
+    G.wingCd -= dt;
+    if (G.wingCd > 0) return;
+    const c = [];
+    for (let i = 0; i < ents.length; i++) {
+      const e = ents[i], y = sy(e.wy);
+      if (e.dead || e.type === 'beam' || e.type === 'whirl' || y < 10 || y > PSY - 20) continue;
+      c.push(e);
+    }
+    if (!c.length) { G.wingCd = 0.2; return; }
+    c.sort(function (p, q) { return Math.hypot(p.x - P.x, p.wy - P.wy) - Math.hypot(q.x - P.x, q.wy - P.wy); });
+    // soldaki yardımcı soldaki hedefe, sağdaki sağdakine
+    const a = c[0], b = c[1] || c[0], l = a.x <= b.x ? a : b, r = a.x <= b.x ? b : a;
+    shots.push({ x: P.x - 17, wy: P.wy + 4, v: P.speed + 200, vx: -70, dmg: 2, homing: true, tgt: l });
+    shots.push({ x: P.x + 17, wy: P.wy + 4, v: P.speed + 200, vx: 70, dmg: 2, homing: true, tgt: r });
+    G.wingCd = WING_CD; A.play('orb');
   }
   function fireBlast() {
     const c = P.charge;
@@ -806,8 +841,12 @@
     boom(e.x, e.wy, e.type === 'turret' ? 26 : e.type === 'ice' ? 9 : 16, c, e.type === 'turret' ? 130 : 100);
     G.shake = Math.max(G.shake, e.type === 'turret' ? 5 : 3);
     A.play(e.type === 'ice' ? 'shatter' : e.type === 'turret' || e.type === 'boss' ? 'bigExplode' : 'explode');
-    if (byShot && e.type !== 'ice' && e.type !== 'boss' && G.power < POWER_MAX && Math.random() < POWER_DROP && !solid(e.x, e.wy)) {
-      coinsL.push({ x: e.x, wy: e.wy, v: 0, pw: true, ph: 0 });        // silah güçlendirmesi düşer
+    if (byShot && e.type !== 'ice' && e.type !== 'boss' && !solid(e.x, e.wy)) {
+      const r = Math.random();
+      let k = null;
+      if (r < WING_DROP) k = G.wing ? null : 'wing';                                  // %5: kanat yardımcıları
+      else if (r < WING_DROP + POWER_DROP) k = G.power < POWER_MAX ? 'pw' : G.shield < SHIELD_MAX ? 'sh' : null;   // %20: silah; silah tam güçteyse kalkan
+      if (k) coinsL.push({ x: e.x, wy: e.wy, v: 0, pw: true, k: k, ph: 0 });
     }
     if (byShot) { addScore(PTS[e.type]); if (e.type !== 'ice') pop(e.x, e.wy + 10, '+' + PTS[e.type]); }
   }
@@ -871,6 +910,16 @@
   function updateShots(dt) {
     for (let i = shots.length - 1; i >= 0; i--) {
       const s = shots[i];
+      if (s.homing) {
+        const tg = s.tgt;
+        if (tg && !tg.dead) {
+          const dx = tg.x - s.x, dy = tg.wy - s.wy, d = Math.hypot(dx, dy) || 1;
+          s.vx = approach(s.vx, dx / d * 340, 1100 * dt);
+          s.v = approach(s.v, dy / d * 340 + P.speed, 1100 * dt);
+        } else s.v = approach(s.v, P.speed + 340, 900 * dt);
+        if (Math.random() < 0.5) part(s.x, s.wy, rand(-12, 12), rand(-30, 0), rand(0.15, 0.3), rand(1, 2), '#b8ffd8', true);
+        if (sy(s.wy) > H + 20) { shots.splice(i, 1); continue; }
+      }
       s.wy += s.v * dt;
       if (s.vx) s.x += s.vx * dt;
       if (sy(s.wy) < -14 || s.x < -12 || s.x > W + 12) { shots.splice(i, 1); continue; }
@@ -1386,13 +1435,17 @@
       if (c.pw) {                              // güçlendirme: dönen turuncu elmas
         const pu = 1 + 0.12 * Math.sin(G.t * 7);
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        glow(c.x, y, 22, '255,140,50', 0.6);
+        const sh = c.k === 'sh', wg = c.k === 'wing';       // turuncu: silah · mavi: kalkan · yeşil: kanat yardımcıları
+        glow(c.x, y, 22, sh ? '80,170,255' : wg ? '80,240,150' : '255,140,50', 0.6);
         ctx.restore();
         ctx.save(); ctx.translate(c.x, y); ctx.rotate(G.t * 1.6); ctx.scale(pu, pu);
-        ctx.fillStyle = '#ff7a1f'; ctx.beginPath(); ctx.roundRect(-7, -7, 14, 14, 3); ctx.fill();
+        ctx.fillStyle = sh ? '#2f8fe8' : wg ? '#1fae6a' : '#ff7a1f'; ctx.beginPath(); ctx.roundRect(-7, -7, 14, 14, 3); ctx.fill();
         ctx.strokeStyle = '#fff1dc'; ctx.lineWidth = 1.6; ctx.stroke();
         ctx.restore();
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(c.x - 1.4, y - 4.5, 2.8, 9); ctx.fillRect(c.x - 4.5, y - 1.4, 9, 2.8);
+        ctx.fillStyle = '#ffffff';
+        if (sh) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(c.x, y, 3.6, 0, 6.3); ctx.stroke(); }
+        else if (wg) { poly([c.x - 5, y + 3, c.x - 2.5, y - 4, c.x, y + 3]); poly([c.x, y + 3, c.x + 2.5, y - 4, c.x + 5, y + 3]); }
+        else { ctx.fillRect(c.x - 1.4, y - 4.5, 2.8, 9); ctx.fillRect(c.x - 4.5, y - 1.4, 9, 2.8); }
         continue;
       }
       const big = c.v > 1, r = big ? 7.1 : 4.5, squash = 0.35 + 0.65 * Math.abs(Math.cos(G.t * 3.2 + c.ph));
@@ -1502,7 +1555,8 @@
     ctx.fillStyle = '#fffbe8';
     for (let i = 0; i < shots.length; i++) {
       const s = shots[i];
-      if (s.pellet) { ctx.beginPath(); ctx.arc(s.x, sy(s.wy), 2.2, 0, 6.3); ctx.fill(); }
+      if (s.homing) { ctx.fillStyle = '#9dffc8'; ctx.beginPath(); ctx.arc(s.x, sy(s.wy), 3, 0, 6.3); ctx.fill(); ctx.fillStyle = '#fffbe8'; }
+      else if (s.pellet) { ctx.beginPath(); ctx.arc(s.x, sy(s.wy), 2.2, 0, 6.3); ctx.fill(); }
       else ctx.fillRect(s.x - 1.5, sy(s.wy) - 5, 3, 9);
     }
   }
@@ -1521,6 +1575,21 @@
   function drawPlayer() {
     if (P.inv > 0 && Math.floor(G.t * 14) % 2 === 0) return;
     const x = P.x, y = PSY, t = P.tilt;
+    if (G.wing) {
+      for (let q = -1; q <= 1; q += 2) {
+        const wx = x + q * 17, wy2 = y + 4 + Math.sin(G.t * 4 + q) * 1.5;
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(wx, wy2, 9, '80,240,150', 0.5); ctx.restore();
+        ctx.fillStyle = '#1b6b4a'; poly([wx, wy2 - 7, wx + 4.5, wy2 + 5, wx - 4.5, wy2 + 5]);
+        ctx.fillStyle = '#9dffc8'; poly([wx, wy2 - 4, wx + 2, wy2 + 2.5, wx - 2, wy2 + 2.5]);
+      }
+    }
+    if (G.shield > 0) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(120,200,255,' + (0.55 + 0.2 * Math.sin(G.t * 5)) + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(x, y, 15, 19, 0, 0, 6.3); ctx.stroke();
+      if (G.shield > 1) { ctx.strokeStyle = 'rgba(120,200,255,0.4)'; ctx.beginPath(); ctx.ellipse(x, y, 19, 23, 0, 0, 6.3); ctx.stroke(); }
+      ctx.restore();
+    }
     // far ışığı
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     const g = ctx.createLinearGradient(0, y - 10, 0, y - 140);
@@ -1594,7 +1663,7 @@
     for (let i = 0; i < pops.length; i++) {
       const p = pops[i], a = Math.min(1, p.life * 2.2);
       ctx.globalAlpha = a;
-      text(p.text, p.x, sy(p.wy) - (1.1 - p.life) * 26, 15, p.color, 'center', 700);
+      text(p.text, p.x, sy(p.wy) - (1.1 - p.life) * 26, p.text.charAt(0) === '+' ? 15 : 20, p.color, 'center', 700);
     }
     ctx.globalAlpha = 1;
   }
@@ -1621,6 +1690,8 @@
     coinIcon(18, 50, 5, 1);
     text(String(G.coins), 28, 55, 15, '#ffd95a', 'left', 700);
     if (G.power > 0) text('SİLAH +' + POWER_STEP * G.power + '%', 12, 72, 12, '#ff9a4d', 'left', 700);
+    if (G.shield > 0) text('KALKAN ×' + G.shield, 12, 87, 12, '#8fd0ff', 'left', 700);
+    if (G.wing) text('KANAT', 12, G.shield > 0 ? 102 : 87, 12, '#7dffb0', 'left', 700);
     const loop = Math.floor(G.sec / NSEC);
     const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);
@@ -1709,13 +1780,14 @@
     if (G.windWarn && G.mode === 'playing') {
       const active = Math.abs(G.wind) > 4;
       if (active || Math.floor(G.t * 7) % 2 === 0) {
-        text(G.windWarn > 0 ? 'RÜZGÂR  › › ›' : '‹ ‹ ‹  RÜZGÂR', W / 2, 92, 16, active ? '#ffffff' : '#ffcf8a', 'center', 700);
+        ctx.fillStyle = active ? 'rgba(200,60,40,0.55)' : 'rgba(8,18,30,0.6)'; ctx.fillRect(0, 104, W, 40);
+        text(G.windWarn > 0 ? 'RÜZGÂR  › › ›' : '‹ ‹ ‹  RÜZGÂR', W / 2, 134, 28, active ? '#ffffff' : '#ffcf8a', 'center', 700);
       }
     }
 
     if (G.sensT > 0 && G.mode !== 'paused') {
       ctx.globalAlpha = Math.min(1, G.sensT * 2);
-      text('FARE HASSASİYETİ  ' + mouse.level + ' / 9', W / 2, 116, 15, '#ffe9b8', 'center', 700);
+      text('HAREKET HASSASİYETİ  ' + mouse.level + ' / 9', W / 2, 170, 19, '#ffe9b8', 'center', 700);
       ctx.globalAlpha = 1;
     }
 
@@ -1772,11 +1844,11 @@
 
     const cy = y0 + 226;
     const rows = IS_TOUCH
-      ? [['SÜRÜKLE', 'yön'], ['YUKARI / AŞAĞI', 'hızlan / yavaşla'], ['DOKUNURKEN', 'otomatik ateş'], ['İKİNCİ PARMAK', 'nükleer patlama']]
-      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK / TIK', 'ateş'], ['BASILI TUT', 'şarj et, bırak: yaylım'], ['X / SAĞ TIK', 'nükleer patlama (60 sn)'], ['FARE', 'yön + hız  ·  1–9 hassasiyet'], ['P  ·  M', 'duraklat  ·  ses']];
+      ? [['SÜRÜKLE', 'yön'], ['YUKARI / AŞAĞI', 'hızlan / yavaşla'], ['ATEŞ', 'otomatik'], ['DÜĞMELER', 'yaylım  ·  nükleer']]
+      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK / TIK', 'ateş'], ['BASILI TUT', 'şarj et, bırak: yaylım'], ['X / SAĞ TIK', 'nükleer patlama (60 sn)'], ['FARE', 'yön + hız'], ['1 – 9', 'hareket hassasiyeti: ' + mouse.level], ['P  ·  M', 'duraklat  ·  ses']];
     for (let i = 0; i < rows.length; i++) {
-      text(rows[i][0], W / 2 - 10, cy + i * 17.5, 14, '#ffe9b8', 'right', 700);
-      text(rows[i][1], W / 2 + 10, cy + i * 17.5, 14, 'rgba(225,238,250,0.92)', 'left', 500);
+      text(rows[i][0], W / 2 - 10, cy + i * (rows.length > 7 ? 15.5 : 17.5), 14, '#ffe9b8', 'right', 700);
+      text(rows[i][1], W / 2 + 10, cy + i * (rows.length > 7 ? 15.5 : 17.5), 14, 'rgba(225,238,250,0.92)', 'left', 500);
     }
 
     const blink = Math.floor(G.t * 1.6) % 2 === 0;
@@ -1857,7 +1929,7 @@
         text(IS_TOUCH ? 'devam etmek için dokun' : mouse.active ? 'devam etmek için tıkla' : 'devam etmek için P ya da ENTER', W / 2, 330, 15, '#ffcf8a', 'center', 500);
         text(muted ? 'ses kapalı (M)' : 'ses açık (M)', W / 2, 354, 13, 'rgba(190,215,240,0.85)', 'center', 500);
         // fare hassasiyeti ayarı
-        text('FARE HASSASİYETİ', W / 2, 406, 13, '#ffcf8a', 'center', 500);
+        text('HAREKET HASSASİYETİ', W / 2, 406, 13, '#ffcf8a', 'center', 500);
         button(BTN.sensMinus, '−', null, false, mouse.level > 1);
         button(BTN.sensPlus, '+', null, false, mouse.level < 9);
         const bx0 = BTN.sensMinus.x + BTN.sensMinus.w + 10, bw0 = BTN.sensPlus.x - 10 - bx0, by0 = BTN.sensMinus.y + 27;
