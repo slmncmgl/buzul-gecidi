@@ -145,6 +145,10 @@
   const keys = {};
   const inp = { left: false, right: false, up: false, down: false, fire: false };
   const touch = { on: false, id: null, lx: 0, y0: 0, y: 0, dx: 0 };
+  // dokunmatik düğmeler: yaylım (dokun ya da basılı tutup şarj et) ve nükleer; dokunmatikte tekli ateş otomatiktir
+  const tb = { seen: false, blastId: null, rel: false };
+  const TBTN = { blast: { x: W - 40, y: H - 100, r: 28 }, nuke: { x: 40, y: H - 100, r: 28 } };
+  const inTB = (p, c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + 8;
   // Fare: oyun başladığı andaki konum (0,0) kabul edilir; mx sağ/sol, my ileri/geri sapmadır
   const mouse = { active: false, down: false, mx: 0, my: 0, sens: 0.35, level: 1 };
   // Fare hassasiyeti: 9 kademe, klavyede 1–9 ile seçilir, tarayıcıda saklanır (1.0 = imleçle birebir)
@@ -250,6 +254,7 @@
     if (G.mode === 'paused' && (m === 'left' || m === 'right')) { setSens(m === 'left' ? -1 : 1); return; }
     if (e.repeat) return;
     firstGesture();
+    tb.seen = false;
     if (e.code === 'Enter' || e.code === 'Space') {
       if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) startGame(0);
       else if (G.mode === 'paused') togglePause();
@@ -298,6 +303,7 @@
       return;
     } else if (!isMouse && p.x > W - 52 && p.y > 26 && p.y < 70) { togglePause(); return; }
     if (isMouse) {
+      tb.seen = false;
       if (G.mode !== 'playing') return;
       if (e.button === 2) { nuke(); return; }            // sağ tık: nükleer patlama
       if (!mouse.active) { mouse.active = true; mouse.mx = P.x - W / 2; mouse.my = 0; }
@@ -305,7 +311,12 @@
       mouse.down = true;
       return;
     }
-    if (touch.on && e.pointerId !== touch.id) { nuke(); return; }   // ikinci parmak: nükleer patlama
+    tb.seen = true;
+    if (G.mode === 'playing') {
+      if (inTB(p, TBTN.nuke)) { nuke(); return; }
+      if (inTB(p, TBTN.blast)) { tb.blastId = e.pointerId; return; }
+    }
+    if (touch.on && e.pointerId !== touch.id) return;
     touch.on = true; touch.id = e.pointerId; touch.lx = p.x; touch.y0 = p.y; touch.y = p.y; touch.dx = 0;
   });
   canvas.addEventListener('pointermove', function (e) {
@@ -315,6 +326,7 @@
   });
   function touchEnd(e) {
     if (e.pointerType === 'mouse') { mouse.down = false; return; }
+    if (e.pointerId === tb.blastId) { tb.blastId = null; tb.rel = true; }
     if (e.pointerId === touch.id) touch.on = false;
   }
   window.addEventListener('mouseup', function () { mouse.down = false; });
@@ -585,19 +597,28 @@
     G.readyT = Math.max(0, G.readyT - dt);
     if (G.blastEcho) { G.blastEcho.t -= dt; if (G.blastEcho.t <= 0) { pellets(G.blastEcho.c); A.play('blast'); if (--G.blastEcho.n > 0) G.blastEcho.t = 0.16; else G.blastEcho = null; } }
     if (G.nukeCd > 0) { G.nukeCd -= dt; if (G.nukeCd <= 0) { G.nukeCd = 0; A.play('blastReady'); pop(P.x, P.wy + 40, 'NÜKLEER HAZIR', '#7dffb0'); } }
-    const autoRelease = touch.on || cfg.auto;       // dokunmatikte ve otomatik pilotta dolunca kendi ateşler
-    if (inp.fire) {
+    const autoRelease = cfg.auto;       // otomatik pilotta dolunca kendi ateşler
+    const shootNormal = function () {
+      if (P.fireCd > 0 || normalShots() >= 3 * shotCount()) return;
+      const n = shotCount(), dm = 1 + Math.floor(G.power / 5);       // +%50: çift, +%100: üçlü, +%125: çift hasar, +%200: dörtlü, +%250: üç kat hasar
+      for (let i = 0; i < n; i++) shots.push({ x: P.x + (i - (n - 1) / 2) * 9, wy: P.wy + 14, v: 440 + P.speed, vx: 0, dmg: dm });
+      P.fireCd = Math.max(0.11, 0.2 / (1 + 0.1 * G.power));
+      A.play(n > 1 ? 'shoot2' : 'shoot');
+    };
+    if (tb.seen && !cfg.auto) {
+      // dokunmatik: tekli ateş hep otomatik; yaylım yalnızca düğmeyle (dokun: hemen, basılı tut: şarj et, bırak: at)
+      if (tb.rel) {
+        tb.rel = false;
+        if (G.blastCd <= 0) { P.charge = Math.max(P.charge, BLAST_MIN); fireBlast(); } else A.play('deny');
+      } else if (tb.blastId !== null && G.blastCd <= 0) P.charge = Math.min(1, P.charge + dt / BLAST_CHARGE);
+      else { P.charge = 0; shootNormal(); }
+    } else if (inp.fire) {
       P.holdT += dt;
       if (G.blastCd <= 0 && P.holdT > BLAST_HOLD) {
         // yaylım hazırsa basılı tutmak şarj eder (bu sırada tekli atış yok)
         P.charge = Math.min(1, P.charge + dt / BLAST_CHARGE);
         if (autoRelease && P.charge >= 1) fireBlast();
-      } else if (P.fireCd <= 0 && normalShots() < 3 * shotCount()) {
-        const n = shotCount(), dm = 1 + Math.floor(G.power / 5);       // +%50: çift, +%100: üçlü, +%125: çift hasar, +%200: dörtlü, +%250: üç kat hasar
-        for (let i = 0; i < n; i++) shots.push({ x: P.x + (i - (n - 1) / 2) * 9, wy: P.wy + 14, v: 440 + P.speed, vx: 0, dmg: dm });
-        P.fireCd = Math.max(0.11, 0.2 / (1 + 0.1 * G.power));
-        A.play(n > 1 ? 'shoot2' : 'shoot');
-      }
+      } else shootNormal();
     } else {
       if (P.charge >= BLAST_MIN) fireBlast();
       P.charge = 0; P.holdT = 0;
@@ -1611,6 +1632,22 @@
     if (IS_TOUCH) {
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
       ctx.fillRect(W - 27, 46, 4, 13); ctx.fillRect(W - 19, 46, 4, 13);
+    }
+
+    // dokunmatik düğmeler: çevredeki halka bekleme süresini gösterir
+    if (tb.seen && (G.mode === 'playing' || G.mode === 'dying')) {
+      const drawTB = function (c, label, rgb, fr, held) {
+        const ready = fr >= 1;
+        ctx.fillStyle = 'rgba(8,18,30,' + (held ? 0.75 : 0.5) + ')';
+        ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, 6.3); ctx.fill();
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(190,215,240,0.25)';
+        ctx.beginPath(); ctx.arc(c.x, c.y, c.r - 1.5, 0, 6.3); ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (ready ? 0.95 : 0.55) + ')';
+        ctx.beginPath(); ctx.arc(c.x, c.y, c.r - 1.5, -Math.PI / 2, -Math.PI / 2 + 6.2832 * clamp(fr, 0, 1)); ctx.stroke();
+        text(label, c.x, c.y + 3.5, 9, ready ? 'rgb(' + rgb + ')' : 'rgba(190,215,240,0.6)', 'center', 700);
+      };
+      drawTB(TBTN.blast, P.charge > 0 ? Math.round(P.charge * 100) + '%' : 'YAYLIM', P.charge > 0 ? '255,154,77' : '255,226,122', G.blastCd <= 0 ? 1 : 1 - G.blastCd / blastCdMax(), tb.blastId !== null);
+      drawTB(TBTN.nuke, 'NÜKLEER', '125,255,176', G.nukeCd <= 0 ? 1 : 1 - G.nukeCd / nukeCdMax(), false);
     }
 
     // alt: ısı göstergesi

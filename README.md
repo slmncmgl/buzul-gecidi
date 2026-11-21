@@ -29,13 +29,15 @@ oyunu duraklatır, tıklayınca devam eder. Klavyeyle oynarken de herhangi bir a
 Fare hassasiyeti: klavyedeki 1 – 9 tuşlarıyla seçilir (1 en düşük ve varsayılan, 9 en yüksek), oyun sırasında
 da duraklatılmışken de. Duraklatma ekranındaki − / + düğmeleri ve ← / → de kademe değiştirir. Ayar tarayıcıda saklanır.
 
-Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); dokunurken otomatik ateş eder.
+Telefonda: parmağını sürükle (yön), yukarı / aşağı kaydır (hız); tekli ateş hep otomatiktir. Sağ alttaki YAYLIM
+düğmesine dokununca yaylım hemen gider, basılı tutunca şarj olur ve bırakınca atılır; sol alttaki NÜKLEER düğmesi
+ekranı temizler. Düğmelerin çevresindeki halka bekleme süresini gösterir.
 
 - **Isı** sürekli azalır. **Sıcak kaynakların** üstünden geçince dolar; ne kadar yavaş geçersen o kadar çok.
 - **Yaylım atışı:** ateşi basılı tut, kızağın çevresindeki halka dolsun, bırak. Şarja göre 5–11 fişek yelpaze
   şeklinde çıkar; tam şarjda fişekler çift hasar verir. Kullandıktan sonra 10 sn kapanır (alttaki YAYLIM çubuğu
   dolunca yeniden hazır). Kapalıyken basılı tutmak eskisi gibi seri tekli atış yapar.
-- **Nükleer patlama:** X tuşu ya da sağ tık (telefonda ikinci parmak). Ekrandaki düşmanları ve mermileri siler,
+- **Nükleer patlama:** X tuşu ya da sağ tık (telefonda ekrandaki NÜKLEER düğmesi). Ekrandaki düşmanları ve mermileri siler,
   bekçiye 8 hasar verir; girdap ve ışık çiti kalır. Oyun başında hazırdır, kullanınca 60 sn bekler; bekleme can
   kaybedince sıfırlanmaz.
 - **Silah güçlendirmesi:** vurduğun düşmanlardan %20 şansla turuncu bir güçlendirme düşer; her biri silahı +%25
