@@ -54,7 +54,8 @@ ekranı temizler. Düğmelerin çevresindeki halka bekleme süresini gösterir.
   (ateşle kırılır), peşine düşen avcılar, girdaplar (içine çeker), ışık çitleri (sönünce geçilir), hızlı akıntı
   (yavaşlanamaz), sisli ve rüzgârlı etaplar.
 - **Bekçi:** her 10. etabın sonunda geniş bir alanda karşına çıkar; ateş eder, avcı salar. Geçilen her 10 etapta
-  bekçi ve düşmanlar daha dayanıklı olur. İndirirsen 2500 puan
+  bir kademe zorlaşır: düşmanlar sıklaşır ve ikili, üçlü gruplar halinde gelir, etaplara yeni türler karışır, kuleler
+  ikili ve üçlü yaylım atar, botlar da ateş etmeye başlar, bekçinin canı artar. İndirirsen 2500 puan
   ve önüne saçılan altınlar senin. Alan bitene kadar indiremezsen kaçar; yol yine açılır.
 - **Turlar birbirinin aynısı değil:** tur bitince etapların sırası karışır, adları ve günün saati değişir, sis ve
   rüzgâr başka etaplara geçer, her etaba avcı, buz bariyeri, girdap ve ışık çiti de eklenir; düşmanlar hızlanır.

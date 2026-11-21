@@ -379,7 +379,8 @@
       const sp = s.spawns[i], sz = SIZE[sp.type];
       ents.push({
         type: sp.type, x: sp.x, wy: sp.y, vx: sp.vx || 0, minX: sp.minX, maxX: sp.maxX,
-        hw: sz[0], hh: sz[1], hp: sp.type === 'turret' ? 2 + Math.min(4, tier) : sp.type === 'ice' ? 1 + Math.min(1, tier) : (sp.type === 'hunter' || sp.type === 'boat') ? 1 + Math.min(2, Math.floor((tier + 1) / 2)) : 1,
+        hw: sz[0], hh: sz[1], hp: sp.type === 'turret' ? 2 + Math.min(2, tier) : sp.type === 'ice' ? 1 + Math.min(1, tier) : (sp.type === 'hunter' || sp.type === 'boat') ? 1 + Math.min(1, Math.floor(tier / 2)) : 1,
+        vol: tier >= 3 ? 3 : tier >= 1 ? 2 : 1, armed: sp.type === 'boat' && tier >= 2,      // kule yaylım ateşi; ileri kademelerde botlar da ateş eder
         cd: 0.7, rate: 2.3 / (1 + 0.08 * tier), hard: 1 + 0.08 * tier,
         flash: 0, ph: hash(sp.y + sp.x) * 6.28, ang: Math.PI / 2, dead: false
       });
@@ -387,7 +388,7 @@
       if (sp.type === 'beam') { e.hw = (sp.maxX - sp.minX) / 2; e.hp = 1e9; e.onT = sp.period * 0.55; e.period = sp.period + 2; e.bph = sp.ph;   // açık süre aynı, kapalı süre +2 sn
         e.on = false; e.warn = false; }
       else if (sp.type === 'whirl') { e.hp = 1e9; e.r = sp.r; }
-      else if (sp.type === 'boss') { e.hp = e.maxHp = 80 + 45 * tier; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
+      else if (sp.type === 'boss') { e.hp = e.maxHp = 160 + 90 * tier; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
     }
     for (let i = 0; i < s.coins.length; i++) {
       const c = s.coins[i];
@@ -865,6 +866,10 @@
         e.x += e.vx * dt;
         if (e.x < e.minX) { e.x = e.minX; e.vx = Math.abs(e.vx); }
         else if (e.x > e.maxX) { e.x = e.maxX; e.vx = -Math.abs(e.vx); }
+        if (e.armed && playing && y > 8 && y < PSY - 110) {       // silahlı bot: dümdüz aşağı ateş eder
+          e.cd -= dt;
+          if (e.cd <= 0) { orbs.push({ x: e.x, wy: e.wy - 8, vx: 0, vy: -105 * e.hard }); e.cd = 2.4; A.play('orb'); }
+        }
       } else if (e.type === 'skim') {
         e.x += e.vx * dt;
         if (e.x > W + 30 && e.vx > 0) e.vx = -e.vx;
@@ -881,7 +886,11 @@
           e.cd -= dt;
           if (e.cd <= 0) {
             const dx = P.x - e.x, dy = (P.wy + P.speed * 0.3) - e.wy, len = Math.hypot(dx, dy) || 1, v = 112 * e.hard * (0.85 + 0.15 * G.sm);
-            orbs.push({ x: e.x, wy: e.wy, vx: dx / len * v, vy: dy / len * v });
+            const a0 = Math.atan2(dy, dx);
+            for (let q = 0; q < e.vol; q++) {
+              const a = a0 + (q - (e.vol - 1) / 2) * 0.2;
+              orbs.push({ x: e.x, wy: e.wy, vx: Math.cos(a) * v, vy: Math.sin(a) * v });
+            }
             e.cd = e.rate;
             A.play('orb');
           }

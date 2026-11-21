@@ -26,7 +26,7 @@
     { name: 'Sakin Körfez',    name2: 'Durgun Koy',        pal: 0, cps: 12, minHalf: 78,  maxHalf: 135, shift: 50,  islands: 1, gap: [200, 300], form: 0.10, mix: { mine: 3, boat: 1 }, ventGap: 800, drain: 0.9 },
     { name: 'Çam Kıyısı',      name2: 'Ladin Sahili',      pal: 1, cps: 16, minHalf: 66,  maxHalf: 135, shift: 62,  islands: 2, gap: [170, 260], form: 0.20, mix: { mine: 3, boat: 3, skim: 1, ice: 1 }, ventGap: 900, drain: 1 },
     { name: 'İkiz Adalar',     name2: 'Kardeş Kayalar',    pal: 2, cps: 18, minHalf: 60,  maxHalf: 150, shift: 70,  islands: 4, gap: [150, 240], form: 0.25, mix: { mine: 3, boat: 3, skim: 2, turret: 1, ice: 1 }, ventGap: 950, drain: 1 },
-    { name: 'Girdap Koyu',     name2: 'Burgaç Körfezi',    pal: 4, cps: 16, minHalf: 70,  maxHalf: 140, shift: 60,  islands: 2, gap: [160, 240], form: 0.20, mix: { whirl: 4, mine: 3, boat: 2, skim: 1 }, ventGap: 950, drain: 1 },
+    { name: 'Girdap Koyu',     name2: 'Burgaç Körfezi',    pal: 4, cps: 16, minHalf: 70,  maxHalf: 140, shift: 60,  islands: 2, gap: [160, 240], form: 0.20, mix: { whirl: 3, mine: 3, boat: 2, skim: 2 }, ventGap: 950, drain: 1 },
     { name: 'Sisli Boğaz',     name2: 'Puslu Geçit',       pal: 0, cps: 18, minHalf: 54,  maxHalf: 112, shift: 76,  islands: 2, gap: [150, 230], form: 0.25, mix: { mine: 3, boat: 3, skim: 2, turret: 1, hunter: 1 }, ventGap: 1000, drain: 1, fog: 0.9 },
     { name: 'Kırık Buzullar',  name2: 'Çatlak Buzul',      pal: 1, cps: 20, minHalf: 56,  maxHalf: 150, shift: 70,  islands: 5, gap: [140, 220], form: 0.30, mix: { ice: 4, mine: 3, boat: 2, skim: 2, turret: 1, hunter: 1 }, ventGap: 1050, drain: 1.05 },
     { name: 'Kurt Geçidi',     name2: 'Avcı Vadisi',       pal: 2, cps: 20, minHalf: 44,  maxHalf: 88,  shift: 74,  islands: 0, gap: [140, 220], form: 0.30, mix: { hunter: 4, boat: 2, skim: 2, mine: 2 }, ventGap: 1050, drain: 1.05 },
@@ -220,19 +220,22 @@
     // --- düşmanlar
     var mix = {}, mk;
     for (mk in def.mix) mix[mk] = def.mix[mk];
-    if (loop > 0) {                       // sonraki turlarda her etaba yeni tehlikeler karışır
-      mix.hunter = (mix.hunter || 0) + 1; mix.ice = (mix.ice || 0) + 1;
-      mix.whirl = (mix.whirl || 0) + 1; mix.beam = (mix.beam || 0) + 1;
-    }
+    // Her 10 etapta bir kademe: düşmanlar sıklaşır, kalabalık gelir ve etaba yeni türler karışır
+    var tier = Math.floor(k / 10);
+    if (tier >= 1) { mix.hunter = (mix.hunter || 0) + 1; mix.turret = (mix.turret || 0) + 1; }
+    if (tier >= 2) { mix.ice = (mix.ice || 0) + 1; mix.beam = (mix.beam || 0) + 1; mix.skim = (mix.skim || 0) + 1; }
+    if (tier >= 3) { mix.whirl = (mix.whirl || 0) + 1; mix.hunter += 1; mix.turret += 1; }
+    if (tier >= 4) { mix.boat = (mix.boat || 0) + 1; mix.skim += 1; }
     var spawns = [], types = Object.keys(mix), tot = 0;
     for (i = 0; i < types.length; i++) tot += mix[types[i]];
-    var gscale = Math.pow(0.9, loop);
+    var gscale = Math.max(0.5, Math.pow(0.87, tier)), form = Math.min(0.75, def.form + 0.08 * tier);
+    var lastWY = -1e9, lastWX = null;
 
     function addEnemy(type, yy) {
       var sg2 = segs(rowOf(yy)), s2 = sg2[Math.floor(r() * sg2.length)], wd = s2[1] - s2[0];
       if (type === 'turret' && wd < 104) type = 'mine';
       if (type === 'boat' && wd < 60) type = 'mine';
-      if (type === 'whirl' && wd < 100) type = 'mine';
+      if (type === 'whirl' && (wd < 100 || yy - lastWY < 720)) type = 'mine';      // girdaplar art arda gelmesin
       if (type === 'beam') {
         // ışık çiti: geçidi kapatan, aralıklarla sönen ışın
         spawns.push({ type: 'beam', x: (s2[0] + s2[1]) / 2, y: y0 + yy, minX: s2[0] + 3, maxX: s2[1] - 3,
@@ -260,6 +263,9 @@
         e.x = s2[0] + 16 + r() * (wd - 32);
       } else if (type === 'whirl') {
         e.x = s2[0] + 46 + r() * (wd - 92); e.r = 44;
+        var midW = (s2[0] + s2[1]) / 2;
+        if (lastWX !== null && (e.x - midW) * (lastWX - W / 2) > 0) e.x = 2 * midW - e.x;      // bir önceki girdabın karşı yakasına
+        lastWY = yy; lastWX = e.x;
       } else {
         e.x = s2[0] + 40 + r() * (wd - 80);
       }
@@ -274,9 +280,10 @@
       if (!nearVent(yy) && yy < endY) {
         var pick = r() * tot, type = types[0];
         for (i = 0; i < types.length; i++) { pick -= mix[types[i]]; if (pick < 0) { type = types[i]; break; } }
-        var twin = type !== 'ice' && type !== 'turret' && type !== 'beam' && type !== 'whirl' && r() < def.form;
+        var twin = type !== 'ice' && type !== 'turret' && type !== 'beam' && type !== 'whirl' && r() < form;
         addEnemy(type, yy);
         if (twin) addEnemy(type, yy + 34);
+        if (twin && tier >= 2 && r() < 0.3) addEnemy(type, yy + 68);      // üçlü grup
       }
       y += (def.gap[0] + r() * (def.gap[1] - def.gap[0])) * gscale;
     }
