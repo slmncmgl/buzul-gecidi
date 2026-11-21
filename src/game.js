@@ -1074,18 +1074,17 @@
     }
   }
 
-  // Kıyı süsleri: renkli çamlar (yeşil, mavi ladin, sonbahar sarısı), meyveli çalılar, yosunlu kayalar, kırmızı çatılı kulübeler
-  const PINES = [['#1c6a45', '#2f9460'], ['#1c6a45', '#2f9460'], ['#17566a', '#2a8492'], ['#245c34', '#3f8f4a'], ['#b0641c', '#e0942e']];
-  function pine(x, y, s, c) {
-    ctx.fillStyle = 'rgba(20,40,60,0.2)';
-    ctx.beginPath(); ctx.ellipse(x + 4 * s, y + 1, 7.5 * s, 3 * s, 0, 0, 6.3); ctx.fill();
-    ctx.fillStyle = '#5b3c28'; ctx.fillRect(x - 1.3 * s, y - 4 * s, 2.6 * s, 4 * s);
-    ctx.fillStyle = c[0]; poly([x, y - 15 * s, x + 7.5 * s, y - 2.5 * s, x - 7.5 * s, y - 2.5 * s]);
-    ctx.fillStyle = c[1]; poly([x, y - 21 * s, x + 5.4 * s, y - 9 * s, x - 5.4 * s, y - 9 * s]);
-    ctx.fillStyle = '#f6fcff'; poly([x, y - 21 * s, x + 2.5 * s, y - 15.2 * s, x - 2.5 * s, y - 15.2 * s]);
+  // Kıyı süsleri: yalnızca çamlar; soluk yeşil, bir kısmı tümüyle karlı, bir kısmı kesik (kütük). Göz yormasın diye silik.
+  function pine(x, y, s, snowy) {
+    ctx.fillStyle = 'rgba(20,40,60,0.12)';
+    ctx.beginPath(); ctx.ellipse(x + 3 * s, y + 1, 5.5 * s, 2.2 * s, 0, 0, 6.3); ctx.fill();
+    ctx.fillStyle = '#7d6a5c'; ctx.fillRect(x - 1 * s, y - 3 * s, 2 * s, 3 * s);
+    ctx.fillStyle = snowy ? '#cfdde8' : '#5f8f7c'; poly([x, y - 12 * s, x + 5.8 * s, y - 2 * s, x - 5.8 * s, y - 2 * s]);
+    ctx.fillStyle = snowy ? '#e6f0f7' : '#77a591'; poly([x, y - 16 * s, x + 4.2 * s, y - 7 * s, x - 4.2 * s, y - 7 * s]);
+    ctx.fillStyle = '#f6fcff'; poly([x, y - 16 * s, x + 2 * s, y - 11.6 * s, x - 2 * s, y - 11.6 * s]);
   }
   function drawDeco() {
-    const yLo = P.wy - (H - PSY) - 6, yHi = P.wy + PSY + 30;
+    const yLo = P.wy - (H - PSY) - 6, yHi = P.wy + PSY + 24;
     const kA = LV.sectionAtRow(Math.max(0, vr.gA)), kB = LV.sectionAtRow(Math.max(0, vr.gB));
     for (let k = kB; k >= kA; k--) {
       const dd = sec(k).deco;
@@ -1094,40 +1093,13 @@
         if (o.y > yHi) continue;
         if (o.y < yLo) break;
         const x = o.x, y = sy(o.y), s = o.s, h = hash(o.y * 0.37 + o.x * 1.3);
-        if (o.k === 0) {
-          if (h > 0.9) {
-            // kırmızı meyveli çalı
-            ctx.fillStyle = 'rgba(20,40,60,0.2)';
-            ctx.beginPath(); ctx.ellipse(x + 2, y + 1, 7 * s, 2.6 * s, 0, 0, 6.3); ctx.fill();
-            ctx.fillStyle = '#2f7d4a'; ctx.beginPath(); ctx.arc(x, y - 4 * s, 5.5 * s, 0, 6.3); ctx.fill();
-            ctx.fillStyle = '#48a35f'; ctx.beginPath(); ctx.arc(x - 1.5 * s, y - 5.5 * s, 3.2 * s, 0, 6.3); ctx.fill();
-            ctx.fillStyle = '#e8413c';
-            for (let q = 0; q < 4; q++) ctx.fillRect(x + (hash(o.y + q) - 0.5) * 8 * s - 0.9, y - 2 * s - hash(o.x + q * 3.1) * 5 * s, 1.8, 1.8);
-          } else {
-            const c = PINES[Math.min(PINES.length - 1, Math.floor(h / 0.9 * PINES.length))];
-            if (hash(o.y * 1.9) > 0.5) pine(x + (h > 0.45 ? 4 : -4) * s, y - 3 * s, s * 0.7, c);      // arkada küçük bir çam daha
-            pine(x, y, s, c);
-          }
-        } else if (o.k === 1) {
-          ctx.fillStyle = 'rgba(20,40,60,0.2)';
-          ctx.beginPath(); ctx.ellipse(x + 2, y + 1, 8 * s, 3 * s, 0, 0, 6.3); ctx.fill();
-          ctx.fillStyle = '#5d6b82';
-          poly([x - 7 * s, y, x - 4 * s, y - 7 * s, x + 3 * s, y - 9 * s, x + 7.5 * s, y - 3 * s, x + 5.5 * s, y]);
-          ctx.fillStyle = h > 0.5 ? '#6f9a5a' : '#9aa9bf';        // yosunlu ya da çıplak
-          poly([x - 4 * s, y - 7 * s, x + 3 * s, y - 9 * s, x + 1.5 * s, y - 4 * s]);
-          ctx.fillStyle = '#f6fcff'; poly([x - 1 * s, y - 8 * s, x + 3 * s, y - 9 * s, x + 4.5 * s, y - 6.8 * s]);
-        } else {
-          ctx.save(); ctx.globalCompositeOperation = 'lighter';
-          glow(x, y - 4, 20, '255,200,110', (0.28 + 0.06 * Math.sin(G.t * 3 + o.y)) * (0.15 + 0.85 * G.night));
-          ctx.restore();
-          ctx.fillStyle = 'rgba(20,40,60,0.2)';
-          ctx.beginPath(); ctx.ellipse(x + 3, y + 1, 11, 3, 0, 0, 6.3); ctx.fill();
-          ctx.fillStyle = h > 0.5 ? '#7a4a30' : '#8a6238'; ctx.fillRect(x - 8.5, y - 9, 17, 9);
-          ctx.fillStyle = h > 0.5 ? '#c23b32' : '#2f6fa8'; poly([x - 11, y - 8.5, x, y - 17, x + 11, y - 8.5]);     // kırmızı ya da mavi çatı
-          ctx.fillStyle = '#f6fcff'; poly([x - 4.5, y - 13.5, x, y - 17, x + 4.5, y - 13.5]);
-          ctx.fillStyle = '#ffd98a'; ctx.fillRect(x - 6, y - 6.5, 3.5, 3.5);
-          ctx.fillStyle = '#3d2a1e'; ctx.fillRect(x + 1.5, y - 6, 3.5, 6);
-        }
+        if (o.k === 1 || h > 0.9) {
+          // kesik çam: kütük
+          ctx.fillStyle = 'rgba(20,40,60,0.12)';
+          ctx.beginPath(); ctx.ellipse(x + 2, y + 1, 4.5 * s, 1.8 * s, 0, 0, 6.3); ctx.fill();
+          ctx.fillStyle = '#8a7462'; ctx.fillRect(x - 2.4 * s, y - 3.5 * s, 4.8 * s, 3.5 * s);
+          ctx.fillStyle = '#d9c7a8'; ctx.beginPath(); ctx.ellipse(x, y - 3.5 * s, 2.4 * s, 1.1 * s, 0, 0, 6.3); ctx.fill();
+        } else pine(x, y, s, o.k === 2 || h < 0.3);
       }
     }
   }

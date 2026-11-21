@@ -315,7 +315,7 @@
     }
 
     // --- süsler: çamlar, kayalar, kulübeler (0: çam, 1: kaya, 2: kulübe)
-    var deco = [], nd = Math.floor(N * 1.5);
+    var deco = [], nd = Math.floor(N * 1.0);
     for (i = 0; i < nd; i++) {
       var ri = Math.floor(r() * N), side = r(), kr = r(), sc = 0.8 + r() * 0.5, dx, kind;
       kind = kr < 0.72 ? 0 : kr < 0.93 ? 1 : 2;
