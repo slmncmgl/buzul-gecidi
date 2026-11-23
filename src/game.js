@@ -14,8 +14,8 @@
   const contCost = (k) => Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
   // Silah gücü: düşmanlardan %10 şansla düşen güçlendirme başına +%20; bir turda en fazla +%100 (5 adet)
-  const WING_DROP = 0.05, SHIELD_MAX = 2, WING_CD = 1.4;      // kanat yardımcıları: %5 düşer; kalkan: silah tam güçteyken düşer
-  const POWER_DROP = 0.2, POWER_MAX = 10, POWER_STEP = 25, BOSS_EVERY = 10;      // her güçlendirme +%25, en çok +%250
+  const WING_DROP = 0.05, WING_MAX = 3, SHIELD_MAX = 2, SHIELD_SHARE = 0.25;      // kanat yardımcıları: %5 (3 kademe); güçlendirmelerin dörtte biri kalkan
+  const POWER_DROP = 0.2, POWER_MAX = 16, BOSS_EVERY = 10;      // silah 16 kademe
   const shotCount = () => G.power >= 8 ? 4 : G.power >= 4 ? 3 : G.power >= 2 ? 2 : 1;
   const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power));
   const nukeCdMax = () => Math.max(30, NUKE_CD * (1 - 0.05 * G.power));
@@ -431,7 +431,7 @@
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.cheated = false;
-    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = false; G.wingCd = 0;
+    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
     G.stats.deaths = []; G.stats.gates = 0;
@@ -477,7 +477,7 @@
       mouse.down = false; unlockPointer();
       return;
     }
-    P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0; G.wing = false;
+    P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0;
     G.heat = 100; shots.length = 0; orbs.length = 0;
     mouse.mx = 0; mouse.my = 0;                          // yeniden doğunca sıfır noktası da yenilenir
     G.blastCd = 0; P.holdT = 0; P.charge = 0;            // yeni kızak, yaylım hazır
@@ -609,8 +609,11 @@
     const autoRelease = cfg.auto;       // otomatik pilotta dolunca kendi ateşler
     const shootNormal = function () {
       if (P.fireCd > 0 || normalShots() >= 3 * shotCount()) return;
-      const n = shotCount(), dm = 1 + Math.floor(G.power / 5);       // +%50: çift, +%100: üçlü, +%125: çift hasar, +%200: dörtlü, +%250: üç kat hasar
-      for (let i = 0; i < n; i++) shots.push({ x: P.x + (i - (n - 1) / 2) * 9, wy: P.wy + 14, v: 440 + P.speed, vx: 0, dmg: dm });
+      const n = shotCount(), dm = 1 + Math.floor(G.power / 5) + (G.power >= POWER_MAX ? 1 : 0);       // +%50: çift, +%100: üçlü, +%125: çift hasar, +%200: dörtlü, +%250: üç kat hasar
+      const pierce = G.power >= 13 ? 1 : 0;
+      for (let i = 0; i < n; i++) shots.push({ x: P.x + (i - (n - 1) / 2) * 9, wy: P.wy + 14, v: 440 + P.speed, vx: 0, dmg: dm, pierce: pierce });
+      if (G.power >= 11) for (let q = -1; q <= 1; q += 2) shots.push({ x: P.x + q * 12, wy: P.wy + 10, v: 410 + P.speed, vx: q * (G.power >= 15 ? 150 : 110), dmg: dm, pierce: pierce, side: true });
+      if (G.power >= 15) for (let q = -1; q <= 1; q += 2) shots.push({ x: P.x + q * 14, wy: P.wy + 10, v: 430 + P.speed, vx: q * 55, dmg: dm, pierce: pierce, side: true });
       P.fireCd = Math.max(0.11, 0.2 / (1 + 0.1 * G.power));
       A.play(n > 1 ? 'shoot2' : 'shoot');
     };
@@ -694,7 +697,7 @@
     }
   }
 
-  function normalShots() { let n = 0; for (let i = 0; i < shots.length; i++) if (!shots[i].pellet && !shots[i].homing) n++; return n; }
+  function normalShots() { let n = 0; for (let i = 0; i < shots.length; i++) if (!shots[i].pellet && !shots[i].homing && !shots[i].side) n++; return n; }
   // Şarj seviyesine göre 5–11 fişek, yelpaze açısı ±16°–±42°; tam şarjda fişekler çift hasar verir
   function pellets(c) {
     const n = 5 + Math.round(c * 6) + Math.min(8, G.power), half = (16 + 26 * c) * Math.PI / 180, v = 470;
@@ -707,7 +710,8 @@
   function powerUp() {
     if (G.power >= POWER_MAX) { addScore(200); pop(P.x, P.wy + 30, '+200', '#ff9a4d'); return; }
     G.power++;
-    const msg = G.power === 2 ? 'ÇİFT ATIŞ' : G.power === 4 ? 'ÜÇLÜ ATIŞ' : G.power === 5 ? 'ÇİFT YAYLIM' : G.power === 8 ? 'DÖRTLÜ ATIŞ' : G.power === POWER_MAX ? 'ÜÇLÜ YAYLIM · TAM GÜÇ' : 'SİLAH +' + POWER_STEP * G.power + '%';
+    const NAMES = { 2: 'ÇİFT ATIŞ', 4: 'ÜÇLÜ ATIŞ', 5: 'ÇİFT YAYLIM', 8: 'DÖRTLÜ ATIŞ', 10: 'ÜÇLÜ YAYLIM', 11: 'ÇAPRAZ ATIŞ', 13: 'DELİCİ MERMİ', 15: 'YELPAZE ATIŞ', 16: 'TAM GÜÇ' };
+    const msg = NAMES[G.power] || 'SİLAH GÜÇLENDİ';
     pop(P.x, P.wy + 34, msg, '#ff9a4d');
     G.flash = Math.max(G.flash, 0.2);
     A.play('powerUp');
@@ -718,10 +722,10 @@
     pop(P.x, P.wy + 34, G.shield > 1 ? 'ÇİFT KALKAN' : 'KALKAN', '#8fd0ff'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
   }
   function wingUp() {
-    G.wing = true; G.wingCd = 0.4;
-    pop(P.x, P.wy + 34, 'KANAT YARDIMCILARI', '#7dffb0'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
+    G.wing = Math.min(WING_MAX, G.wing + 1); G.wingCd = 0.4;
+    pop(P.x, P.wy + 34, G.wing === 1 ? 'KANAT YARDIMCILARI' : G.wing === 2 ? 'YARDIMCILAR HIZLANDI' : 'YARDIMCILAR TAM GÜÇ', '#7dffb0'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
   }
-  // Kanat yardımcıları: iki yanda uçar, ekrandaki en yakın düşmanlara güdümlü misil atar. Can kaybedince gider.
+  // Kanat yardımcıları: iki yanda uçar, en yakın düşmanlara güdümlü misil atar. 1: 1,4 sn'de bir · 2: 0,9 sn · 3: çift misil, 3 hasar. Can kaybedince gitmez.
   function wingFire(dt) {
     G.wingCd -= dt;
     if (G.wingCd > 0) return;
@@ -735,14 +739,18 @@
     c.sort(function (p, q) { return Math.hypot(p.x - P.x, p.wy - P.wy) - Math.hypot(q.x - P.x, q.wy - P.wy); });
     // soldaki yardımcı soldaki hedefe, sağdaki sağdakine
     const a = c[0], b = c[1] || c[0], l = a.x <= b.x ? a : b, r = a.x <= b.x ? b : a;
-    shots.push({ x: P.x - 17, wy: P.wy + 4, v: P.speed + 200, vx: -70, dmg: 2, homing: true, tgt: l });
-    shots.push({ x: P.x + 17, wy: P.wy + 4, v: P.speed + 200, vx: 70, dmg: 2, homing: true, tgt: r });
-    G.wingCd = WING_CD; A.play('orb');
+    const dmg = G.wing >= 3 ? 3 : 2, per = G.wing >= 3 ? 2 : 1;
+    for (let q = 0; q < per; q++) {
+      const t1 = q ? (c[2] || l) : l, t2 = q ? (c[3] || r) : r;
+      shots.push({ x: P.x - 17, wy: P.wy + 4 - q * 6, v: P.speed + 200, vx: -70 - q * 40, dmg: dmg, homing: true, tgt: t1 });
+      shots.push({ x: P.x + 17, wy: P.wy + 4 - q * 6, v: P.speed + 200, vx: 70 + q * 40, dmg: dmg, homing: true, tgt: t2 });
+    }
+    G.wingCd = G.wing >= 2 ? 0.9 : 1.4; A.play('orb');
   }
   function fireBlast() {
     const c = P.charge;
     pellets(c);
-    if (G.power >= 5) G.blastEcho = { t: 0.16, c: c, n: G.power >= POWER_MAX ? 2 : 1 };      // +%125: yaylım çift, +%250: üçlü gider
+    if (G.power >= 5) G.blastEcho = { t: 0.16, c: c, n: G.power >= POWER_MAX ? 3 : G.power >= 10 ? 2 : 1 };      // yaylım 5'te çift, 10'da üçlü, 16'da dörtlü gider
     for (let i = 0; i < 16; i++) part(P.x + rand(-6, 6), P.wy + 14, rand(-110, 110), rand(40, 190), rand(0.2, 0.45), rand(1.5, 3), i % 2 ? '#fff6da' : '#ffcf8a', true);
     G.blastCd = blastCdMax(); G.shake = Math.max(G.shake, 3 + 3 * c);
     P.charge = 0; P.fireCd = 0.25;
@@ -754,6 +762,17 @@
     if (e.type === 'beam') {
       const t = (G.t + e.bph) % e.period;
       e.on = t < e.onT; e.warn = !e.on && t > e.period - 0.45;
+      if (playing) for (let j = shots.length - 1; j >= 0; j--) {        // uçtaki kulelerden birini vur: çit kalıcı olarak söner
+        const s = shots[j];
+        if (Math.abs(s.wy - e.wy) < 9 && (Math.abs(s.x - e.minX) < 7 || Math.abs(s.x - e.maxX) < 7)) {
+          shots.splice(j, 1);
+          e.dead = true;
+          boom(Math.abs(s.x - e.minX) < 7 ? e.minX : e.maxX, e.wy, 16, ['#ffffff', '#ffb0c0', '#ff5a7d'], 110);
+          G.shake = Math.max(G.shake, 4); A.play('explode');
+          addScore(80); pop(e.x, e.wy + 12, 'ÇİT KAPANDI  +80', '#ffb0c0');
+          return;
+        }
+      }
       if (playing && e.on && P.inv <= 0 && !cfg.god && Math.abs(P.wy - e.wy) < 9 && P.x > e.minX - 2 && P.x < e.maxX + 2) die('beam');
     } else if (playing) {
       const dx = e.x - P.x, dy = e.wy - P.wy, d = Math.hypot(dx, dy);
@@ -845,8 +864,11 @@
     if (byShot && e.type !== 'ice' && e.type !== 'boss' && !solid(e.x, e.wy)) {
       const r = Math.random();
       let k = null;
-      if (r < WING_DROP) k = G.wing ? null : 'wing';                                  // %5: kanat yardımcıları
-      else if (r < WING_DROP + POWER_DROP) k = G.power < POWER_MAX ? 'pw' : G.shield < SHIELD_MAX ? 'sh' : null;   // %20: silah; silah tam güçteyse kalkan
+      if (r < WING_DROP) k = G.wing < WING_MAX ? 'wing' : null;                        // %5: kanat yardımcıları
+      else if (r < WING_DROP + POWER_DROP) {                                            // %20: silah ya da (dörtte bir) kalkan
+        const wantSh = Math.random() < SHIELD_SHARE || G.power >= POWER_MAX;
+        k = wantSh && G.shield < SHIELD_MAX ? 'sh' : G.power < POWER_MAX ? 'pw' : null;
+      }
       if (k) coinsL.push({ x: e.x, wy: e.wy, v: 0, pw: true, k: k, ph: 0 });
     }
     if (byShot) { addScore(PTS[e.type]); if (e.type !== 'ice') pop(e.x, e.wy + 10, '+' + PTS[e.type]); }
@@ -900,8 +922,8 @@
 
       for (let j = shots.length - 1; j >= 0; j--) {
         const s = shots[j];
-        if (Math.abs(s.x - e.x) < e.hw + 2 && Math.abs(s.wy - e.wy) < e.hh + 6) {
-          shots.splice(j, 1);
+        if (s.last !== e && Math.abs(s.x - e.x) < e.hw + 2 && Math.abs(s.wy - e.wy) < e.hh + 6) {
+          if (s.pierce > 0) { s.pierce--; s.last = e; } else shots.splice(j, 1);
           e.hp -= s.dmg || 1;
           if (e.hp <= 0) kill(e, true);
           else { e.flash = 0.14; A.play('hit'); boom(s.x, s.wy, 5, ['#ffffff', '#ffd27a'], 60); }
@@ -1589,10 +1611,10 @@
     const x = P.x, y = PSY, t = P.tilt;
     if (G.wing) {
       for (let q = -1; q <= 1; q += 2) {
-        const wx = x + q * 17, wy2 = y + 4 + Math.sin(G.t * 4 + q) * 1.5;
+        const wx = x + q * (15 + 2 * G.wing), wy2 = y + 4 + Math.sin(G.t * 4 + q) * 1.5, ws = 0.85 + 0.15 * G.wing;
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(wx, wy2, 9, '80,240,150', 0.5); ctx.restore();
-        ctx.fillStyle = '#1b6b4a'; poly([wx, wy2 - 7, wx + 4.5, wy2 + 5, wx - 4.5, wy2 + 5]);
-        ctx.fillStyle = '#9dffc8'; poly([wx, wy2 - 4, wx + 2, wy2 + 2.5, wx - 2, wy2 + 2.5]);
+        ctx.fillStyle = G.wing >= 3 ? '#1f8a5e' : '#1b6b4a'; poly([wx, wy2 - 7 * ws, wx + 4.5 * ws, wy2 + 5 * ws, wx - 4.5 * ws, wy2 + 5 * ws]);
+        ctx.fillStyle = '#9dffc8'; poly([wx, wy2 - 4 * ws, wx + 2 * ws, wy2 + 2.5 * ws, wx - 2 * ws, wy2 + 2.5 * ws]);
       }
     }
     if (G.shield > 0) {
@@ -1701,9 +1723,7 @@
     text(String(G.score).padStart(6, '0'), 12, 36, 24, '#ffffff', 'left', 700);
     coinIcon(18, 50, 5, 1);
     text(String(G.coins), 28, 55, 15, '#ffd95a', 'left', 700);
-    if (G.power > 0) text('SİLAH +' + POWER_STEP * G.power + '%', 12, 72, 12, '#ff9a4d', 'left', 700);
-    if (G.shield > 0) text('KALKAN ×' + G.shield, 12, 87, 12, '#8fd0ff', 'left', 700);
-    if (G.wing) text('KANAT', 12, G.shield > 0 ? 102 : 87, 12, '#7dffb0', 'left', 700);
+    if (G.shield > 0) text('KALKAN ×' + G.shield, 12, 72, 12, '#8fd0ff', 'left', 700);
     const loop = Math.floor(G.sec / NSEC);
     const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);

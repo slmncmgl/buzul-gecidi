@@ -40,18 +40,19 @@ ekranı temizler. Düğmelerin çevresindeki halka bekleme süresini gösterir.
 - **Nükleer patlama:** X tuşu ya da sağ tık (telefonda ekrandaki NÜKLEER düğmesi). Ekrandaki düşmanları ve mermileri siler,
   bekçiye 8 hasar verir; girdap ve ışık çiti kalır. Oyun başında hazırdır, kullanınca 60 sn bekler; bekleme can
   kaybedince sıfırlanmaz.
-- **Silah güçlendirmesi:** vurduğun düşmanlardan %20 şansla turuncu bir güçlendirme düşer; her biri silahı +%25
-  güçlendirir, en fazla +%250. Atış hızlanır; +%50'de çift, +%100'de üçlü, +%200'de dörtlü atış; +%125'te çift,
-  +%250'de üç kat hasar. Yaylım daha çok fişek atar ve daha çabuk dolar, +%125'te çift, +%250'de üçlü gider;
-  nükleer daha çabuk dolar. Güç, yolculuk bitince sıfırlanır.
-- **Kalkan:** silah tam güce (+%250) ulaşınca güçlendirmelerin yerine mavi kalkan düşer (en çok 2). Bir düşman
-  çarpmasını, mermiyi ya da ışık çitini emer; kıyıya çarpmayı ve girdabı emmez.
-- **Kanat yardımcıları:** vurduğun düşmanlardan %5 şansla yeşil bir kutu düşer. İki yanında uçan yardımcılar
-  ekrandaki en yakın düşmanlara güdümlü misil atar; can kaybedince giderler.
+- **Silah güçlendirmesi:** vurduğun düşmanlardan %20 şansla bir güçlendirme düşer; dörtte biri kalkan, gerisi silah.
+  Silah 16 kademe güçlenir: çift, üçlü, dörtlü atış; sonra iki yana çapraz atış, delici mermiler (bir düşmanı delip
+  arkadakine de çarpar), yelpaze atış ve tam güç. Atış hızı, hasar ve yaylım da kademeyle artar; yaylım 4 kata kadar
+  tekrar gider, nükleer daha çabuk dolar. Silah gücü can kaybedince kalır, yolculuk bitince sıfırlanır.
+- **Kalkan:** mavi kutu (en çok 2). Bir düşman çarpmasını, mermiyi ya da ışık çitini emer; kıyıya çarpmayı ve
+  girdabı emmez.
+- **Kanat yardımcıları:** vurduğun düşmanlardan %5 şansla yeşil bir kutu düşer. İki yanında uçan yardımcılar en
+  yakın düşmanlara güdümlü misil atar. Her yeni kutu onları güçlendirir (3 kademe: daha sık atış, sonra çift misil ve
+  daha çok hasar). Can kaybedince gitmezler.
 - Kıyıya, adalara ve düşmanlara çarpma.
 - Her etabın sonundaki **fener** kayıt noktasıdır: can kaybedince oradan devam edersin, kalan ısın kadar bonus alırsın.
 - 20 etap bir tur. Her etapta akış biraz daha hızlanır ve etapların kendi tehlikesi vardır: buz bariyerleri
-  (ateşle kırılır), peşine düşen avcılar, girdaplar (içine çeker), ışık çitleri (sönünce geçilir), hızlı akıntı
+  (ateşle kırılır), peşine düşen avcılar, girdaplar (içine çeker), ışık çitleri (sönünce geçilir; uçtaki kulelerden birini vurursan kalıcı olarak söner), hızlı akıntı
   (yavaşlanamaz), sisli ve rüzgârlı etaplar.
 - **Bekçi:** her 10. etabın sonunda geniş bir alanda karşına çıkar; ateş eder, avcı salar. Geçilen her 10 etapta
   bir kademe zorlaşır: düşmanlar sıklaşır ve ikili, üçlü gruplar halinde gelir, etaplara yeni türler karışır, kuleler
