@@ -14,7 +14,7 @@
   const contCost = (k) => Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
   // Silah gücü: düşmanlardan %10 şansla düşen güçlendirme başına +%20; bir turda en fazla +%100 (5 adet)
-  const MAG_DROP = 0.05, MAG_MAX = 3, MAG_R = [0, 130, 190, 260];      // mıknatıs: %5 düşer, 3 kademe çekim yarıçapı
+  const MAG_DROP = 0.05, MAG_MAX = 3, MAG_R = [0, 170, 230, 300], MAG_T = [0, 6, 9, 12];      // mıknatıs: %5 düşer; 3 kademe: çekim yarıçapı ve süresi (sn)
   const WING_DROP = 0.05, WING_MAX = 3, SHIELD_MAX = 2, SHIELD_SHARE = 0.25;      // kanat yardımcıları: %5 (3 kademe); güçlendirmelerin dörtte biri kalkan
   const POWER_DROP = 0.2, POWER_MAX = 16, BOSS_EVERY = 10;      // silah 16 kademe
   const shotCount = () => G.power >= 8 ? 4 : G.power >= 4 ? 3 : G.power >= 2 ? 2 : 1;
@@ -432,7 +432,7 @@
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.cheated = false;
-    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0;
+    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0; G.magOn = 0;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
     G.stats.deaths = []; G.stats.gates = 0;
@@ -659,8 +659,10 @@
     if (G.heat <= 0) { G.heat = 0; die('freeze'); return; }
 
     // altınlar
+    if (G.magOn > 0) G.magOn = Math.max(0, G.magOn - dt);
     for (let i = coinsL.length - 1; i >= 0; i--) {
       const c = coinsL[i];
+      if (G.magOn > 0 && !c.pull && Math.hypot(c.x - P.x, (c.wy - P.wy) * 0.8) < MAG_R[G.mag]) c.pull = true;      // mıknatıs açıkken yaklaşan her şey çekilir
       if (c.pull) {
         const dx = P.x - c.x, dy = P.wy - c.wy, d = Math.hypot(dx, dy) || 1;
         c.pv = Math.min(900, (c.pv || 120) + 1400 * dt);
@@ -731,8 +733,8 @@
       const c = coinsL[i];
       if (!c.pull && Math.hypot(c.x - P.x, (c.wy - P.wy) * 0.8) < R) { c.pull = true; n++; }
     }
-    G.magT = 0.6;
-    pop(P.x, P.wy + 34, (G.mag > 1 ? 'MIKNATIS ' + G.mag + '  ·  ' : 'MIKNATIS  ·  ') + n + ' ÇEKİLDİ', '#ff7ad1');
+    G.magT = 0.6; G.magOn = MAG_T[G.mag];
+    pop(P.x, P.wy + 34, 'MIKNATIS ' + G.mag + '  ·  ' + G.magOn + ' SN', '#ff7ad1');
     G.flash = Math.max(G.flash, 0.15); A.play('powerUp');
   }
   function shieldUp() {
@@ -1638,6 +1640,10 @@
         ctx.fillStyle = '#9dffc8'; poly([wx, wy2 - 4 * ws, wx + 2 * ws, wy2 + 2.5 * ws, wx - 2 * ws, wy2 + 2.5 * ws]);
       }
     }
+    if (G.magOn > 0 && G.magT <= 0) {
+      ctx.strokeStyle = 'rgba(255,122,209,' + (0.18 + 0.1 * Math.sin(G.t * 6)) + ')'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.arc(x, y, MAG_R[G.mag], G.t, G.t + 6.3); ctx.stroke(); ctx.setLineDash([]);
+    }
     if (G.magT > 0) {
       G.magT -= 1 / 60;
       const R = MAG_R[G.mag] * (1 - G.magT / 0.6 * 0.3);
@@ -1751,7 +1757,7 @@
     coinIcon(18, 50, 5, 1);
     text(String(G.coins), 28, 55, 15, '#ffd95a', 'left', 700);
     if (G.shield > 0) text('KALKAN ×' + G.shield, 12, 72, 12, '#8fd0ff', 'left', 700);
-    if (G.mag > 0) text('MIKNATIS ' + G.mag, 12, G.shield > 0 ? 87 : 72, 12, '#ff9fe0', 'left', 700);
+    if (G.mag > 0) text('MIKNATIS ' + G.mag + (G.magOn > 0 ? '  ' + Math.ceil(G.magOn) + ' sn' : ''), 12, G.shield > 0 ? 87 : 72, 12, '#ff9fe0', 'left', 700);
     const loop = Math.floor(G.sec / NSEC);
     const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);

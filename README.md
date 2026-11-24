@@ -46,8 +46,8 @@ ekranı temizler. Düğmelerin çevresindeki halka bekleme süresini gösterir.
   tekrar gider, nükleer daha çabuk dolar. Silah gücü can kaybedince kalır, yolculuk bitince sıfırlanır.
 - **Kalkan:** mavi kutu (en çok 2). Bir düşman çarpmasını, mermiyi ya da ışık çitini emer; kıyıya çarpmayı ve
   girdabı emmez.
-- **Mıknatıs:** vurduğun düşmanlardan %5 şansla pembe bir kutu düşer. Alınca çevredeki tüm altınları ve güçlendirmeleri
-  bir kez kızağa çeker. Her yeni mıknatıs çekim alanını büyütür (3 kademe).
+- **Mıknatıs:** vurduğun düşmanlardan %5 şansla pembe bir kutu düşer. Alınca birkaç saniye boyunca yakınına gelen tüm
+  altınları ve güçlendirmeleri kızağa çeker. Her yeni mıknatıs alanı ve süreyi büyütür (3 kademe: 6, 9, 12 sn).
 - **Kanat yardımcıları:** vurduğun düşmanlardan %5 şansla yeşil bir kutu düşer. İki yanında uçan yardımcılar en
   yakın düşmanlara güdümlü misil atar. Her yeni kutu onları güçlendirir (3 kademe: daha sık atış, sonra çift misil ve
   daha çok hasar). Can kaybedince gitmezler.
