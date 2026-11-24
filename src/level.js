@@ -228,7 +228,7 @@
     if (tier >= 4) { mix.boat = (mix.boat || 0) + 1; mix.skim += 1; }
     var spawns = [], types = Object.keys(mix), tot = 0;
     for (i = 0; i < types.length; i++) tot += mix[types[i]];
-    var gscale = Math.max(0.5, Math.pow(0.87, tier)), form = Math.min(0.75, def.form + 0.08 * tier);
+    var gscale = Math.max(0.38, Math.pow(0.87, tier) * Math.pow(0.965, k % 10)), form = Math.min(0.75, def.form + 0.08 * tier);
     var lastWY = -1e9, lastWX = null;
 
     function addEnemy(type, yy) {

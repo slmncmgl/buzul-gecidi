@@ -17,7 +17,8 @@
   const MAG_DROP = 0.05, MAG_MAX = 3, MAG_R = [0, 43, 58, 75], MAG_T = [0, 6, 9, 12];      // mıknatıs: %5 düşer; 3 kademe: çekim yarıçapı ve süresi (sn)
   const WING_DROP = 0.05, WING_MAX = 3, SHIELD_MAX = 2, SHIELD_SHARE = 0.25;      // kanat yardımcıları: %5 (3 kademe); güçlendirmelerin dörtte biri kalkan
   const POWER_DROP = 0.2, POWER_MAX = 16, BOSS_EVERY = 10;      // silah 16 kademe
-  const shotCount = () => G.power >= 8 ? 4 : G.power >= 4 ? 3 : G.power >= 2 ? 2 : 1;
+  const shotCount = () => G.power >= 9 ? 4 : G.power >= 6 ? 3 : G.power >= 4 ? 2 : 1;
+  const fireRate = () => Math.min(9.5, 3 + 1.5 * Math.min(G.power, 3) + 0.2 * Math.max(0, G.power - 3));      // atış/sn: 1-3. kademe hızlandırır
   const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power));
   const nukeCdMax = () => Math.max(30, NUKE_CD * (1 - 0.05 * G.power));
   const NUKE_CD = 60, NUKE_BOSS_DMG = 8;       // nükleer patlama: ekranı temizler, dakikada bir
@@ -432,7 +433,7 @@
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.cheated = false;
-    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0; G.magOn = 0;
+    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0; G.magOn = 0; G.windPf = 0;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
     G.stats.deaths = []; G.stats.gates = 0;
@@ -466,7 +467,7 @@
     if (why === 'freeze') { boom(P.x, P.wy, 26, ['#ffffff', '#bfe9ff', '#7fc8ff', '#e8f7ff'], 90); A.play('freeze'); }
     else { boom(P.x, P.wy, 34, ['#ffffff', '#ffd27a', '#ff8a3c', '#ff5a36'], 150); A.play('playerDie'); }
     A.stopEngine(); A.setCharging(false); A.setLowHeat(false); A.setWind(0); A.setWeaponCharge(0);
-    P.charge = 0; P.holdT = 0;
+    P.charge = 0; P.holdT = 0; G.windPf = 0;      // rüzgâr kalkanı ölünce gider
   }
 
   function afterDeath() {
@@ -546,7 +547,7 @@
       G.windT += dt;
       const c = G.windT % 6.5, dir = hash(Math.floor(G.windT / 6.5) + G.sec * 7.3) < 0.5 ? -1 : 1;
       const env = c < 1.2 ? 0 : c < 1.6 ? (c - 1.2) / 0.4 : c < 2.8 ? 1 : c < 3.2 ? (3.2 - c) / 0.4 : 0;      // 1,2 sn uyarı, ~1,6 sn esinti
-      G.wind = w0 * dir * env * (1 + 0.15 * s.loop);
+      G.wind = G.windPf ? 0 : w0 * dir * env * (1 + 0.15 * s.loop);
       G.windWarn = c > 0.2 && c < 3.2 ? dir : 0;
     } else { G.wind = 0; G.windWarn = 0; G.windT = 0; }
     A.setWind(Math.min(1, Math.abs(G.wind) / 60));
@@ -609,13 +610,13 @@
     if (G.wing) wingFire(dt);
     const autoRelease = cfg.auto;       // otomatik pilotta dolunca kendi ateşler
     const shootNormal = function () {
-      if (P.fireCd > 0 || normalShots() >= 3 * shotCount()) return;
+      if (P.fireCd > 0 || normalShots() >= 60) return;
       const n = shotCount(), dm = 1 + Math.floor(G.power / 5) + (G.power >= POWER_MAX ? 1 : 0);       // +%50: çift, +%100: üçlü, +%125: çift hasar, +%200: dörtlü, +%250: üç kat hasar
       const pierce = G.power >= 13 ? 1 : 0;
       for (let i = 0; i < n; i++) shots.push({ x: P.x + (i - (n - 1) / 2) * 9, wy: P.wy + 14, v: 440 + P.speed, vx: 0, dmg: dm, pierce: pierce });
       if (G.power >= 11) for (let q = -1; q <= 1; q += 2) shots.push({ x: P.x + q * 12, wy: P.wy + 10, v: 410 + P.speed, vx: q * (G.power >= 15 ? 150 : 110), dmg: dm, pierce: pierce, side: true });
       if (G.power >= 15) for (let q = -1; q <= 1; q += 2) shots.push({ x: P.x + q * 14, wy: P.wy + 10, v: 430 + P.speed, vx: q * 55, dmg: dm, pierce: pierce, side: true });
-      P.fireCd = Math.max(0.11, 0.2 / (1 + 0.1 * G.power));
+      P.fireCd = 1 / fireRate();
       A.play(n > 1 ? 'shoot2' : 'shoot');
     };
     if (tb.seen && !cfg.auto) {
@@ -671,7 +672,7 @@
       }
       if (Math.abs(P.x - c.x) < 12 + c.v && Math.abs(P.wy - c.wy) < 14 + c.v) {
         coinsL.splice(i, 1);
-        if (c.pw) { if (c.k === 'mag') magnetUp(); else if (c.k === 'sh') shieldUp(); else if (c.k === 'wing') wingUp(); else powerUp(); continue; }
+        if (c.pw) { if (c.k === 'mag') magnetUp(); else if (c.k === 'wd') windUp(); else if (c.k === 'sh') shieldUp(); else if (c.k === 'wing') wingUp(); else powerUp(); continue; }
         G.coins += c.v; G.runCoins += c.v; store('bg_coins', String(G.coins));
         addScore(10 * c.v);
         A.play(c.v > 1 ? 'bigCoin' : 'coin');
@@ -717,15 +718,22 @@
     }
   }
   function powerUp() {
-    if (G.power >= POWER_MAX) { addScore(200); pop(P.x, P.wy + 30, '+200', '#ff9a4d'); return; }
+    if (G.power >= POWER_MAX) { overNuke(); return; }
     G.power++;
-    const NAMES = { 2: 'ÇİFT ATIŞ', 4: 'ÜÇLÜ ATIŞ', 5: 'ÇİFT YAYLIM', 8: 'DÖRTLÜ ATIŞ', 10: 'ÜÇLÜ YAYLIM', 11: 'ÇAPRAZ ATIŞ', 13: 'DELİCİ MERMİ', 15: 'YELPAZE ATIŞ', 16: 'TAM GÜÇ' };
+    const NAMES = { 1: 'HIZLI ATIŞ', 2: 'HIZLI ATIŞ II', 3: 'HIZLI ATIŞ III', 4: 'ÇİFT ATIŞ', 5: 'ÇİFT YAYLIM', 6: 'ÜÇLÜ ATIŞ', 9: 'DÖRTLÜ ATIŞ', 10: 'ÜÇLÜ YAYLIM', 11: 'ÇAPRAZ ATIŞ', 13: 'DELİCİ MERMİ', 15: 'YELPAZE ATIŞ', 16: 'TAM GÜÇ' };
     const msg = NAMES[G.power] || 'SİLAH GÜÇLENDİ';
     pop(P.x, P.wy + 34, msg, '#ff9a4d');
     G.flash = Math.max(G.flash, 0.2);
     A.play('powerUp');
   }
+  // sınırdaki güçlendirme tekrar alınırsa bedava nükleer patlar (bekleme süresine dokunmaz)
+  function overNuke() { pop(P.x, P.wy + 34, 'TAŞMA NÜKLEERİ', '#7dffb0'); nuke(true); }
+  function windUp() {
+    if (G.windPf) { overNuke(); return; }
+    G.windPf = 1; pop(P.x, P.wy + 34, 'RÜZGÂR KALKANI', '#9ff5e8'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
+  }
   function magnetUp() {
+    if (G.mag >= MAG_MAX) { overNuke(); return; }
     G.mag = Math.min(MAG_MAX, G.mag + 1);
     const R = MAG_R[G.mag];
     let n = 0;
@@ -738,11 +746,12 @@
     G.flash = Math.max(G.flash, 0.15); A.play('powerUp');
   }
   function shieldUp() {
-    if (G.shield >= SHIELD_MAX) { addScore(200); pop(P.x, P.wy + 30, '+200', '#8fd0ff'); return; }
+    if (G.shield >= SHIELD_MAX) { overNuke(); return; }
     G.shield++;
     pop(P.x, P.wy + 34, G.shield > 1 ? 'ÇİFT KALKAN' : 'KALKAN', '#8fd0ff'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
   }
   function wingUp() {
+    if (G.wing >= WING_MAX) { overNuke(); return; }
     G.wing = Math.min(WING_MAX, G.wing + 1); G.wingCd = 0.4;
     pop(P.x, P.wy + 34, G.wing === 1 ? 'KANAT YARDIMCILARI' : G.wing === 2 ? 'YARDIMCILAR HIZLANDI' : 'YARDIMCILAR TAM GÜÇ', '#7dffb0'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
   }
@@ -850,9 +859,9 @@
   }
 
   // Nükleer patlama: ekrandaki düşmanları ve mermileri siler (girdap ve ışık çiti kalır, bekçi hasar alır)
-  function nuke() {
+  function nuke(free) {
     if (G.mode !== 'playing') return;
-    if (G.nukeCd > 0) { A.play('deny'); return; }
+    if (G.nukeCd > 0 && !free) { A.play('deny'); return; }
     for (let i = 0; i < ents.length; i++) {
       const e = ents[i], y = sy(e.wy);
       if (e.dead || y < -30 || y > H + 30 || e.type === 'whirl' || e.type === 'beam') continue;
@@ -869,7 +878,8 @@
       part(P.x, P.wy, Math.cos(a) * v, Math.sin(a) * v + P.speed, rand(0.4, 0.9), rand(2, 4), i % 3 ? '#fff6da' : '#ffb347', true);
     }
     padRumble(600, 0.9);
-    G.nukeCd = nukeCdMax(); G.nukeT = 0.8; G.flash = 0.7; G.shake = 13;
+    if (!free) G.nukeCd = nukeCdMax();
+    G.nukeT = 0.8; G.flash = 0.7; G.shake = 13;
     A.play('nuke');
   }
 
@@ -885,11 +895,12 @@
     if (byShot && e.type !== 'ice' && e.type !== 'boss' && !solid(e.x, e.wy)) {
       const r = Math.random();
       let k = null;
-      if (r < WING_DROP) k = G.wing < WING_MAX ? 'wing' : null;
+      if (r < WING_DROP) k = 'wing';
+      else if (r >= 0.30 && r < 0.34) k = 'wd';                                         // %4: rüzgâr kalkanı
       else if (r >= WING_DROP + POWER_DROP && r < WING_DROP + POWER_DROP + MAG_DROP) k = 'mag';           // %5: mıknatıs                        // %5: kanat yardımcıları
       else if (r < WING_DROP + POWER_DROP) {                                            // %20: silah ya da (dörtte bir) kalkan
         const wantSh = Math.random() < SHIELD_SHARE || G.power >= POWER_MAX;
-        k = wantSh && G.shield < SHIELD_MAX ? 'sh' : G.power < POWER_MAX ? 'pw' : null;
+        k = wantSh && G.shield < SHIELD_MAX ? 'sh' : G.power < POWER_MAX ? 'pw' : Math.random() < 0.5 ? 'sh' : 'pw';
       }
       if (k) coinsL.push({ x: e.x, wy: e.wy, v: 0, pw: true, k: k, ph: 0 });
     }
@@ -1491,15 +1502,16 @@
       if (c.pw) {                              // güçlendirme: dönen turuncu elmas
         const pu = 1 + 0.12 * Math.sin(G.t * 7);
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        const sh = c.k === 'sh', wg = c.k === 'wing', mg = c.k === 'mag';       // turuncu: silah · mavi: kalkan · yeşil: kanat yardımcıları
-        glow(c.x, y, 22, mg ? '255,90,200' : sh ? '80,170,255' : wg ? '80,240,150' : '255,140,50', 0.6);
+        const sh = c.k === 'sh', wg = c.k === 'wing', mg = c.k === 'mag', wd = c.k === 'wd';       // turuncu: silah · mavi: kalkan · yeşil: kanat yardımcıları
+        glow(c.x, y, 22, wd ? '120,255,230' : mg ? '255,90,200' : sh ? '80,170,255' : wg ? '80,240,150' : '255,140,50', 0.6);
         ctx.restore();
         ctx.save(); ctx.translate(c.x, y); ctx.rotate(G.t * 1.6); ctx.scale(pu, pu);
-        ctx.fillStyle = mg ? '#d0369a' : sh ? '#2f8fe8' : wg ? '#1fae6a' : '#ff7a1f'; ctx.beginPath(); ctx.roundRect(-7, -7, 14, 14, 3); ctx.fill();
+        ctx.fillStyle = wd ? '#17a594' : mg ? '#d0369a' : sh ? '#2f8fe8' : wg ? '#1fae6a' : '#ff7a1f'; ctx.beginPath(); ctx.roundRect(-7, -7, 14, 14, 3); ctx.fill();
         ctx.strokeStyle = '#fff1dc'; ctx.lineWidth = 1.6; ctx.stroke();
         ctx.restore();
         ctx.fillStyle = '#ffffff';
-        if (mg) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(c.x, y - 0.5, 3.4, Math.PI, 0); ctx.lineTo(c.x + 3.4, y + 3.5); ctx.moveTo(c.x - 3.4, y - 0.5); ctx.lineTo(c.x - 3.4, y + 3.5); ctx.stroke(); }
+        if (wd) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6; ctx.beginPath(); for (let q = -1; q <= 1; q++) { ctx.moveTo(c.x - 4, y + q * 2.6); ctx.quadraticCurveTo(c.x, y + q * 2.6 - 2, c.x + 4, y + q * 2.6); } ctx.stroke(); }
+        else if (mg) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(c.x, y - 0.5, 3.4, Math.PI, 0); ctx.lineTo(c.x + 3.4, y + 3.5); ctx.moveTo(c.x - 3.4, y - 0.5); ctx.lineTo(c.x - 3.4, y + 3.5); ctx.stroke(); }
         else if (sh) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(c.x, y, 3.6, 0, 6.3); ctx.stroke(); }
         else if (wg) { poly([c.x - 5, y + 3, c.x - 2.5, y - 4, c.x, y + 3]); poly([c.x, y + 3, c.x + 2.5, y - 4, c.x + 5, y + 3]); }
         else { ctx.fillRect(c.x - 1.4, y - 4.5, 2.8, 9); ctx.fillRect(c.x - 4.5, y - 1.4, 9, 2.8); }
@@ -1683,7 +1695,7 @@
     ctx.beginPath(); ctx.moveTo(-9, 3); ctx.lineTo(-4, 4); ctx.moveTo(9, 3); ctx.lineTo(4, 4); ctx.moveTo(-9, -2); ctx.lineTo(-4, -1); ctx.moveTo(9, -2); ctx.lineTo(4, -1); ctx.stroke();
     ctx.lineCap = 'butt';
     // gövde: güç arttıkça kızak tipi değişir (0-3 keşif, 4-7 avcı, 8-12 akıncı, 13+ buz kartalı)
-    const tier = G.power >= 13 ? 3 : G.power >= 8 ? 2 : G.power >= 4 ? 1 : 0;
+    const tier = G.power >= 13 ? 3 : G.power >= 9 ? 2 : G.power >= 4 ? 1 : 0;
     const HULL = [['#f26a1b', '#ff9a4d'], ['#d8323a', '#ff6a6a'], ['#6a3fd0', '#a27bff'], ['#d9a21b', '#ffe07a']][tier];
     if (tier >= 1) {      // yan kanatçıklar
       ctx.fillStyle = HULL[0]; poly([-6, 0, -13 - tier, 7, -12 - tier, 10, -6, 7]); poly([6, 0, 13 + tier, 7, 12 + tier, 10, 6, 7]);
@@ -1782,6 +1794,7 @@
     if (G.shield > 0) badge('K', '#8fd0ff', G.shield, SHIELD_MAX);
     if (G.mag > 0) badge('M', '#ff9fe0', G.mag, MAG_MAX);
     if (G.wing > 0) badge('Y', '#7dffb0', G.wing, WING_MAX);
+    if (G.windPf) badge('R', '#9ff5e8', 1, 1);
     const loop = Math.floor(G.sec / NSEC);
     const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);
