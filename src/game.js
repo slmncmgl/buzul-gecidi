@@ -153,16 +153,16 @@
   // Fare: oyun başladığı andaki konum (0,0) kabul edilir; mx sağ/sol, my ileri/geri sapmadır
   const mouse = { active: false, down: false, mx: 0, my: 0, sens: 0.35, level: 1 };
   // Fare hassasiyeti: 9 kademe, klavyede 1–9 ile seçilir, tarayıcıda saklanır (1.0 = imleçle birebir)
-  const SENS_LEVELS = [0.35, 0.45, 0.55, 0.7, 0.85, 1, 1.2, 1.45, 1.7], SENS_DEFAULT = 1;
+  const SENS_LEVELS = [0.12, 0.16, 0.2, 0.26, 0.33, 0.42, 0.55, 0.75, 1], SENS_DEFAULT = 2;
   function setSensLevel(n) {
     mouse.level = clamp(Math.round(n) || SENS_DEFAULT, 1, 9);
     mouse.sens = SENS_LEVELS[mouse.level - 1];
-    store('bg_sens_lv2', String(mouse.level));
+    store('bg_sens_lv3', String(mouse.level));
     G.sensT = 1.6;
   }
   function setSens(step) { setSensLevel(mouse.level + step); }
   (function () {
-    const v = parseInt(store('bg_sens_lv2'), 10);
+    const v = parseInt(store('bg_sens_lv3'), 10);
     mouse.level = v >= 1 && v <= 9 ? v : SENS_DEFAULT;
     mouse.sens = SENS_LEVELS[mouse.level - 1];
   })();
@@ -537,7 +537,7 @@
 
     const s = sec(G.sec);
     const sm = G.sm = speedMul(G.sec), vMin = SPEED_MIN * sm, vCr = SPEED_CRUISE * sm, vMax = SPEED_MAX * sm;
-    const lat = 126 * Math.sqrt(sm) * Math.sqrt(mouse.sens / SENS_LEVELS[0]);     // klavye yan hızı (180 fazla sıçratıyordu)
+    const lat = 126 * Math.sqrt(sm) * Math.sqrt(mouse.sens / SENS_LEVELS[SENS_DEFAULT - 1]);     // klavye yan hızı (180 fazla sıçratıyordu)
 
     // rüzgâr: önce uyarı, sonra birkaç saniyelik yan itiş
     const w0 = s.info.wind || 0;
