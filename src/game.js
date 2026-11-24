@@ -1682,9 +1682,22 @@
     ctx.strokeStyle = '#8fa3ba'; ctx.lineWidth = 1.8;
     ctx.beginPath(); ctx.moveTo(-9, 3); ctx.lineTo(-4, 4); ctx.moveTo(9, 3); ctx.lineTo(4, 4); ctx.moveTo(-9, -2); ctx.lineTo(-4, -1); ctx.moveTo(9, -2); ctx.lineTo(4, -1); ctx.stroke();
     ctx.lineCap = 'butt';
-    // gövde
-    ctx.fillStyle = '#f26a1b'; poly([0, -14, 6, -2, 6.5, 8, 3, 11, -3, 11, -6.5, 8, -6, -2]);
-    ctx.fillStyle = '#ff9a4d'; poly([0, -14, -6, -2, -6.5, 8, -3, 11, 0, 11]);
+    // gövde: güç arttıkça kızak tipi değişir (0-3 keşif, 4-7 avcı, 8-12 akıncı, 13+ buz kartalı)
+    const tier = G.power >= 13 ? 3 : G.power >= 8 ? 2 : G.power >= 4 ? 1 : 0;
+    const HULL = [['#f26a1b', '#ff9a4d'], ['#d8323a', '#ff6a6a'], ['#6a3fd0', '#a27bff'], ['#d9a21b', '#ffe07a']][tier];
+    if (tier >= 1) {      // yan kanatçıklar
+      ctx.fillStyle = HULL[0]; poly([-6, 0, -13 - tier, 7, -12 - tier, 10, -6, 7]); poly([6, 0, 13 + tier, 7, 12 + tier, 10, 6, 7]);
+    }
+    if (tier >= 2) {      // namlu yuvaları
+      ctx.fillStyle = '#16212f'; ctx.fillRect(-12.5, -6, 2.5, 9); ctx.fillRect(10, -6, 2.5, 9);
+      ctx.fillStyle = HULL[1]; ctx.fillRect(-12.5, -7, 2.5, 2); ctx.fillRect(10, -7, 2.5, 2);
+    }
+    if (tier >= 3) {      // altın taç sivrisi + parıltı
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(0, -12, 9, '255,220,120', 0.35 + 0.15 * Math.sin(G.t * 6)); ctx.restore();
+      ctx.fillStyle = '#fff1b0'; poly([0, -19, 2, -13, -2, -13]);
+    }
+    ctx.fillStyle = HULL[0]; poly([0, -14, 6, -2, 6.5, 8, 3, 11, -3, 11, -6.5, 8, -6, -2]);
+    ctx.fillStyle = HULL[1]; poly([0, -14, -6, -2, -6.5, 8, -3, 11, 0, 11]);
     ctx.fillStyle = '#fff1dc'; ctx.fillRect(-4.5, 5, 9, 1.8);
     ctx.fillStyle = '#16212f'; ctx.beginPath(); ctx.ellipse(0, -2, 3.2, 5, 0, 0, 6.3); ctx.fill();
     ctx.fillStyle = '#9fe6ff'; ctx.beginPath(); ctx.ellipse(-0.9, -3.4, 1.2, 2.2, 0, 0, 6.3); ctx.fill();
@@ -1756,8 +1769,19 @@
     text(String(G.score).padStart(6, '0'), 12, 36, 24, '#ffffff', 'left', 700);
     coinIcon(18, 50, 5, 1);
     text(String(G.coins), 28, 55, 15, '#ffd95a', 'left', 700);
-    if (G.shield > 0) text('KALKAN ×' + G.shield, 12, 72, 12, '#8fd0ff', 'left', 700);
-    if (G.mag > 0) text('MIKNATIS ' + G.mag, 12, G.shield > 0 ? 87 : 72, 12, '#ff9fe0', 'left', 700);
+    // alınan güçlendirmeler: küçük rozetler (harf + kademe noktaları)
+    let bdx = 12;
+    const badge = (ch, col, lv, max) => {
+      ctx.fillStyle = 'rgba(10,20,35,0.45)'; ctx.fillRect(bdx, 64, 18, 18);
+      ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.strokeRect(bdx + 0.5, 64.5, 17, 17);
+      text(ch, bdx + 9, 77, 11, col, 'center', 700);
+      for (let i = 0; i < max; i++) { ctx.fillStyle = i < lv ? col : 'rgba(255,255,255,0.18)'; ctx.fillRect(bdx + i * (18 / max) + 1, 84, 18 / max - 2, 2); }
+      bdx += 22;
+    };
+    if (G.power > 0) badge('S', '#ffb347', Math.ceil(G.power / 4), 4);
+    if (G.shield > 0) badge('K', '#8fd0ff', G.shield, SHIELD_MAX);
+    if (G.mag > 0) badge('M', '#ff9fe0', G.mag, MAG_MAX);
+    if (G.wing > 0) badge('Y', '#7dffb0', G.wing, WING_MAX);
     const loop = Math.floor(G.sec / NSEC);
     const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);
