@@ -433,7 +433,7 @@
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.cheated = false;
-    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0; G.magOn = 0; G.windPf = 0;
+    G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0; G.magOn = 0; G.windPf = 0; G.skate = 0; G.onLand = false;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
     G.stats.deaths = []; G.stats.gates = 0;
@@ -467,7 +467,7 @@
     if (why === 'freeze') { boom(P.x, P.wy, 26, ['#ffffff', '#bfe9ff', '#7fc8ff', '#e8f7ff'], 90); A.play('freeze'); }
     else { boom(P.x, P.wy, 34, ['#ffffff', '#ffd27a', '#ff8a3c', '#ff5a36'], 150); A.play('playerDie'); }
     A.stopEngine(); A.setCharging(false); A.setLowHeat(false); A.setWind(0); A.setWeaponCharge(0);
-    P.charge = 0; P.holdT = 0; G.windPf = 0;      // rüzgâr kalkanı ölünce gider
+    P.charge = 0; P.holdT = 0; G.windPf = 0; G.skate = 0; G.onLand = false;      // rüzgâr kalkanı ve paten ölünce gider
   }
 
   function afterDeath() {
@@ -588,7 +588,8 @@
       for (let i = 0; i < rp.length; i++) if (P.wy > rp[i].y0 && P.wy < rp[i].y1) { G.rapid = true; break; }
     }
     if (G.rapid) target = Math.max(target, vMax * 1.05);     // akıntı sürükler, yavaşlanamaz
-    P.speed = approach(P.speed, target, 230 * sm * dt);
+    if (G.onLand) target = Math.min(target, vMin * 0.55);      // karada belirgin yavaşla
+    P.speed = approach(P.speed, target, (G.onLand ? 600 : 230) * sm * dt);
     P.wy += P.speed * dt;
     P.inv = Math.max(0, P.inv - dt);
     P.fireCd -= dt;
@@ -672,7 +673,7 @@
       }
       if (Math.abs(P.x - c.x) < 12 + c.v && Math.abs(P.wy - c.wy) < 14 + c.v) {
         coinsL.splice(i, 1);
-        if (c.pw) { if (c.k === 'mag') magnetUp(); else if (c.k === 'wd') windUp(); else if (c.k === 'sh') shieldUp(); else if (c.k === 'wing') wingUp(); else powerUp(); continue; }
+        if (c.pw) { if (c.k === 'mag') magnetUp(); else if (c.k === 'wd') windUp(); else if (c.k === 'sk') skateUp(); else if (c.k === 'sh') shieldUp(); else if (c.k === 'wing') wingUp(); else powerUp(); continue; }
         G.coins += c.v; G.runCoins += c.v; store('bg_coins', String(G.coins));
         addScore(10 * c.v);
         A.play(c.v > 1 ? 'bigCoin' : 'coin');
@@ -682,8 +683,11 @@
     }
 
     // kıyıya ya da adaya çarpma
+    G.onLand = false;
     if (solid(P.x - 5, P.wy - 7) || solid(P.x + 5, P.wy - 7) || solid(P.x - 5, P.wy + 6) || solid(P.x + 5, P.wy + 6) || solid(P.x, P.wy + 11)) {
-      die('crash', true); return;
+      if (!G.skate) { die('crash', true); return; }
+      G.onLand = true;      // buz pateni: karada yavaşça kayarak geçer
+      if (Math.random() < 0.7) part(P.x + rand(-7, 7), P.wy - 10, rand(-40, 40), -rand(20, 60), rand(0.3, 0.6), rand(1.5, 3), '#ffffff', false);
     }
 
     // fener kapısı
@@ -740,6 +744,10 @@
       shots.push({ x: P.x + q * 17, wy: P.wy + 4 - Math.floor(i / 2) * 5, v: P.speed + 200, vx: q * (60 + (i >> 1) * 18), dmg: 3, homing: true, tgt: tg });
     }
     pop(P.x, P.wy + 34, 'MİSİL YAĞMURU', '#7dffb0'); A.play('orb');
+  }
+  function skateUp() {
+    if (G.skate) { overNuke(); return; }
+    G.skate = 1; pop(P.x, P.wy + 34, 'BUZ PATENİ', '#e9f3ff'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
   }
   function windUp() {
     if (G.windPf) { overNuke(); return; }
@@ -909,7 +917,8 @@
       const r = Math.random();
       let k = null;
       if (r < WING_DROP) k = 'wing';
-      else if (r >= 0.30 && r < 0.34) k = 'wd';                                         // %4: rüzgâr kalkanı
+      else if (r >= 0.30 && r < 0.34) k = 'wd';
+      else if (r >= 0.34 && r < 0.38) k = 'sk';                                         // %4: buz pateni                                         // %4: rüzgâr kalkanı
       else if (r >= WING_DROP + POWER_DROP && r < WING_DROP + POWER_DROP + MAG_DROP) k = 'mag';           // %5: mıknatıs                        // %5: kanat yardımcıları
       else if (r < WING_DROP + POWER_DROP) {                                            // %20: silah ya da (dörtte bir) kalkan
         const wantSh = Math.random() < SHIELD_SHARE || G.power >= POWER_MAX;
@@ -1515,15 +1524,16 @@
       if (c.pw) {                              // güçlendirme: dönen turuncu elmas
         const pu = 1 + 0.12 * Math.sin(G.t * 7);
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        const sh = c.k === 'sh', wg = c.k === 'wing', mg = c.k === 'mag', wd = c.k === 'wd';       // turuncu: silah · mavi: kalkan · yeşil: kanat yardımcıları
-        glow(c.x, y, 22, wd ? '120,255,230' : mg ? '255,90,200' : sh ? '80,170,255' : wg ? '80,240,150' : '255,140,50', 0.6);
+        const sh = c.k === 'sh', wg = c.k === 'wing', mg = c.k === 'mag', wd = c.k === 'wd', sk = c.k === 'sk';       // turuncu: silah · mavi: kalkan · yeşil: kanat yardımcıları
+        glow(c.x, y, 22, sk ? '220,235,255' : wd ? '120,255,230' : mg ? '255,90,200' : sh ? '80,170,255' : wg ? '80,240,150' : '255,140,50', 0.6);
         ctx.restore();
         ctx.save(); ctx.translate(c.x, y); ctx.rotate(G.t * 1.6); ctx.scale(pu, pu);
-        ctx.fillStyle = wd ? '#17a594' : mg ? '#d0369a' : sh ? '#2f8fe8' : wg ? '#1fae6a' : '#ff7a1f'; ctx.beginPath(); ctx.roundRect(-7, -7, 14, 14, 3); ctx.fill();
+        ctx.fillStyle = sk ? '#5a6f8c' : wd ? '#17a594' : mg ? '#d0369a' : sh ? '#2f8fe8' : wg ? '#1fae6a' : '#ff7a1f'; ctx.beginPath(); ctx.roundRect(-7, -7, 14, 14, 3); ctx.fill();
         ctx.strokeStyle = '#fff1dc'; ctx.lineWidth = 1.6; ctx.stroke();
         ctx.restore();
         ctx.fillStyle = '#ffffff';
-        if (wd) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6; ctx.beginPath(); for (let q = -1; q <= 1; q++) { ctx.moveTo(c.x - 4, y + q * 2.6); ctx.quadraticCurveTo(c.x, y + q * 2.6 - 2, c.x + 4, y + q * 2.6); } ctx.stroke(); }
+        if (sk) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(c.x - 4.5, y + 3); ctx.lineTo(c.x + 4.5, y + 3); ctx.moveTo(c.x - 2.5, y + 3); ctx.lineTo(c.x - 2.5, y - 3.5); ctx.lineTo(c.x + 2, y - 3.5); ctx.stroke(); }
+        else if (wd) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6; ctx.beginPath(); for (let q = -1; q <= 1; q++) { ctx.moveTo(c.x - 4, y + q * 2.6); ctx.quadraticCurveTo(c.x, y + q * 2.6 - 2, c.x + 4, y + q * 2.6); } ctx.stroke(); }
         else if (mg) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(c.x, y - 0.5, 3.4, Math.PI, 0); ctx.lineTo(c.x + 3.4, y + 3.5); ctx.moveTo(c.x - 3.4, y - 0.5); ctx.lineTo(c.x - 3.4, y + 3.5); ctx.stroke(); }
         else if (sh) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(c.x, y, 3.6, 0, 6.3); ctx.stroke(); }
         else if (wg) { poly([c.x - 5, y + 3, c.x - 2.5, y - 4, c.x, y + 3]); poly([c.x, y + 3, c.x + 2.5, y - 4, c.x + 5, y + 3]); }
@@ -1808,6 +1818,7 @@
     if (G.mag > 0) badge('M', '#ff9fe0', G.mag, MAG_MAX);
     if (G.wing > 0) badge('Y', '#7dffb0', G.wing, WING_MAX);
     if (G.windPf) badge('R', '#9ff5e8', 1, 1);
+    if (G.skate) badge('P', '#e9f3ff', 1, 1);
     const loop = Math.floor(G.sec / NSEC);
     const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);
