@@ -10,13 +10,13 @@
   const PTS = { mine: 30, boat: 60, skim: 100, turret: 150, orb: 20, ice: 10, hunter: 120, boss: 2500 };
   const SIZE = { mine: [7, 7], boat: [12, 6], skim: [10, 5], turret: [10, 10], ice: [9, 7], hunter: [9, 8], beam: [0, 4], whirl: [0, 0], boss: [34, 14] };
   // Etap ilerledikçe akış hızlanır; devam etmenin altın bedeli de etapla artar
-  const speedMul = (k) => Math.min(1.75, 1 + 0.025 * (k % NSEC) + 0.12 * Math.floor(k / NSEC));
-  const contCost = (k) => Math.min(200, 20 + 10 * k);
+  const speedMul = (k) => Math.min(1.5, 1 + 0.012 * (k % NSEC) + 0.07 * Math.floor(k / NSEC));
+  const contCost = (k) => k <= G.bossCp ? 0 : Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
   // Silah gücü: düşmanlardan %10 şansla düşen güçlendirme başına +%20; bir turda en fazla +%100 (5 adet)
-  const MAG_DROP = 0.05, MAG_MAX = 3, MAG_R = [0, 43, 58, 75], MAG_T = [0, 6, 9, 12];      // mıknatıs: %5 düşer; 3 kademe: çekim yarıçapı ve süresi (sn)
-  const WING_DROP = 0.05, WING_MAX = 3, SHIELD_MAX = 2, SHIELD_SHARE = 0.25;      // kanat yardımcıları: %5 (3 kademe); güçlendirmelerin dörtte biri kalkan
-  const POWER_DROP = 0.2, POWER_MAX = 16, BOSS_EVERY = 10;      // silah 16 kademe
+  const MAG_DROP = 0.03, MAG_MAX = 3, MAG_R = [0, 43, 58, 75], MAG_T = [0, 6, 9, 12];      // mıknatıs: %5 düşer; 3 kademe: çekim yarıçapı ve süresi (sn)
+  const WING_DROP = 0.03, WING_MAX = 3, SHIELD_MAX = 2, SHIELD_SHARE = 0.25;      // kanat yardımcıları: %5 (3 kademe); güçlendirmelerin dörtte biri kalkan
+  const POWER_DROP = 0.12, POWER_MAX = 16, BOSS_EVERY = 10;      // silah 16 kademe
   const shotCount = () => G.power >= 9 ? 4 : G.power >= 6 ? 3 : G.power >= 4 ? 2 : 1;
   const fireRate = () => Math.min(9.5, 3 + 1.5 * Math.min(G.power, 3) + 0.2 * Math.max(0, G.power - 3));      // atış/sn: 1-3. kademe hızlandırır
   const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power));
@@ -131,7 +131,9 @@
     shake: 0, deathT: 0, deathMsg: '', overT: 0, charging: false,
     banner: { t: 9, a: '', b: '' }, flash: 0,
     coins: parseInt(store('bg_coins') || '0', 10) || 0,      // cüzdan: tarayıcıda saklanır
-    best: parseInt(store('bg_stage') || '0', 10) || 0,       // ulaşılan en uzak etap (0 tabanlı)
+    best: parseInt(store('bg_stage') || '0', 10) || 0,
+    bossCp: parseInt(store('bg_bosscp') || '0', 10) || 0,      // son yenilen bekçiden sonraki etap: oradan bedava başlanır
+    chapT: 9, chapN: 1,       // ulaşılan en uzak etap (0 tabanlı)
     runCoins: 0, sm: 1, fog: 0, wind: 0, windWarn: 0, windT: 0, deny: 0, sensT: 0,
     power: 0, powerBase: 0, blastEcho: null,
     blastCd: 0, readyT: 0, night: 0, boss: null, rapid: false, nukeCd: 0, nukeT: 0,
@@ -412,7 +414,10 @@
     return inBtn(p, BTN.overA) ? 'new' : null;
   }
   // Altın harcayıp k. etabın başından devam et (puan sıfırlanır)
+  // altın yetmezse son yenilen bekçinin ardından bedava başla
+  function contK(k) { return G.coins >= contCost(k) || G.bossCp < 1 ? k : Math.min(k, G.bossCp); }
   function tryContinue(k) {
+    k = contK(k);
     const cost = contCost(k);
     if (k < 1 || G.coins < cost) { G.deny = 0.5; A.play('deny'); return false; }
     G.coins -= cost; store('bg_coins', String(G.coins));
@@ -467,7 +472,7 @@
     if (why === 'freeze') { boom(P.x, P.wy, 26, ['#ffffff', '#bfe9ff', '#7fc8ff', '#e8f7ff'], 90); A.play('freeze'); }
     else { boom(P.x, P.wy, 34, ['#ffffff', '#ffd27a', '#ff8a3c', '#ff5a36'], 150); A.play('playerDie'); }
     A.stopEngine(); A.setCharging(false); A.setLowHeat(false); A.setWind(0); A.setWeaponCharge(0);
-    P.charge = 0; P.holdT = 0; G.windPf = 0; G.skate = 0; G.onLand = false;      // rüzgâr kalkanı ve paten ölünce gider
+    P.charge = 0; P.holdT = 0; G.windPf = 0; G.skate = 0; G.onLand = false; G.landT = 0;      // rüzgâr kalkanı ve paten ölünce gider
   }
 
   function afterDeath() {
@@ -683,13 +688,16 @@
     }
 
     // kıyıya ya da adaya çarpma
-    G.onLand = false;
+    const wasLand = G.onLand; G.onLand = false;
     if (solid(P.x - 5, P.wy - 7) || solid(P.x + 5, P.wy - 7) || solid(P.x - 5, P.wy + 6) || solid(P.x + 5, P.wy + 6) || solid(P.x, P.wy + 11)) {
       if (!G.skate) { die('crash', true); return; }
       G.onLand = true;      // buz pateni: karada yavaşça kayarak geçer
+      G.landT = (G.landT || 0) + dt;
+      if (G.landT > 5) { G.skate = 0; G.landT = 0; G.onLand = false; die('freeze'); return; }
       if (Math.random() < 0.7) part(P.x + rand(-7, 7), P.wy - 10, rand(-40, 40), -rand(20, 60), rand(0.3, 0.6), rand(1.5, 3), '#ffffff', false);
     }
 
+    if (wasLand && !G.onLand) { G.skate = 0; G.landT = 0; pop(P.x, P.wy + 34, 'PATEN BİTTİ', '#e9f3ff'); }      // her paten bir kez geçirir
     // fener kapısı
     const gy = s.gateY;
     if (P.wy >= gy) {
@@ -876,6 +884,8 @@
       if (!solid(cx - 12, cy) && !solid(cx + 12, cy)) coinsL.push({ x: cx, wy: cy, v: q % 9 === 0 ? 5 : 1, ph: rand(0, 6) });
     }
     pop(W / 2, P.wy + 240, 'BEKÇİ YENİLDİ', '#7dffb0');
+    G.chapT = 0; G.chapN = Math.floor(G.sec / BOSS_EVERY) + 2;
+    if (!G.cheated && G.sec + 1 > G.bossCp) { G.bossCp = G.sec + 1; store('bg_bosscp', String(G.bossCp)); }
     A.play('extraLife');
   }
 
@@ -917,8 +927,8 @@
       const r = Math.random();
       let k = null;
       if (r < WING_DROP) k = 'wing';
-      else if (r >= 0.30 && r < 0.34) k = 'wd';
-      else if (r >= 0.34 && r < 0.38) k = 'sk';                                         // %4: buz pateni                                         // %4: rüzgâr kalkanı
+      else if (r >= 0.30 && r < 0.325) k = 'wd';
+      else if (r >= 0.34 && r < 0.365) k = 'sk';                                         // %4: buz pateni                                         // %4: rüzgâr kalkanı
       else if (r >= WING_DROP + POWER_DROP && r < WING_DROP + POWER_DROP + MAG_DROP) k = 'mag';           // %5: mıknatıs                        // %5: kanat yardımcıları
       else if (r < WING_DROP + POWER_DROP) {                                            // %20: silah ya da (dörtte bir) kalkan
         const wantSh = Math.random() < SHIELD_SHARE || G.power >= POWER_MAX;
@@ -1084,7 +1094,7 @@
     G.deny = Math.max(0, G.deny - dt);
     G.nukeT = Math.max(0, G.nukeT - dt);
     G.sensT = Math.max(0, G.sensT - dt);
-    G.banner.t += dt;
+    G.banner.t += dt; G.chapT += dt;
     let scroll = 0;
 
     if (G.mode === 'title') {
@@ -1918,6 +1928,17 @@
       ctx.globalAlpha = 1;
     }
 
+    // bölüm geçişi (bekçiden sonra)
+    if (G.chapT < 4.5 && G.mode !== 'gameover') {
+      const ct = G.chapT, a = clamp(ct * 2.5, 0, 1) * clamp((4.5 - ct) * 1.5, 0, 1);
+      ctx.globalAlpha = a * 0.75; ctx.fillStyle = '#06101c'; ctx.fillRect(0, 250, W, 120);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#7dffb0'; ctx.fillRect(W / 2 - 90 * a, 252, 180 * a, 2); ctx.fillRect(W / 2 - 90 * a, 366, 180 * a, 2);
+      text('BÖLÜM ' + (G.chapN - 1) + ' TAMAMLANDI', W / 2, 284, 14, '#7dffb0', 'center', 700);
+      text('BÖLÜM ' + G.chapN, W / 2, 330, 44, '#ffffff', 'center', 700);
+      text('artık buradan bedava başlayabilirsin', W / 2, 354, 12, 'rgba(190,215,240,0.85)', 'center', 500);
+      ctx.globalAlpha = 1;
+    }
     // etap başlığı
     const bt = G.banner.t;
     if (bt < 2.8 && G.mode !== 'gameover') {
@@ -1981,9 +2002,9 @@
     const blink = Math.floor(G.t * 1.6) % 2 === 0;
     button(BTN.titleNew, IS_TOUCH ? 'YENİ OYUN' : (blink ? 'YENİ OYUN  ·  ENTER' : 'YENİ OYUN'), null, true, true);
     if (G.best > 0) {
-      const cost = contCost(G.best), can = G.coins >= cost;
+      const ck = contK(G.best), cost = contCost(ck), can = G.coins >= cost;
       const sh = G.deny > 0 ? Math.sin(G.deny * 60) * 4 : 0;
-      button(BTN.titleCont, contLabel(G.best), (IS_TOUCH ? '' : 'C  ·  ') + cost + ' altın', false, can, sh);
+      button(BTN.titleCont, contLabel(ck), (IS_TOUCH ? '' : 'C  ·  ') + (cost ? cost + ' altın' : 'BEDAVA'), false, can, sh);
     } else {
       text('Fenerlere ulaştıkça buradan devam seçeneği açılır.', W / 2, BTN.titleCont.y + 22, 13, 'rgba(190,215,240,0.8)', 'center', 500);
     }
@@ -2004,9 +2025,9 @@
     text('bu yolculukta +' + G.runCoins + '  ·  toplam ' + G.coins, W / 2 - 68, 366, 14, '#ffd95a', 'left', 700);
     if (G.overT <= 0.8) return;
     if (G.sec > 0) {
-      const cost = contCost(G.sec), can = G.coins >= cost;
+      const ck = contK(G.sec), cost = contCost(ck), can = G.coins >= cost;
       const sh = G.deny > 0 ? Math.sin(G.deny * 60) * 4 : 0;
-      button(BTN.overA, contLabel(G.sec), (IS_TOUCH ? '' : 'C  ·  ') + cost + ' altın', true, can, sh);
+      button(BTN.overA, contLabel(ck), (IS_TOUCH ? '' : 'C  ·  ') + (cost ? cost + ' altın' : 'BEDAVA'), true, can, sh);
       button(BTN.overB, IS_TOUCH ? 'BAŞTAN BAŞLA' : 'BAŞTAN BAŞLA  ·  ENTER', null, false, true);
       text(can ? 'Devam edince puan sıfırlanır, 3 kızakla etabın başından başlarsın.' : 'Devam için ' + (cost - G.coins) + ' altın daha gerekli.',
         W / 2, BTN.overB.y + BTN.overB.h + 22, 12.5, can ? 'rgba(190,215,240,0.85)' : '#ff8f80', 'center', 500);
