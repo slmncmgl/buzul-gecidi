@@ -727,7 +727,20 @@
     A.play('powerUp');
   }
   // sınırdaki güçlendirme tekrar alınırsa bedava nükleer patlar (bekleme süresine dokunmaz)
-  function overNuke() { pop(P.x, P.wy + 34, 'TAŞMA NÜKLEERİ', '#7dffb0'); nuke(true); }
+  function overNuke() {      // taşma: ekrandaki düşmanlara güdümlü misil yağmuru (sarsıntısız)
+    const c = [];
+    for (let i = 0; i < ents.length; i++) {
+      const e = ents[i], y = sy(e.wy);
+      if (e.dead || e.type === 'beam' || e.type === 'whirl' || y < 0 || y > PSY - 10) continue;
+      c.push(e);
+    }
+    const n = Math.max(8, Math.min(16, c.length * 2));
+    for (let i = 0; i < n; i++) {
+      const q = i % 2 ? 1 : -1, tg = c.length ? c[i % c.length] : null;
+      shots.push({ x: P.x + q * 17, wy: P.wy + 4 - Math.floor(i / 2) * 5, v: P.speed + 200, vx: q * (60 + (i >> 1) * 18), dmg: 3, homing: true, tgt: tg });
+    }
+    pop(P.x, P.wy + 34, 'MİSİL YAĞMURU', '#7dffb0'); A.play('orb');
+  }
   function windUp() {
     if (G.windPf) { overNuke(); return; }
     G.windPf = 1; pop(P.x, P.wy + 34, 'RÜZGÂR KALKANI', '#9ff5e8'); G.flash = Math.max(G.flash, 0.2); A.play('powerUp');
