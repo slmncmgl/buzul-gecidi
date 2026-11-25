@@ -132,6 +132,7 @@
     banner: { t: 9, a: '', b: '' }, flash: 0,
     coins: parseInt(store('bg_coins') || '0', 10) || 0,      // cüzdan: tarayıcıda saklanır
     best: parseInt(store('bg_stage') || '0', 10) || 0,
+    last: parseInt(store('bg_last') || store('bg_stage') || '0', 10) || 0,
     bossCp: parseInt(store('bg_bosscp') || '0', 10) || 0,      // son yenilen bekçiden sonraki etap: oradan bedava başlanır
     chapT: 9, chapN: 1,       // ulaşılan en uzak etap (0 tabanlı)
     runCoins: 0, sm: 1, fog: 0, wind: 0, windWarn: 0, windT: 0, deny: 0, sensT: 0,
@@ -236,7 +237,7 @@
     if (hit[1] || hit[2] || hit[5]) nuke();
     if (hit[3]) {
       firstGesture();
-      if (G.mode === 'title') tryContinue(G.best);
+      if (G.mode === 'title') tryContinue(G.last);
       else if (G.mode === 'gameover' && G.overT > 0.8) tryContinue(G.sec);
     }
     if (hit[8]) { muted = !muted; A.setMuted(muted); store('bg_muted', muted ? '1' : '0'); }
@@ -267,7 +268,7 @@
     } else if (e.code === 'KeyX' || e.code === 'KeyN') {
       nuke();
     } else if (e.code === 'KeyC') {
-      if (G.mode === 'title') tryContinue(G.best);
+      if (G.mode === 'title') tryContinue(G.last);
       else if (G.mode === 'gameover' && G.overT > 0.8) tryContinue(G.sec);
     } else if (e.code === 'KeyP') {
       togglePause();
@@ -298,7 +299,7 @@
       if (isMouse) mouse.active = true;         // fareyle başlatan fareyle oynar
       let ok = true;
       if (act === 'new') startGame(0);
-      else ok = tryContinue(act === 'cont-title' ? G.best : G.sec);
+      else ok = tryContinue(act === 'cont-title' ? G.last : G.sec);
       if (isMouse || !ok) return;
     } else if (G.mode === 'paused') {
       if (inBtn(p, BTN.sensMinus)) { setSens(-1); return; }
@@ -409,7 +410,7 @@
   };
   const inBtn = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
   function menuAction(p) {
-    if (G.mode === 'title') return (G.best > 0 && inBtn(p, BTN.titleCont)) ? 'cont-title' : 'new';
+    if (G.mode === 'title') return (G.last > 0 && inBtn(p, BTN.titleCont)) ? 'cont-title' : 'new';
     if (G.sec > 0) return inBtn(p, BTN.overA) ? 'cont' : inBtn(p, BTN.overB) ? 'new' : null;
     return inBtn(p, BTN.overA) ? 'new' : null;
   }
@@ -435,6 +436,7 @@
 
   function startGame(k) {
     k = k > 0 ? k : 0;
+    G.last = k; store('bg_last', String(k));
     G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.cheated = false;
@@ -708,6 +710,7 @@
       G.checkpoint = gy + 24;
       G.sec++; G.stats.gates++; G.flash = 0.35;
       if (G.sec > G.best && !G.cheated) { G.best = G.sec; store('bg_stage', String(G.best)); }
+      if (!G.cheated) { G.last = G.sec; store('bg_last', String(G.last)); }      // menüdeki devam: son oyunda varılan etap
       if (G.sec % NSEC === 0) { G.powerBase = G.power; addScore(5000); pop(W / 2, gy + 80, 'TUR TAMAM  +5000', '#7dffb0'); A.play('lapDone'); }
       else A.play('gate');
       arm(G.sec + 1);
@@ -2001,8 +2004,8 @@
 
     const blink = Math.floor(G.t * 1.6) % 2 === 0;
     button(BTN.titleNew, IS_TOUCH ? 'YENİ OYUN' : (blink ? 'YENİ OYUN  ·  ENTER' : 'YENİ OYUN'), null, true, true);
-    if (G.best > 0) {
-      const ck = contK(G.best), cost = contCost(ck), can = G.coins >= cost;
+    if (G.last > 0) {
+      const ck = contK(G.last), cost = contCost(ck), can = G.coins >= cost;
       const sh = G.deny > 0 ? Math.sin(G.deny * 60) * 4 : 0;
       button(BTN.titleCont, contLabel(ck), (IS_TOUCH ? '' : 'C  ·  ') + (cost ? cost + ' altın' : 'BEDAVA'), false, can, sh);
     } else {
