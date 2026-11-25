@@ -10,13 +10,14 @@
   const PTS = { mine: 30, boat: 60, skim: 100, turret: 150, orb: 20, ice: 10, hunter: 120, boss: 2500 };
   const SIZE = { mine: [7, 7], boat: [12, 6], skim: [10, 5], turret: [10, 10], ice: [9, 7], hunter: [9, 8], beam: [0, 4], whirl: [0, 0], boss: [34, 14] };
   // Etap ilerledikçe akış hızlanır; devam etmenin altın bedeli de etapla artar
-  const speedMul = (k) => Math.min(1.5, 1 + 0.012 * (k % NSEC) + 0.07 * Math.floor(k / NSEC));
+  const speedMul = (k) => Math.min(1.5, 1 + 0.01 * k);
+  const MAXLV = 50;      // şimdilik hedef: 50. etap
   const contCost = (k) => k <= G.bossCp ? 0 : Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
   // Silah gücü: düşmanlardan %10 şansla düşen güçlendirme başına +%20; bir turda en fazla +%100 (5 adet)
-  const MAG_DROP = 0.03, MAG_MAX = 3, MAG_R = [0, 43, 58, 75], MAG_T = [0, 6, 9, 12];      // mıknatıs: %5 düşer; 3 kademe: çekim yarıçapı ve süresi (sn)
-  const WING_DROP = 0.03, WING_MAX = 3, SHIELD_MAX = 2, SHIELD_SHARE = 0.25;      // kanat yardımcıları: %5 (3 kademe); güçlendirmelerin dörtte biri kalkan
-  const POWER_DROP = 0.12, POWER_MAX = 16, BOSS_EVERY = 10;      // silah 16 kademe
+  const MAG_DROP = 0.0225, MAG_MAX = 3, MAG_R = [0, 43, 58, 75], MAG_T = [0, 6, 9, 12];      // mıknatıs: %5 düşer; 3 kademe: çekim yarıçapı ve süresi (sn)
+  const WING_DROP = 0.0225, WING_MAX = 3, SHIELD_MAX = 1, SHIELD_SHARE = 0.25;      // kanat yardımcıları: %5 (3 kademe); güçlendirmelerin dörtte biri kalkan
+  const POWER_DROP = 0.09, POWER_MAX = 16, BOSS_EVERY = 10;      // silah 16 kademe
   const shotCount = () => G.power >= 9 ? 4 : G.power >= 6 ? 3 : G.power >= 4 ? 2 : 1;
   const fireRate = () => Math.min(9.5, 3 + 1.5 * Math.min(G.power, 3) + 0.2 * Math.max(0, G.power - 3));      // atış/sn: 1-3. kademe hızlandırır
   const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power));
@@ -153,7 +154,7 @@
   const touch = { on: false, id: null, lx: 0, y0: 0, y: 0, dx: 0 };
   // dokunmatik düğmeler: yaylım (dokun ya da basılı tutup şarj et) ve nükleer; dokunmatikte tekli ateş otomatiktir
   const tb = { seen: false, blastId: null, rel: false };
-  const TBTN = { blast: { x: W - 40, y: H - 100, r: 28 }, nuke: { x: 40, y: H - 100, r: 28 } };
+  const TBTN = { blast: { x: 82, y: H - 78, r: 30 }, nuke: { x: 40, y: H - 156, r: 26 } };      // ikisi de solda: üstte nükleer, altta (merkeze yakın) yaylım
   const inTB = (p, c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + 8;
   // Fare: oyun başladığı andaki konum (0,0) kabul edilir; mx sağ/sol, my ileri/geri sapmadır
   const mouse = { active: false, down: false, mx: 0, my: 0, sens: 0.35, level: 1 };
@@ -385,7 +386,7 @@
       ents.push({
         type: sp.type, x: sp.x, wy: sp.y, vx: sp.vx || 0, minX: sp.minX, maxX: sp.maxX,
         hw: sz[0], hh: sz[1], hp: sp.type === 'turret' ? 2 + Math.min(2, tier) : sp.type === 'ice' ? 1 + Math.min(1, tier) : (sp.type === 'hunter' || sp.type === 'boat') ? 1 + Math.min(1, Math.floor(tier / 2)) : 1,
-        vol: tier >= 3 ? 3 : tier >= 1 ? 2 : 1, armed: sp.type === 'boat' && tier >= 2,      // kule yaylım ateşi; ileri kademelerde botlar da ateş eder
+        vol: tier >= 3 ? 3 : tier >= 1 ? 2 : 1, armed: (sp.type === 'boat' && k >= 4) || (sp.type === 'hunter' && k >= 14) || (sp.type === 'skim' && k >= 24),      // 5. etaptan botlar, 15'ten avcılar, 25'ten kayıcılar ateş eder      // kule yaylım ateşi; ileri kademelerde botlar da ateş eder
         cd: 0.7, rate: 2.3 / (1 + 0.08 * tier), hard: 1 + 0.08 * tier,
         flash: 0, ph: hash(sp.y + sp.x) * 6.28, ang: Math.PI / 2, dead: false
       });
@@ -430,7 +431,7 @@
   function setBanner(k) {
     const loop = Math.floor(k / NSEC);
     G.banner.t = 0;
-    G.banner.a = 'ETAP ' + (k % NSEC + 1) + (loop ? '  ·  TUR ' + (loop + 1) : '');
+    G.banner.a = 'ETAP ' + (k + 1);
     G.banner.b = LV.info(k).name;
   }
 
@@ -711,7 +712,7 @@
       G.sec++; G.stats.gates++; G.flash = 0.35;
       if (G.sec > G.best && !G.cheated) { G.best = G.sec; store('bg_stage', String(G.best)); }
       if (!G.cheated) { G.last = G.sec; store('bg_last', String(G.last)); }      // menüdeki devam: son oyunda varılan etap
-      if (G.sec % NSEC === 0) { G.powerBase = G.power; addScore(5000); pop(W / 2, gy + 80, 'TUR TAMAM  +5000', '#7dffb0'); A.play('lapDone'); }
+      if (G.sec % NSEC === 0) { G.powerBase = G.power; addScore(5000); pop(W / 2, gy + 80, '+5000', '#7dffb0'); A.play('lapDone'); }
       else A.play('gate');
       arm(G.sec + 1);
       setBanner(G.sec);
@@ -930,8 +931,8 @@
       const r = Math.random();
       let k = null;
       if (r < WING_DROP) k = 'wing';
-      else if (r >= 0.30 && r < 0.325) k = 'wd';
-      else if (r >= 0.34 && r < 0.365) k = 'sk';                                         // %4: buz pateni                                         // %4: rüzgâr kalkanı
+      else if (r >= 0.30 && r < 0.319) k = 'wd';
+      else if (r >= 0.34 && r < 0.359) k = 'sk';                                         // %4: buz pateni                                         // %4: rüzgâr kalkanı
       else if (r >= WING_DROP + POWER_DROP && r < WING_DROP + POWER_DROP + MAG_DROP) k = 'mag';           // %5: mıknatıs                        // %5: kanat yardımcıları
       else if (r < WING_DROP + POWER_DROP) {                                            // %20: silah ya da (dörtte bir) kalkan
         const wantSh = Math.random() < SHIELD_SHARE || G.power >= POWER_MAX;
@@ -958,17 +959,28 @@
         else if (e.x > e.maxX) { e.x = e.maxX; e.vx = -Math.abs(e.vx); }
         if (e.armed && playing && y > 8 && y < PSY - 110) {       // silahlı bot: dümdüz aşağı ateş eder
           e.cd -= dt;
-          if (e.cd <= 0) { orbs.push({ x: e.x, wy: e.wy - 8, vx: 0, vy: -105 * e.hard }); e.cd = 2.4; A.play('orb'); }
+          if (e.cd <= 0) { orbs.push({ x: e.x, wy: e.wy - 8, vx: 0, vy: -105 * e.hard }); e.cd = 2.4 / e.hard; A.play('orb'); }
         }
       } else if (e.type === 'skim') {
         e.x += e.vx * dt;
         if (e.x > W + 30 && e.vx > 0) e.vx = -e.vx;
         else if (e.x < -30 && e.vx < 0) e.vx = -e.vx;
+        if (e.armed && playing && y > 8 && y < PSY - 110 && e.x > 10 && e.x < W - 10) {      // kayıcı: geçerken aşağı bırakır
+          e.cd -= dt;
+          if (e.cd <= 0) { orbs.push({ x: e.x, wy: e.wy - 6, vx: e.vx * 0.3, vy: -95 * e.hard }); e.cd = 1.8 / e.hard; A.play('orb'); }
+        }
       } else if (e.type === 'hunter') {
         // avcı: oyuncunun hizasına kayarak üstüne gelir
         if (playing) {
           e.wy -= 34 * e.hard * dt;
           e.x = approach(e.x, P.x, 58 * e.hard * dt);
+          if (e.armed && y > 8 && y < PSY - 120) {      // avcı: oyuncuya nişanlı tek atış
+            e.cd -= dt;
+            if (e.cd <= 0) {
+              const dx = P.x - e.x, dy = P.wy - e.wy, d = Math.hypot(dx, dy) || 1, v = 100 * e.hard;
+              orbs.push({ x: e.x, wy: e.wy - 6, vx: dx / d * v, vy: dy / d * v }); e.cd = 2.6 / e.hard; A.play('orb');
+            }
+          }
         }
       } else if (e.type === 'turret') {
         e.ang = Math.atan2(y - PSY, P.x - e.x);          // namlu oyuncuya döner (matematik açısı, y yukarı)
@@ -1376,7 +1388,7 @@
         ctx.fillStyle = 'rgb(' + rgb + ')'; ctx.fillRect(x - 3.5, y - 17, 7, 6);
         ctx.fillStyle = '#2a3646'; poly([x - 5, y - 17, x, y - 22, x + 5, y - 17]);
       }
-      text('ETAP ' + ((k + 1) % NSEC + 1), xr + 12, y + 3, 11, 'rgba(' + rgb + ',0.95)', 'left', 700);
+      text('ETAP ' + (k + 2), xr + 12, y + 3, 11, 'rgba(' + rgb + ',0.95)', 'left', 700);
     }
   }
 
@@ -1833,7 +1845,7 @@
     if (G.windPf) badge('R', '#9ff5e8', 1, 1);
     if (G.skate) badge('P', '#e9f3ff', 1, 1);
     const loop = Math.floor(G.sec / NSEC);
-    const stageLbl = 'ETAP ' + (G.sec % NSEC + 1) + '/' + NSEC + (loop ? '  ·  TUR ' + (loop + 1) : '');
+    const stageLbl = 'ETAP ' + (G.sec + 1) + '/' + MAXLV;
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);
     todIcon(W / 2 - ctx.measureText(stageLbl).width / 2 - 11, 11.5);
     text(LV.info(G.sec).name.toLocaleUpperCase('tr'), W / 2, 33, 15, '#ffe9b8', 'center', 700);
@@ -1974,7 +1986,7 @@
   }
   function contLabel(k) {
     const loop = Math.floor(k / NSEC);
-    return 'DEVAM · ETAP ' + (k % NSEC + 1) + (loop ? ' · TUR ' + (loop + 1) : '');
+    return 'DEVAM · ETAP ' + (k + 1);
   }
 
   function drawTitle() {
@@ -2020,7 +2032,7 @@
     dim(Math.min(0.66, G.overT * 1.2));
     const loop = Math.floor(G.sec / NSEC);
     text('YOLCULUK BİTTİ', W / 2, 190, 40, '#ffffff', 'center', 700);
-    text('ETAP ' + (G.sec % NSEC + 1) + ' · ' + LV.info(G.sec).name + (loop ? ' · TUR ' + (loop + 1) : ''), W / 2, 218, 15, '#ffcf8a', 'center', 500);
+    text('ETAP ' + (G.sec + 1) + ' · ' + LV.info(G.sec).name, W / 2, 218, 15, '#ffcf8a', 'center', 500);
     text('PUAN', W / 2, 262, 12, 'rgba(190,215,240,0.85)', 'center', 500);
     text(String(G.score).padStart(6, '0'), W / 2, 304, 46, '#ffffff', 'center', 700);
     text(G.newHi ? 'YENİ REKOR!' : 'EN İYİ  ' + String(G.hi).padStart(6, '0'), W / 2, 332, 15, G.newHi ? '#7dffb0' : '#ffcf8a', 'center', 700);
