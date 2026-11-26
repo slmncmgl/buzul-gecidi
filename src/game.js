@@ -7,11 +7,12 @@
   const PSY = 500;                                   // oyuncunun ekrandaki y konumu
   const SPEED_MIN = 80, SPEED_CRUISE = 150, SPEED_MAX = 270;
   const HEAT_DRAIN = 3.6, HEAT_CHARGE = 60;
-  const PTS = { mine: 30, boat: 60, skim: 100, turret: 150, orb: 20, ice: 10, hunter: 120, boss: 2500 };
-  const SIZE = { mine: [7, 7], boat: [12, 6], skim: [10, 5], turret: [10, 10], ice: [9, 7], hunter: [9, 8], beam: [0, 4], whirl: [0, 0], boss: [34, 14] };
+  const PTS = { mine: 30, boat: 60, skim: 100, turret: 150, orb: 20, ice: 10, hunter: 120, boss: 2500, wasp: 140, sub: 180, crystal: 160, shard: 25, mortar: 200 };
+  const SIZE = { mine: [7, 7], boat: [12, 6], skim: [10, 5], turret: [10, 10], ice: [9, 7], hunter: [9, 8], beam: [0, 4], whirl: [0, 0], boss: [34, 14], wasp: [9, 8], sub: [13, 7], crystal: [10, 10], shard: [6, 6], mortar: [12, 8] };
+  const NEWHP = { wasp: 2, sub: 3, crystal: 3, shard: 1, mortar: 4 };      // 50. etaptan sonra gelen düşmanlar
   // Etap ilerledikçe akış hızlanır; devam etmenin altın bedeli de etapla artar
-  const speedMul = (k) => Math.min(1.5, 1 + 0.01 * k);
-  const MAXLV = 50;      // şimdilik hedef: 50. etap
+  const speedMul = (k) => k <= 50 ? Math.min(1.5, 1 + 0.01 * k) : Math.min(1.65, 1.5 + 0.003 * (k - 50));
+  const MAXLV = 100;     // hedef: 100. etap
   const contCost = (k) => k <= G.bossCp ? 0 : Math.min(200, 20 + 10 * k);
   // Yaylım atışı: ateşi basılı tutunca şarj olur, bırakınca yelpaze şeklinde ateşler, sonra bir süre kapanır
   // Silah gücü: düşmanlardan %10 şansla düşen güçlendirme başına +%20; bir turda en fazla +%100 (5 adet)
@@ -126,7 +127,10 @@
   }
 
   // ------------------------------------------------------------ durum
+  const loadJ = (k, d) => { try { const v = JSON.parse(store(k) || 'null'); return Array.isArray(v) ? v : d; } catch (_) { return d; } };
   const G = {
+    sled: parseInt(store('bg_sled') || '0', 10) || 0, av: parseInt(store('bg_av') || '0', 10) || 0,      // mağaza: seçili kızak ve avatar
+    ownS: loadJ('bg_sleds', [0]), ownA: loadJ('bg_avs', [0]), stTab: 0, stCur: 0, stKb: false, stDeny: -1, stBuyT: 9,
     mode: 'title', t: 0, score: 0, hi: parseInt(store('bg_hi') || '0', 10) || 0, newHi: false,
     lives: 3, sec: 0, heat: 100, nextLife: 10000, checkpoint: 40,
     shake: 0, deathT: 0, deathMsg: '', overT: 0, charging: false,
@@ -142,7 +146,7 @@
     stats: { deaths: [], gates: 0 }
   };
   const P = { x: W / 2, wy: 40, vx: 0, speed: SPEED_CRUISE, inv: 0, fireCd: 0, tilt: 0, holdT: 0, charge: 0 };
-  let shots = [], ents = [], orbs = [], parts = [], pops = [], coinsL = [];
+  let shots = [], ents = [], orbs = [], parts = [], pops = [], coinsL = [], shells = [];
   let armed = {};
   let muted = store('bg_muted') === '1';
 
@@ -235,6 +239,12 @@
       else if (hit[3]) { let b = 0; for (let i = 0; i < SHOP.length; i++) if (G.coins >= SHOP[i].c) b = i; shopPick(b); }
       return;
     }
+    if (G.mode === 'store') {      // kol: yön tuşları gezinir, A al/seç, LB/RB sekme, B geri
+      if (hit[14]) storeKey('left'); else if (hit[15]) storeKey('right'); else if (hit[12]) storeKey('up'); else if (hit[13]) storeKey('down');
+      if (hit[0]) storeKey('pick'); if (hit[4]) storeKey('tab0'); if (hit[5]) storeKey('tab1'); if (hit[1] || hit[8]) storeKey('back');
+      return;
+    }
+    if (G.mode === 'title' && hit[2]) { openStore(); return; }
     if (hit[0] || hit[9]) {
       firstGesture();
       if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) startGame(0);
@@ -261,6 +271,14 @@
       else if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) shopPick(0);
       e.preventDefault(); return;
     }
+    if (G.mode === 'store') {
+      const sk = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
+        Enter: 'pick', Space: 'pick', KeyQ: 'tab0', KeyE: 'tab1', Escape: 'back', Backspace: 'back', KeyT: 'back' }[e.code];
+      if (dg && !e.repeat && +dg[1] <= 6) { G.stKb = true; storePick(+dg[1] - 1); }
+      else if (sk && !e.repeat) storeKey(sk);
+      e.preventDefault(); return;
+    }
+    if (G.mode === 'title' && e.code === 'KeyT' && !e.repeat) { openStore(); e.preventDefault(); return; }
     if (dg && !e.repeat) {
       if (!digits[1] && !digits[3] && !digits[5]) sensBeforeCombo = mouse.level;   // 1+3+5 hilesi hassasiyeti bozmasın
       digits[+dg[1]] = true;
@@ -308,6 +326,13 @@
       for (let i = 0; i < SHOP.length; i++) if (inBtn(p, shopBtn(i))) { if (isMouse) mouse.active = true; shopPick(i); break; }
       return;
     }
+    if (G.mode === 'store') {
+      for (let q = 0; q < 2; q++) if (inBtn(p, STORE_TAB[q])) { storeTab(q); return; }
+      for (let i = 0; i < storeList().length; i++) if (inBtn(p, storeCard(i))) { G.stKb = false; storePick(i); return; }
+      if (inBtn(p, BTN.storeBack)) closeStore();
+      return;
+    }
+    if (G.mode === 'title' && inBtn(p, BTN.store)) { openStore(); return; }
     if ((G.mode === 'title' || G.mode === 'paused' || G.mode === 'gameover') && inBtn(p, BTN.mute)) { toggleMute(); return; }
     if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) {
       const act = menuAction(p);
@@ -400,8 +425,8 @@
       const sp = s.spawns[i], sz = SIZE[sp.type];
       ents.push({
         type: sp.type, x: sp.x, wy: sp.y, vx: sp.vx || 0, minX: sp.minX, maxX: sp.maxX,
-        hw: sz[0], hh: sz[1], hp: sp.type === 'turret' ? 2 + Math.min(2, tier) : sp.type === 'ice' ? 1 + Math.min(1, tier) : (sp.type === 'hunter' || sp.type === 'boat') ? 1 + Math.min(1, Math.floor(tier / 2)) : 1,
-        vol: tier >= 3 ? 3 : tier >= 1 ? 2 : 1, armed: (sp.type === 'boat' && k >= 4) || (sp.type === 'hunter' && k >= 14) || (sp.type === 'skim' && k >= 24),      // 5. etaptan botlar, 15'ten avcılar, 25'ten kayıcılar ateş eder      // kule yaylım ateşi; ileri kademelerde botlar da ateş eder
+        hw: sz[0], hh: sz[1], hp: NEWHP[sp.type] ? NEWHP[sp.type] + Math.max(0, Math.floor((tier - 5) / 2)) : sp.type === 'turret' ? 2 + Math.min(2, tier) : sp.type === 'ice' ? 1 + Math.min(1, tier) : (sp.type === 'hunter' || sp.type === 'boat') ? 1 + Math.min(1, Math.floor(tier / 2)) : 1,
+        vol: tier >= 7 ? 4 : tier >= 3 ? 3 : tier >= 1 ? 2 : 1, up: k >= 50, sub: sp.type === 'sub' ? 1 : 0, subT: hash(sp.x + sp.y * 3) * 4, armed: !!NEWHP[sp.type] || (sp.type === 'boat' && k >= 4) || (sp.type === 'hunter' && k >= 14) || (sp.type === 'skim' && k >= 24),      // 5. etaptan botlar, 15'ten avcılar, 25'ten kayıcılar ateş eder      // kule yaylım ateşi; ileri kademelerde botlar da ateş eder
         cd: 0.7, rate: 2.3 / (1 + 0.08 * tier), hard: 1 + 0.08 * tier,
         flash: 0, ph: hash(sp.y + sp.x) * 6.28, ang: Math.PI / 2, dead: false
       });
@@ -409,7 +434,7 @@
       if (sp.type === 'beam') { e.hw = (sp.maxX - sp.minX) / 2; e.hp = 1e9; e.onT = sp.period * 0.55; e.period = sp.period + 2; e.bph = sp.ph;   // açık süre aynı, kapalı süre +2 sn
         e.on = false; e.warn = false; }
       else if (sp.type === 'whirl') { e.hp = 1e9; e.r = sp.r; }
-      else if (sp.type === 'boss') { e.hp = e.maxHp = 160 + 90 * tier; e.kind = tier % 5; e.spin = 0; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
+      else if (sp.type === 'boss') { e.hp = e.maxHp = 160 + 90 * tier; e.kind = tier % 10; e.spin = 0; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
     }
     for (let i = 0; i < s.coins.length; i++) {
       const c = s.coins[i];
@@ -422,7 +447,7 @@
   const BTN = {
     titleNew: { x: 40, y: 478, w: 280, h: 36 }, titleCont: { x: 40, y: 522, w: 280, h: 36 },
     overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 },
-    mute: { x: W - 52, y: 10, w: 42, h: 34 },
+    mute: { x: W - 52, y: 10, w: 42, h: 34 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
   };
   const inBtn = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
@@ -465,6 +490,94 @@
     return true;
   }
 
+  // ---- Mağaza: altınla kızak ve avatar
+  const STORE_TAB = [{ x: 24, y: 98, w: 150, h: 34 }, { x: 186, y: 98, w: 150, h: 34 }];
+  const storeCard = (i) => ({ x: 24 + (i % 2) * 162, y: 142 + Math.floor(i / 2) * 149, w: 150, h: 141 });
+  const storeList = () => window.COS ? (G.stTab ? COS.AVATARS : COS.SLEDS) : [];
+  function openStore() { G.mode = 'store'; G.stCur = 0; G.stKb = false; A.play('hit'); }
+  function closeStore() { G.mode = 'title'; }
+  function storeTab(q) { if (G.stTab !== q) { G.stTab = q; G.stCur = 0; A.play('hit'); } }
+  function storePick(i) {
+    const it = storeList()[i];
+    if (!it) return;
+    const own = G.stTab ? G.ownA : G.ownS;
+    G.stCur = i;
+    if (own.indexOf(it.id) < 0) {
+      if (G.coins < it.price) { G.deny = 0.5; G.stDeny = i; A.play('deny'); return; }
+      G.coins -= it.price; store('bg_coins', String(G.coins));
+      own.push(it.id); store(G.stTab ? 'bg_avs' : 'bg_sleds', JSON.stringify(own));
+      G.stBuyT = 0; A.play('buy'); A.play('extraLife');
+    } else A.play('powerUp');
+    if (G.stTab) { G.av = it.id; store('bg_av', String(it.id)); } else { G.sled = it.id; store('bg_sled', String(it.id)); }
+  }
+  function storeKey(code) {      // klavye / kol: oklar gezinir, Enter alır ya da seçer, Q/E sekme, Esc geri
+    const n = storeList().length;
+    G.stKb = true;
+    if (code === 'left') G.stCur = Math.max(0, G.stCur - 1);
+    else if (code === 'right') G.stCur = Math.min(n - 1, G.stCur + 1);
+    else if (code === 'up') G.stCur = Math.max(0, G.stCur - 2);
+    else if (code === 'down') G.stCur = Math.min(n - 1, G.stCur + 2);
+    else if (code === 'pick') storePick(G.stCur);
+    else if (code === 'tab0') storeTab(0);
+    else if (code === 'tab1') storeTab(1);
+    else if (code === 'back') closeStore();
+  }
+  function fitText(s, x, y, size, maxW, color, weight) {
+    ctx.font = (weight || 700) + ' ' + size + 'px ' + FONT;
+    const w = ctx.measureText(s).width;
+    text(s, x, y, w > maxW ? Math.max(7, size * maxW / w) : size, color, 'center', weight);
+  }
+  function drawStore() {
+    dim(0.86);
+    text('MAĞAZA', W / 2, 50, 30, '#ffffff', 'center', 700);
+    coinIcon(W / 2 - 42, 76, 5.5, 1); text(G.coins + ' altın', W / 2 - 32, 81, 15, '#ffd95a', 'left', 700);
+    for (let q = 0; q < 2; q++) {
+      const b = STORE_TAB[q], on = G.stTab === q;
+      ctx.fillStyle = on ? '#f26a1b' : 'rgba(8,18,30,0.8)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.fill();
+      ctx.strokeStyle = on ? 'rgba(255,220,180,0.8)' : 'rgba(190,215,240,0.35)'; ctx.lineWidth = 1.4; ctx.stroke();
+      text((q ? 'AVATARLAR' : 'KIZAKLAR') + (IS_TOUCH ? '' : q ? '  ·  E' : '  ·  Q'), b.x + b.w / 2, b.y + 23, 16, on ? '#ffffff' : 'rgba(225,238,250,0.75)', 'center', 700);
+    }
+    const L = storeList(), own = G.stTab ? G.ownA : G.ownS, cur = G.stTab ? G.av : G.sled;
+    if (!L.length) text('Yükleniyor…', W / 2, 320, 15, '#ffffff', 'center', 500);
+    for (let i = 0; i < L.length; i++) {
+      const it = L[i], c = storeCard(i), has = own.indexOf(it.id) >= 0, sel = cur === it.id, can = G.coins >= it.price;
+      const sh = G.deny > 0 && G.stDeny === i ? Math.sin(G.deny * 60) * 3 : 0, x = c.x + sh, px = x + c.w / 2, py = c.y + 50;
+      const bg = ctx.createLinearGradient(0, c.y, 0, c.y + c.h);
+      bg.addColorStop(0, sel ? 'rgba(70,46,16,0.96)' : 'rgba(18,36,56,0.94)'); bg.addColorStop(1, sel ? 'rgba(28,16,6,0.96)' : 'rgba(6,14,24,0.94)');
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(x, c.y, c.w, c.h, 12); ctx.fill();
+      ctx.save(); ctx.beginPath(); ctx.roundRect(x + 2, c.y + 2, c.w - 4, c.h - 4, 10); ctx.clip();
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(px, py, 48, sel ? '255,200,90' : has ? '110,230,170' : '110,170,255', sel ? 0.28 : 0.16); ctx.restore();
+      if (G.stTab) COS.drawAvatar(ctx, it.id, px, py, 36, G.t + i * 0.7);
+      else {
+        ctx.translate(px, py + 2); ctx.scale(2.1, 2.1);
+        COS.drawSled(ctx, it.id, sel ? Math.floor(G.t / 1.3) % 4 : 0, G.t + i * 0.7);      // seçili kızak güç kademelerini sırayla gösterir
+      }
+      ctx.restore();
+      if (sel && G.stBuyT < 1.2) {      // satın alma parıltısı
+        const k = G.stBuyT / 1.2;
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(255,230,150,' + (1 - k) + ')'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(px, py, 20 + 60 * k, 0, 6.3); ctx.stroke(); ctx.restore();
+      }
+      const kb = G.stKb && G.stCur === i;
+      ctx.strokeStyle = kb ? '#ffffff' : sel ? '#ffd95a' : has ? 'rgba(125,255,176,0.55)' : 'rgba(190,215,240,0.3)';
+      ctx.lineWidth = sel || kb ? 2.4 : 1.3; ctx.beginPath(); ctx.roundRect(x, c.y, c.w, c.h, 12); ctx.stroke();
+      fitText(it.name, px, c.y + 105, 14, c.w - 12, '#ffffff', 700);
+      fitText(it.desc || '', px, c.y + 120, 10.5, c.w - 12, 'rgba(190,215,240,0.82)', 500);
+      if (sel) text('SEÇİLİ', px, c.y + 135, 12.5, '#7dffb0', 'center', 700);
+      else if (has) text('SEÇ', px, c.y + 135, 12.5, '#ffe9b8', 'center', 700);
+      else { coinIcon(px - 20, c.y + 131, 4.5, 1); text(String(it.price), px - 12, c.y + 135.5, 13.5, can ? '#ffd95a' : '#ff8f80', 'left', 700); }
+    }
+    button(BTN.storeBack, IS_TOUCH ? 'GERİ' : 'GERİ  ·  ESC', null, false, true);
+  }
+  function drawStoreBtn() {      // ana menü sol üst: mağaza düğmesi + seçili avatar
+    const b = BTN.store, pulse = 0.55 + 0.25 * Math.sin(G.t * 3);
+    ctx.fillStyle = 'rgba(8,18,30,0.75)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,217,90,' + pulse + ')'; ctx.lineWidth = 1.4; ctx.stroke();
+    if (window.COS) COS.drawAvatar(ctx, G.av, b.x + 17, b.y + b.h / 2, 13, G.t);
+    text(IS_TOUCH ? 'MAĞAZA' : 'MAĞAZA · T', b.x + 35, b.y + 23, 15, '#ffe9b8', 'left', 700);
+  }
+
   function setBanner(k) {
     const loop = Math.floor(k / NSEC);
     G.banner.t = 0;
@@ -484,7 +597,7 @@
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
     G.stats.deaths = []; G.stats.gates = 0;
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.5; P.fireCd = 0.35; P.tilt = 0;
-    shots.length = 0; orbs.length = 0; parts.length = 0; pops.length = 0;
+    shots.length = 0; orbs.length = 0; shells.length = 0; parts.length = 0; pops.length = 0;
     mouse.mx = 0; mouse.my = 0; mouse.down = false;      // farenin şu anki konumu sıfır noktası
     if (mouse.active) lockPointer();
     rearm(); setBanner(k);
@@ -526,7 +639,7 @@
       return;
     }
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0;
-    G.heat = 100; shots.length = 0; orbs.length = 0;
+    G.heat = 100; shots.length = 0; orbs.length = 0; shells.length = 0;
     mouse.mx = 0; mouse.my = 0;                          // yeniden doğunca sıfır noktası da yenilenir
     G.blastCd = 0; P.holdT = 0; P.charge = 0;            // yeni kızak, yaylım hazır
     rearm();
@@ -895,7 +1008,13 @@
 
   // Bekçi: tur sonundaki geniş alanda kızağın önünde süzülür, ateş eder, avcı salar.
   // Alan bitene kadar indirilemezse kaçar; yol her durumda açılır.
-  const BOSS_NAMES = ['GÖZCÜ', 'BUZ ÖRÜMCEĞİ', 'FIRTINA KARTALI', 'BUZ KALESİ', 'KUZEY KRALI'];
+  const BOSS_NAMES = ['GÖZCÜ', 'BUZ ÖRÜMCEĞİ', 'FIRTINA KARTALI', 'BUZ KALESİ', 'KUZEY KRALI', 'BUZ YILANI', 'KRİSTAL GÖZ', 'KAR DEVİ', 'GÖLGE KUZGUN', 'BUZULUN TANRISI'];
+  function mkEnt(type, x, wy, hard, o) {
+    const sz = SIZE[type], e = { type: type, x: x, wy: wy, vx: 0, hw: sz[0], hh: sz[1], hp: NEWHP[type] || 1, cd: 0.8, rate: 1, hard: hard, flash: 0,
+      ph: Math.random() * 6.28, ang: 0, dead: false, armed: true, up: true, sub: 0 };
+    if (o) for (const q in o) e[q] = o[q];
+    ents.push(e); return e;
+  }
   function bossUpdate(e, dt, playing) {
     if (!playing) return false;
     if (!e.on) { e.on = true; e.scr = -60; G.boss = e; pop(W / 2, P.wy + 260, BOSS_NAMES[e.kind || 0] + ' GELİYOR', '#ff8f80'); A.play('orb'); }
@@ -906,33 +1025,55 @@
     } else e.scr += (120 - e.scr) * Math.min(1, dt * 1.4);
     e.wy = P.wy + PSY - e.scr;
     const t = terrain(e.wy, T2);
-    e.x = clamp(W / 2 + Math.sin(G.t * 0.9 + e.ph) * 84, t.L + 46, t.R - 46);
+    const swayX = W / 2 + Math.sin(G.t * 0.9 + e.ph) * (e.kind === 5 ? 110 : 84);
+    if (e.tx != null) { e.tx = approach(e.tx, swayX, 22 * dt); e.x = clamp(e.tx, t.L + 46, t.R - 46); }      // kuzgun ışınlandıktan sonra yavaşça yörüngesine döner
+    else e.x = clamp(swayX, t.L + 46, t.R - 46);
     if (e.flee) return false;
     e.cd -= dt; e.cd2 -= dt;
     const base = Math.atan2(PSY - e.scr, P.x - e.x), rage = e.hp < e.maxHp * 0.4 ? 1.35 : 1;
     const shoot = (a, v) => orbs.push({ x: e.x, wy: e.wy - 12, vx: Math.cos(a) * v, vy: P.speed - Math.sin(a) * v });
     e.spin = (e.spin || 0) + dt * (e.kind === 1 ? 2.6 : 1.2) * rage;
     if (e.cd <= 0 && e.scr > 70) {
-      const v = 135 * e.hard, k = e.kind === 4 ? Math.floor(G.t / 4) % 4 : e.kind;      // son bekçi desenleri sırayla dener
+      const v = 135 * e.hard, k = e.kind === 4 ? Math.floor(G.t / 4) % 4 : e.kind === 9 ? 5 + Math.floor(G.t / 4) % 4 : e.kind;      // 5. ve 10. bekçi önceki desenleri sırayla dener
       if (k === 0) {      // Gözcü: oyuncuya yelpaze
         const n = e.hard > 1.2 ? 5 : 3;
         for (let i = 0; i < n; i++) shoot(base + (i - (n - 1) / 2) * 0.3, v);
         e.cd = 1.9 / e.hard / rage;
       } else if (k === 1) {      // Örümcek: dönen çift spiral
-        for (let q = 0; q < 2; q++) shoot(-Math.PI / 2 + Math.sin(e.spin) * 1.1 + q * 0.5 - 0.25, v * 0.9);
+        for (let q = 0; q < 2; q++) shoot(Math.PI / 2 + Math.sin(e.spin) * 1.1 + q * 0.5 - 0.25, v * 0.9);
         e.cd = 0.22 / rage;
       } else if (k === 2) {      // Kartal: geniş yaylım + nişanlı ikili
-        if ((e.burst = ((e.burst || 0) + 1) % 3) === 0) { for (let i = 0; i < 11; i++) shoot(-Math.PI / 2 + (i - 5) * 0.2, v * 0.85); e.cd = 1.4 / rage; }
+        if ((e.burst = ((e.burst || 0) + 1) % 3) === 0) { for (let i = 0; i < 11; i++) shoot(Math.PI / 2 + (i - 5) * 0.2, v * 0.85); e.cd = 1.4 / rage; }
         else { shoot(base - 0.06, v * 1.25); shoot(base + 0.06, v * 1.25); e.cd = 0.45 / rage; }
-      } else {      // Kale: aşağı yarım halka dalgası, her seferinde kayık
+      } else if (k === 3) {      // Kale: aşağı yarım halka dalgası, her seferinde kayık
         const off = (e.wave = ((e.wave || 0) + 1) % 2) * 0.13;
-        for (let i = 0; i <= 12; i++) shoot(-Math.PI + 0.13 + off + i * (Math.PI - 0.26) / 12, v * 0.75);
+        for (let i = 0; i <= 12; i++) shoot(0.13 + off + i * (Math.PI - 0.26) / 12 - 0.065, v * 0.75);
         e.cd = 1.5 / e.hard / rage;
+      } else if (k === 5) {      // Buz Yılanı: birbirine dolanan iki dalgalı akış
+        const sw = Math.sin(e.spin * 1.6) * 0.75;
+        shoot(Math.PI / 2 + sw - 0.18, v * 0.95); shoot(Math.PI / 2 - sw + 0.18, v * 0.95);
+        e.cd = 0.17 / rage;
+      } else if (k === 6) {      // Kristal Göz: dönen altı kollu sarmal, arada hızlı nişanlı üçlü
+        if ((e.burst = ((e.burst || 0) + 1) % 8) === 0) { for (let q = -1; q <= 1; q++) shoot(base + q * 0.05, v * 1.4); e.cd = 0.5 / rage; }
+        else { for (let q = 0; q < 6; q++) shoot(e.spin * 1.3 + q * Math.PI / 3, v * 0.8); e.cd = 0.34 / rage; }
+      } else if (k === 7) {      // Kar Devi: havada parçalanan kaya + nişanlı ikili
+        if ((e.burst = ((e.burst || 0) + 1) % 3) === 0) {
+          orbs.push({ x: e.x, wy: e.wy - 16, vx: (P.x - e.x) * 0.3, vy: P.speed - v * 0.6, big: true, hp: 4, split: 1.05 });
+          e.cd = 1.1 / rage;
+        } else { shoot(base - 0.08, v * 1.2); shoot(base + 0.08, v * 1.2); e.cd = 0.55 / rage; }
+      } else if (k === 8) {      // Gölge Kuzgun: ışınlan, nişanlı beşli, sonra tam halka
+        const st = e.burst = ((e.burst || 0) + 1) % 3;
+        if (st === 1) {
+          for (let q = 0; q < 14; q++) part(e.x + rand(-30, 30), e.wy + rand(-12, 12), rand(-60, 60), P.speed + rand(-40, 40), rand(0.3, 0.6), rand(2, 4), '#9a6bff', true);
+          e.tx = rand(t.L + 50, t.R - 50); e.cd = 0.45 / rage;
+        } else if (st === 2) { for (let q = -2; q <= 2; q++) shoot(base + q * 0.13, v * 1.1); e.cd = 0.6 / rage; }
+        else { for (let q = 0; q < 12; q++) shoot(q * Math.PI / 6 + e.spin, v * 0.7); e.cd = 1.3 / rage; }
       }
       A.play('orb');
     }
     if (e.cd2 <= 0 && e.scr > 70) {
-      ents.push({ type: 'hunter', x: e.x, wy: e.wy - 22, vx: 0, hw: 9, hh: 8, hp: 1, cd: 0, rate: 1, hard: e.hard, flash: 0, ph: G.t, ang: 0, dead: false });
+      if (e.kind >= 5) mkEnt('wasp', e.x, e.wy - 22, e.hard, { hp: 1 });      // yeni bekçiler eşekarısı salar
+      else ents.push({ type: 'hunter', x: e.x, wy: e.wy - 22, vx: 0, hw: 9, hh: 8, hp: 1, cd: 0, rate: 1, hard: e.hard, flash: 0, ph: G.t, ang: 0, dead: false });
       e.cd2 = 5.5 / e.hard;
     }
     return true;
@@ -966,7 +1107,7 @@
       } else kill(e, true);
     }
     for (let i = 0; i < orbs.length; i++) boom(orbs[i].x, orbs[i].wy, 6, ['#ffffff', '#ff7ad1'], 70);
-    orbs.length = 0;
+    orbs.length = 0; shells.length = 0;
     for (let i = 0; i < 60; i++) {
       const a = Math.random() * 6.283, v = rand(120, 420);
       part(P.x, P.wy, Math.cos(a) * v, Math.sin(a) * v + P.speed, rand(0.4, 0.9), rand(2, 4), i % 3 ? '#fff6da' : '#ffb347', true);
@@ -986,7 +1127,8 @@
     boom(e.x, e.wy, e.type === 'turret' ? 26 : e.type === 'ice' ? 9 : 16, c, e.type === 'turret' ? 130 : 100);
     G.shake = Math.max(G.shake, e.type === 'turret' ? 5 : 3);
     A.play(e.type === 'ice' ? 'shatter' : e.type === 'turret' || e.type === 'boss' ? 'bigExplode' : 'explode');
-    if (byShot && e.type !== 'ice' && e.type !== 'boss' && !solid(e.x, e.wy)) {
+    if (e.type === 'crystal' && byShot) for (let q = 0; q < 3; q++) mkEnt('shard', e.x + (q - 1) * 6, e.wy, e.hard, { vx: (q - 1) * 130 });
+    if (byShot && e.type !== 'ice' && e.type !== 'boss' && e.type !== 'shard' && !solid(e.x, e.wy)) {
       const r = Math.random();
       let k = null;
       if (r < WING_DROP) k = 'wing';
@@ -1018,7 +1160,7 @@
         else if (e.x > e.maxX) { e.x = e.maxX; e.vx = -Math.abs(e.vx); }
         if (e.armed && playing && y > 8 && y < PSY - 110) {       // silahlı bot: dümdüz aşağı ateş eder
           e.cd -= dt;
-          if (e.cd <= 0) { orbs.push({ x: e.x, wy: e.wy - 8, vx: 0, vy: -105 * e.hard }); e.cd = 2.4 / e.hard; A.play('orb'); }
+          if (e.cd <= 0) { if (e.up) { orbs.push({ x: e.x - 4, wy: e.wy - 8, vx: -26, vy: -105 * e.hard }); orbs.push({ x: e.x + 4, wy: e.wy - 8, vx: 26, vy: -105 * e.hard }); } else orbs.push({ x: e.x, wy: e.wy - 8, vx: 0, vy: -105 * e.hard }); e.cd = 2.4 / e.hard; A.play('orb'); }
         }
       } else if (e.type === 'skim') {
         e.x += e.vx * dt;
@@ -1026,7 +1168,7 @@
         else if (e.x < -30 && e.vx < 0) e.vx = -e.vx;
         if (e.armed && playing && y > 8 && y < PSY - 110 && e.x > 10 && e.x < W - 10) {      // kayıcı: geçerken aşağı bırakır
           e.cd -= dt;
-          if (e.cd <= 0) { orbs.push({ x: e.x, wy: e.wy - 6, vx: e.vx * 0.3, vy: -95 * e.hard }); e.cd = 1.8 / e.hard; A.play('orb'); }
+          if (e.cd <= 0) { orbs.push({ x: e.x, wy: e.wy - 6, vx: e.vx * 0.3, vy: -95 * e.hard }); if (e.up) orbs.push({ x: e.x, wy: e.wy - 6, vx: -e.vx * 0.3, vy: -80 * e.hard }); e.cd = 1.8 / e.hard; A.play('orb'); }
         }
       } else if (e.type === 'hunter') {
         // avcı: oyuncunun hizasına kayarak üstüne gelir
@@ -1037,8 +1179,64 @@
             e.cd -= dt;
             if (e.cd <= 0) {
               const dx = P.x - e.x, dy = P.wy - e.wy, d = Math.hypot(dx, dy) || 1, v = 100 * e.hard;
-              orbs.push({ x: e.x, wy: e.wy - 6, vx: dx / d * v, vy: dy / d * v }); e.cd = 2.6 / e.hard; A.play('orb');
+              const a0 = Math.atan2(dy, dx), nn = e.up ? 1 : 0; for (let q = -nn; q <= nn; q++) orbs.push({ x: e.x, wy: e.wy - 6, vx: Math.cos(a0 + q * 0.16) * v, vy: Math.sin(a0 + q * 0.16) * v }); e.cd = 2.6 / e.hard; A.play('orb');
             }
+          }
+        }
+      } else if (e.type === 'wasp') {      // eşekarısı: zikzakla iner, üçlü yelpaze atar
+        if (playing) {
+          e.wy -= 26 * e.hard * dt;
+          const tt = terrain(e.wy, T2);
+          e.x = clamp(e.x + Math.cos(G.t * 3.2 + e.ph) * 110 * dt + (P.x - e.x) * 0.3 * dt, tt.L + 12, tt.R - 12);
+          if (y > 8 && y < PSY - 120) {
+            e.cd -= dt;
+            if (e.cd <= 0) {
+              const a0 = Math.atan2(P.wy - e.wy, P.x - e.x), v = 95 * e.hard;
+              for (let q = -1; q <= 1; q++) orbs.push({ x: e.x, wy: e.wy - 6, vx: Math.cos(a0 + q * 0.28) * v, vy: Math.sin(a0 + q * 0.28) * v });
+              e.cd = 2.3 / e.hard; A.play('orb');
+            }
+          }
+        }
+      } else if (e.type === 'sub') {      // denizaltı: dalar (vurulamaz), çıkar, halka atar
+        e.x += e.vx * dt;
+        if (e.x < e.minX) { e.x = e.minX; e.vx = Math.abs(e.vx); } else if (e.x > e.maxX) { e.x = e.maxX; e.vx = -Math.abs(e.vx); }
+        e.subT += dt;
+        const ph = e.subT % 4.2;      // 0-2.2 su altı, 2.2-2.6 çıkış, 2.6-3.8 yüzeyde, 3.8-4.2 dalış
+        e.sub = ph < 2.2 ? 1 : ph < 2.6 ? 1 - (ph - 2.2) / 0.4 : ph < 3.8 ? 0 : (ph - 3.8) / 0.4;
+        e.charge = ph >= 2.6 && ph < 3.2 ? (ph - 2.6) / 0.6 : 0;
+        if (ph < 3.2) e.fired = false;
+        else if (playing && !e.fired && y > 8 && y < PSY - 100) {
+          e.fired = true;
+          const n = e.hard > 1.5 ? 10 : 8, v = 80 * e.hard;
+          for (let q = 0; q < n; q++) { const a = q * 6.2832 / n + e.ph; orbs.push({ x: e.x, wy: e.wy, vx: Math.cos(a) * v, vy: Math.sin(a) * v }); }
+          A.play('orb');
+        }
+      } else if (e.type === 'crystal') {      // kristal çekirdek: dönen artı ateşi, vurulunca parçalanır
+        e.x += Math.sin(G.t * 0.8 + e.ph) * 14 * dt;
+        if (playing && y > 8 && y < PSY - 110) {
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            const a0 = G.t * 0.9 + e.ph, v = 85 * e.hard;
+            for (let q = 0; q < 4; q++) { const a = a0 + q * Math.PI / 2; orbs.push({ x: e.x, wy: e.wy, vx: Math.cos(a) * v, vy: Math.sin(a) * v }); }
+            e.cd = 2.6 / e.hard; A.play('orb');
+          }
+        }
+      } else if (e.type === 'shard') {      // kristal parçası: savrulur, sonra kızağa yönelir
+        if (playing) {
+          e.life = (e.life || 0) + dt;
+          e.x += e.vx * dt; e.vx *= Math.pow(0.25, dt); e.wy -= 30 * dt;
+          if (e.life > 0.45) e.x = approach(e.x, P.x, 75 * e.hard * dt);
+        }
+      } else if (e.type === 'mortar') {      // havan botu: kızağın gideceği yere mermi yağdırır
+        e.x += e.vx * dt;
+        if (e.x < e.minX) { e.x = e.minX; e.vx = Math.abs(e.vx); } else if (e.x > e.maxX) { e.x = e.maxX; e.vx = -Math.abs(e.vx); }
+        e.charge = 0;
+        if (playing && y > 30 && y < PSY - 140) {
+          e.cd -= dt; e.charge = clamp(1 - e.cd / 0.8, 0, 1);
+          if (e.cd <= 0) {
+            const T = 1.4;
+            shells.push({ sx: e.x, swy: e.wy, x: clamp(P.x, 20, W - 20), wy: P.wy + P.speed * T, t: T, T: T });
+            e.cd = 3.2 / e.hard; A.play('orb');
           }
         }
       } else if (e.type === 'turret') {
@@ -1061,7 +1259,7 @@
 
       for (let j = shots.length - 1; j >= 0; j--) {
         const s = shots[j];
-        if (s.last !== e && Math.abs(s.x - e.x) < e.hw + 2 && Math.abs(s.wy - e.wy) < e.hh + 6) {
+        if (!(e.sub > 0.5) && s.last !== e && Math.abs(s.x - e.x) < e.hw + 2 && Math.abs(s.wy - e.wy) < e.hh + 6) {
           if (s.pierce > 0) { s.pierce--; s.last = e; } else shots.splice(j, 1);
           e.hp -= s.dmg || 1;
           if (e.hp <= 0) kill(e, true);
@@ -1070,7 +1268,7 @@
         }
       }
       if (e.dead) continue;
-      if (P.inv <= 0 && !cfg.god && Math.abs(P.x - e.x) < e.hw + 5 && Math.abs(P.wy - e.wy) < e.hh + 8) {
+      if (!(e.sub > 0.5) && P.inv <= 0 && !cfg.god && Math.abs(P.x - e.x) < e.hw + 5 && Math.abs(P.wy - e.wy) < e.hh + 8) {
         kill(e, false);
         die('crash');
       }
@@ -1105,14 +1303,21 @@
     for (let i = orbs.length - 1; i >= 0; i--) {
       const o = orbs[i];
       o.x += o.vx * dt; o.wy += o.vy * dt;
-      const y = sy(o.wy);
+      if (o.split !== undefined && (o.split -= dt) <= 0) {      // kar devinin kayası: havada sekize bölünür
+        for (let q = 0; q < 8; q++) { const a = q * Math.PI / 4 + 0.2, v = 90; orbs.push({ x: o.x, wy: o.wy, vx: Math.cos(a) * v, vy: P.speed - Math.sin(a) * v }); }
+        boom(o.x, o.wy, 14, ['#ffffff', '#cfeaff', '#9fd3e6'], 90); A.play('shatter');
+        orbs.splice(i, 1); continue;
+      }
+      const y = sy(o.wy), orr = o.big ? 13 : 0;
       if (y > H + 20 || y < -60 || o.x < -20 || o.x > W + 20) { orbs.splice(i, 1); continue; }
       if (!playing) continue;
       let gone = false;
       for (let j = shots.length - 1; j >= 0; j--) {
         const s = shots[j];
-        if (Math.abs(s.x - o.x) < 8 && Math.abs(s.wy - o.wy) < 11) {
-          shots.splice(j, 1); orbs.splice(i, 1); gone = true;
+        if (Math.abs(s.x - o.x) < 8 + orr && Math.abs(s.wy - o.wy) < 11 + orr) {
+          shots.splice(j, 1);
+          if (o.big && --o.hp > 0) { boom(s.x, s.wy, 5, ['#ffffff', '#cfeaff'], 60); A.play('hit'); break; }
+          orbs.splice(i, 1); gone = true;
           boom(o.x, o.wy, 8, ['#ffffff', '#ff7ad1', '#d58bff'], 70);
           addScore(PTS.orb); pop(o.x, o.wy + 8, '+' + PTS.orb);
           A.play('hit');
@@ -1120,10 +1325,21 @@
         }
       }
       if (gone) continue;
-      if (P.inv <= 0 && !cfg.god && Math.abs(P.x - o.x) < 8 && Math.abs(P.wy - o.wy) < 11) {
+      if (P.inv <= 0 && !cfg.god && Math.abs(P.x - o.x) < 8 + orr && Math.abs(P.wy - o.wy) < 11 + orr) {
         orbs.splice(i, 1);
         die('crash');
       }
+    }
+  }
+
+  function updateShells(dt) {      // havan mermileri: hedefe düşünce patlar
+    for (let i = shells.length - 1; i >= 0; i--) {
+      const s = shells[i];
+      if ((s.t -= dt) > 0) continue;
+      boom(s.x, s.wy, 22, ['#ffffff', '#ffd27a', '#ff8a5a', '#9fd3e6'], 120);
+      G.shake = Math.max(G.shake, 4); A.play('explode');
+      if (G.mode === 'playing' && P.inv <= 0 && !cfg.god && Math.hypot(P.x - s.x, P.wy - s.wy) < 24) die('crash');
+      shells.splice(i, 1);
     }
   }
 
@@ -1171,19 +1387,20 @@
     G.banner.t += dt; G.chapT += dt;
     let scroll = 0;
 
-    if (G.mode === 'title') {
+    G.stBuyT += dt;
+    if (G.mode === 'title' || G.mode === 'store') {
       P.wy += 55 * dt; scroll = 55;
       setPal(dt, LV.info(LV.sectionAtRow(Math.floor(P.wy / ROW))).pal);
       G.fog *= 1 - Math.min(1, dt * 2); G.wind = 0;
       A.stopEngine(); A.setWind(0);
     } else if (G.mode === 'playing') {
       updatePlayer(dt);
-      updateShots(dt); updateEnts(dt); updateOrbs(dt);
+      updateShots(dt); updateEnts(dt); updateOrbs(dt); updateShells(dt);
       scroll = P.speed;
       setPal(dt, sec(G.sec).info.pal);
       G.fog += ((sec(G.sec).info.fog || 0) - G.fog) * Math.min(1, dt * 0.9);
     } else if (G.mode === 'dying') {
-      updateEnts(dt); updateOrbs(dt);
+      updateEnts(dt); updateOrbs(dt); shells.length = 0;
       G.deathT -= dt;
       if (G.deathT <= 0) afterDeath();
     } else if (G.mode === 'gameover') {
@@ -1427,7 +1644,7 @@
     for (let k = kA; k <= kB; k++) {
       const s = sec(k), y = sy(s.gateY);
       if (y < -30 || y > H + 30) continue;
-      const passed = G.mode !== 'title' && k < G.sec;
+      const passed = G.mode !== 'title' && G.mode !== 'store' && k < G.sec;
       const rgb = passed ? '125,255,176' : '255,214,130';
       const xl = W / 2 - GATE - 3, xr = W / 2 + GATE + 3, pulse = 0.55 + 0.45 * Math.sin(G.t * 5);
       // ışık hattı
@@ -1456,7 +1673,7 @@
       const e = ents[i], y = sy(e.wy);
       if (y < -30 || y > H + 30 || e.dead) continue;
       const x = e.x, fl = e.flash > 0;
-      const big = e.type === 'mine' || e.type === 'boat' || e.type === 'skim' || e.type === 'hunter' || e.type === 'turret';
+      const big = e.type === 'mine' || e.type === 'boat' || e.type === 'skim' || e.type === 'hunter' || e.type === 'turret' || !!NEWHP[e.type];
       if (big) { ctx.save(); ctx.translate(x, y); ctx.scale(ES, ES); ctx.translate(-x, -y); }
       if (e.type === 'mine') {
         const bob = Math.sin(G.t * 2.4 + e.ph) * 1.2, yy = y + bob;
@@ -1601,6 +1818,9 @@
         ctx.fillStyle = '#ffe14d'; ctx.beginPath(); ctx.arc(x - 3.5, y - 4, 1.4, 0, 6.3); ctx.arc(x + 3.5, y - 4, 1.4, 0, 6.3); ctx.fill();      // gözler
         if (Math.random() < 0.35) part(x + rand(-3, 3), e.wy + 6, rand(-10, 10), rand(20, 50), rand(0.2, 0.4), rand(1, 2), '#ff8a7a', true);
         if (e.armed && e.cd < 0.5) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(x, y - 4, 12, '255,230,80', 0.6); ctx.restore(); }
+      } else if (NEWHP[e.type]) {
+        if (window.FOES) FOES.drawEnemy(ctx, e, x, y, G.t);
+        else { ctx.fillStyle = e.flash > 0 ? '#fff' : '#9a6bff'; ctx.beginPath(); ctx.arc(x, y, e.hw, 0, 6.3); ctx.fill(); }
       } else {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath(); ctx.ellipse(x + 3, y + 4, 12, 9, 0, 0, 6.3); ctx.fill();
@@ -1649,6 +1869,7 @@
   }
   function drawBossKind(e, x, y, fl) {
     const hpf = clamp(e.hp / e.maxHp, 0, 1), k = e.kind || 0, t = G.t;
+    if (k >= 5 && window.FOES) { FOES.drawBoss(ctx, e, x, y, t); return; }
     // gölge + su halkası
     ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.beginPath(); ctx.ellipse(x + 6, y + 14, 48, 15, 0, 0, 6.3); ctx.fill();
     ctx.strokeStyle = 'rgba(220,240,255,' + (0.18 + 0.1 * Math.sin(t * 3)) + ')'; ctx.lineWidth = 1.2;
@@ -1815,7 +2036,7 @@
   function drawNight() {
     const n = G.night;
     if (n < 0.03) return;
-    const playing = G.mode !== 'title';
+    const playing = G.mode !== 'title' && G.mode !== 'store';
     // kızağın çevresi ve önü aydınlık, uzaklar karanlık
     const cx = playing ? P.x : W / 2, cy = PSY - 70;
     const g = ctx.createRadialGradient(cx, cy, 50, cx, cy, 300);
@@ -1903,9 +2124,34 @@
     }
   }
 
+  function drawShells() {
+    for (let i = 0; i < shells.length; i++) {
+      const s = shells[i], p = 1 - s.t / s.T, ty = sy(s.wy);
+      const pulse = 0.5 + 0.5 * Math.sin(G.t * 16);
+      ctx.strokeStyle = 'rgba(255,90,70,' + (0.35 + 0.4 * p) + ')'; ctx.lineWidth = 2;      // hedef işareti
+      ctx.beginPath(); ctx.arc(s.x, ty, 24, 0, 6.3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s.x, ty, 24 * (1 - p) + 3, 0, 6.3); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,90,70,' + (0.08 + 0.12 * p * pulse) + ')'; ctx.beginPath(); ctx.arc(s.x, ty, 24, 0, 6.3); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(s.x - 8, ty); ctx.lineTo(s.x + 8, ty); ctx.moveTo(s.x, ty - 8); ctx.lineTo(s.x, ty + 8); ctx.stroke();
+      const bx = s.sx + (s.x - s.sx) * p, by = sy(s.swy + (s.wy - s.swy) * p) - Math.sin(p * Math.PI) * 90, r = 4 + Math.sin(p * Math.PI) * 3;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.arc(bx + 4, sy(s.swy + (s.wy - s.swy) * p), r * 0.8, 0, 6.3); ctx.fill();
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(bx, by, r * 3, '255,160,80', 0.6); ctx.restore();
+      ctx.fillStyle = '#2a3340'; ctx.beginPath(); ctx.arc(bx, by, r, 0, 6.3); ctx.fill();
+      ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(bx - r * 0.3, by - r * 0.3, r * 0.4, 0, 6.3); ctx.fill();
+    }
+  }
+
   function drawOrbs() {
     for (let i = 0; i < orbs.length; i++) {
       const o = orbs[i], y = sy(o.wy);
+      if (o.big) {      // kar devinin kayası
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(o.x, y, 26, '170,220,255', 0.6); ctx.restore();
+        ctx.fillStyle = '#cfe6f5'; ctx.beginPath(); ctx.arc(o.x, y, 11, 0, 6.3); ctx.fill();
+        ctx.strokeStyle = '#3d5a73'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#8fb3cc'; ctx.beginPath(); ctx.arc(o.x + 3, y + 3, 4, 0, 6.3); ctx.arc(o.x - 4, y - 1, 2.5, 0, 6.3); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(o.x - 3, y - 4, 2.5, 0, 6.3); ctx.fill();
+        continue;
+      }
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       glow(o.x, y, 13, '255,90,170', 0.75);
       ctx.restore();
@@ -1958,6 +2204,9 @@
     const fl = 6 + clamp((P.speed / G.sm - SPEED_MIN) / (SPEED_MAX - SPEED_MIN), 0, 1) * 13 + Math.random() * 3;
     ctx.fillStyle = '#ffb347'; poly([-3.2, 10, 3.2, 10, 0, 10 + fl]);
     ctx.fillStyle = '#fff6da'; poly([-1.6, 10, 1.6, 10, 0, 10 + fl * 0.55]);
+    const tier = G.power >= 13 ? 3 : G.power >= 9 ? 2 : G.power >= 4 ? 1 : 0;
+    if (window.COS) COS.drawSled(ctx, G.sled, tier, G.t);      // mağazadan seçilen kızak
+    else {
     // kızak ayakları
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#141c28'; ctx.lineWidth = 4.2;       // koyu dış hat: gündüz açık suda seçilsin
@@ -1968,7 +2217,6 @@
     ctx.beginPath(); ctx.moveTo(-9, 3); ctx.lineTo(-4, 4); ctx.moveTo(9, 3); ctx.lineTo(4, 4); ctx.moveTo(-9, -2); ctx.lineTo(-4, -1); ctx.moveTo(9, -2); ctx.lineTo(4, -1); ctx.stroke();
     ctx.lineCap = 'butt';
     // gövde: güç arttıkça kızak tipi değişir (0-3 keşif, 4-7 avcı, 8-12 akıncı, 13+ buz kartalı)
-    const tier = G.power >= 13 ? 3 : G.power >= 9 ? 2 : G.power >= 4 ? 1 : 0;
     const HULL = [['#f26a1b', '#ff9a4d'], ['#d8323a', '#ff6a6a'], ['#6a3fd0', '#a27bff'], ['#d9a21b', '#ffe07a']][tier];
     if (tier >= 1) {      // yan kanatçıklar
       ctx.fillStyle = HULL[0]; poly([-6, 0, -13 - tier, 7, -12 - tier, 10, -6, 7]); poly([6, 0, 13 + tier, 7, 12 + tier, 10, 6, 7]);
@@ -1986,6 +2234,7 @@
     ctx.fillStyle = '#fff1dc'; ctx.fillRect(-4.5, 5, 9, 1.8);
     ctx.fillStyle = '#16212f'; ctx.beginPath(); ctx.ellipse(0, -2, 3.2, 5, 0, 0, 6.3); ctx.fill();
     ctx.fillStyle = '#9fe6ff'; ctx.beginPath(); ctx.ellipse(-0.9, -3.4, 1.2, 2.2, 0, 0, 6.3); ctx.fill();
+    }
     ctx.restore();
 
     if (P.charge > 0) {
@@ -2050,8 +2299,10 @@
     const g = ctx.createLinearGradient(0, 0, 0, 74);
     g.addColorStop(0, 'rgba(3,9,16,0.8)'); g.addColorStop(1, 'rgba(3,9,16,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, 74);
-    text('PUAN', 12, 15, 10, 'rgba(190,215,240,0.8)', 'left', 500);
-    text(String(G.score).padStart(6, '0'), 12, 36, 24, '#ffffff', 'left', 700);
+    if (window.COS) COS.drawAvatar(ctx, G.av, 24, 26, 14, G.t);      // pilot portresi
+    const sx0 = window.COS ? 44 : 12;
+    text('PUAN', sx0, 15, 10, 'rgba(190,215,240,0.8)', 'left', 500);
+    text(String(G.score).padStart(6, '0'), sx0, 36, 24, '#ffffff', 'left', 700);
     coinIcon(18, 50, 5, 1);
     text(String(G.coins), 28, 55, 15, '#ffd95a', 'left', 700);
     // alınan güçlendirmeler: küçük rozetler (harf + kademe noktaları)
@@ -2175,8 +2426,9 @@
       ctx.globalAlpha = a;
       ctx.fillStyle = '#7dffb0'; ctx.fillRect(W / 2 - 90 * a, 252, 180 * a, 2); ctx.fillRect(W / 2 - 90 * a, 366, 180 * a, 2);
       text('BÖLÜM ' + (G.chapN - 1) + ' TAMAMLANDI', W / 2, 284, 14, '#7dffb0', 'center', 700);
-      text('BÖLÜM ' + G.chapN, W / 2, 330, 44, '#ffffff', 'center', 700);
-      text('artık buradan bedava başlayabilirsin', W / 2, 354, 12, 'rgba(190,215,240,0.85)', 'center', 500);
+      const fin = G.chapN > MAXLV / BOSS_EVERY;      // son bekçi: yeni bölüm yok, fenere ulaşınca zafer
+      text(fin ? 'SON FENER' : 'BÖLÜM ' + G.chapN, W / 2, 330, 44, '#ffffff', 'center', 700);
+      text(fin ? 'eve son birkaç kulaç kaldı' : 'artık buradan bedava başlayabilirsin', W / 2, 354, 12, 'rgba(190,215,240,0.85)', 'center', 500);
       ctx.globalAlpha = 1;
     }
     // etap başlığı
@@ -2232,7 +2484,7 @@
     text('KUZEY HATTI ISI KURYESİ', W / 2, y0 - 44, 13, '#ffcf8a', 'center', 500);
     text('BUZUL', W / 2, y0 + 10, 66, '#ffffff', 'center', 700);
     text('GEÇİDİ', W / 2, y0 + 66, 66, '#ff9a4d', 'center', 700);
-    miniShip(W / 2, y0 + 96);
+    if (window.COS) { ctx.save(); ctx.translate(W / 2, y0 + 98); ctx.scale(0.95, 0.95); COS.drawSled(ctx, G.sled, 0, G.t); ctx.restore(); } else miniShip(W / 2, y0 + 96);
 
     const lines = [
       'Kızağının ısısı bitmeden fiyordu geç.',
@@ -2299,8 +2551,8 @@
     drawBanks();
     ROUND = 1.6; drawDeco(); ROUND = 0;
     drawGates();
-    if (G.mode !== 'title') {
-      drawCoins(); ROUND = 2.2; drawEnts(); ROUND = 0; drawShots(); drawOrbs();
+    if (G.mode !== 'title' && G.mode !== 'store') {
+      drawCoins(); ROUND = 2.2; drawEnts(); ROUND = 0; drawShots(); drawOrbs(); drawShells();
       if (G.mode === 'playing' || G.mode === 'paused') { ROUND = 2; drawPlayer(); ROUND = 0; }
     }
     drawNight();
@@ -2320,7 +2572,8 @@
     ctx.restore();
     drawVignette();
     if (G.mode === 'shop') drawShop();
-    else if (G.mode === 'title') { drawTitle(); drawMuteBtn(); }
+    else if (G.mode === 'store') drawStore();
+    else if (G.mode === 'title') { drawTitle(); drawMuteBtn(); drawStoreBtn(); }
     else {
       drawHud();
       if (G.mode === 'gameover') { drawGameOver(); drawMuteBtn(); }

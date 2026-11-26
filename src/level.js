@@ -69,13 +69,23 @@
     return (planCache[loop] = { order: order, prefix: prefix });
   }
 
+  // 41-100. etaplar için yeni adlar (tur 2, 3, 4); 10. ve 20. sıra bekçi etabı
+  var EXTRA_NAMES = [
+    ['Gümüş Sular', 'Kuzgun Burnu', 'Sessiz Fiyort', 'Kar Fırtınası', 'Donmuş Şelale', 'Mavi Mağara', 'Kuzey Rüzgârı', 'Buz Sarayı', 'Yıldız Koyu', 'Kralın Tahtı',
+     'Derin Akıntı', 'Kristal Vadi', 'Sis Perdesi', 'Ay Işığı Kanalı', 'Buhar Bacaları', 'Kuyruklu Yıldız', 'Gölge Ormanı', 'Aurora Kapısı', 'Yılan Burnu', 'Yılanın İni'],
+    ['Kayıp Liman', 'Buzkıran Hattı', 'Kırağı Düzlüğü', 'Fırtına Gözü', 'Kristal Orman', 'Elmas Sırtı', 'Uçurum Boğazı', 'Soğuk Ateş', 'Gök Kubbe', 'Gözün Aynası',
+     'Kar Kalesi', 'Beyaz Sessizlik', 'Çığ Yolu', 'Donmuş Deniz', 'Sonsuz Tipi', 'Kemik Adaları', 'Yankı Koyu', 'Dev Adımları', 'Devlerin Yurdu', 'Devin Tahtı'],
+    ['Karanlık Su', 'Kuzgun Tepesi', 'Gece Yarısı', 'Ruh Işıkları', 'Kara Buz', 'Fırtına Kalesi', 'Unutulmuş Kıyı', 'Yıldız Tozu', 'Gölge Vadisi', 'Kuzgunun Yuvası',
+     'Son Işık', 'Tanrıların Yolu', 'Kristal Merdiven', 'Ebedi Kış', 'Buzul Kalbi', 'Göksel Kapı', 'Işık Nehri', 'Son Fener', 'Eve Dönüş', 'Buzulun Tahtı']
+  ];
+
   function info(k) {
     if (k < 0) k = 0;
     var loop = Math.floor(k / NS), i = k % NS, def = DEFS[loopPlan(loop).order[i]];
     var mod = loop ? DEFS[(loopPlan(loop).order[i] + 7 * loop) % NS] : def;
     return {
       def: def, loop: loop, index: i,
-      name: loop % 2 ? def.name2 : def.name,
+      name: loop >= 2 && EXTRA_NAMES[loop - 2] ? EXTRA_NAMES[loop - 2][i] : loop % 2 ? def.name2 : def.name,
       pal: (def.pal + 2 * loop) % 5,
       fog: def.boss ? 0 : (mod.fog || 0),
       wind: mod.wind || 0,
@@ -226,6 +236,11 @@
     if (tier >= 2) { mix.ice = (mix.ice || 0) + 1; mix.beam = (mix.beam || 0) + 1; mix.skim = (mix.skim || 0) + 1; }
     if (tier >= 3) { mix.whirl = (mix.whirl || 0) + 1; mix.hunter += 1; mix.turret += 1; }
     if (tier >= 4) { mix.boat = (mix.boat || 0) + 1; mix.skim += 1; }
+    // 50. etaptan sonra yeni düşmanlar: eşekarısı, denizaltı, kristal çekirdek, havan botu
+    if (k >= 50) mix.wasp = 2 + (tier - 5);
+    if (k >= 53) mix.sub = 1 + (tier >= 7 ? 1 : 0);
+    if (k >= 60) mix.crystal = 2 + (tier - 6);
+    if (k >= 65) mix.mortar = 1 + (tier >= 8 ? 1 : 0);
     var spawns = [], types = Object.keys(mix), tot = 0;
     for (i = 0; i < types.length; i++) tot += mix[types[i]];
     var gscale = Math.max(0.38, Math.pow(0.87, tier) * Math.pow(0.965, k % 10)), form = Math.min(0.75, def.form + 0.08 * tier);
@@ -235,6 +250,7 @@
       var sg2 = segs(rowOf(yy)), s2 = sg2[Math.floor(r() * sg2.length)], wd = s2[1] - s2[0];
       if (type === 'turret' && wd < 104) type = 'mine';
       if (type === 'boat' && wd < 60) type = 'mine';
+      if ((type === 'sub' || type === 'mortar') && wd < 70) type = 'wasp';
       if (type === 'whirl' && (wd < 100 || yy - lastWY < 720)) type = 'mine';      // girdaplar art arda gelmesin
       if (type === 'beam') {
         // ışık çiti: geçidi kapatan, aralıklarla sönen ışın
@@ -259,8 +275,15 @@
         var dir = r() < 0.5 ? -1 : 1;
         e.x = dir > 0 ? -26 : W + 26;
         e.vx = dir * (100 + r() * 55) * hard;
-      } else if (type === 'hunter') {
+      } else if (type === 'hunter' || type === 'wasp') {
         e.x = s2[0] + 16 + r() * (wd - 32);
+      } else if (type === 'sub' || type === 'mortar') {
+        e.minX = s2[0] + 20; e.maxX = s2[1] - 20;
+        e.x = e.minX + r() * (e.maxX - e.minX);
+        e.vx = (r() < 0.5 ? -1 : 1) * (22 + r() * 20) * hard;
+      } else if (type === 'crystal') {
+        var mg = wd > 100 ? 40 : 18;
+        e.x = s2[0] + mg + r() * (wd - 2 * mg);
       } else if (type === 'whirl') {
         e.x = s2[0] + 46 + r() * (wd - 92); e.r = 44;
         var midW = (s2[0] + s2[1]) / 2;
@@ -280,7 +303,7 @@
       if (!nearVent(yy) && yy < endY) {
         var pick = r() * tot, type = types[0];
         for (i = 0; i < types.length; i++) { pick -= mix[types[i]]; if (pick < 0) { type = types[i]; break; } }
-        var twin = type !== 'ice' && type !== 'turret' && type !== 'beam' && type !== 'whirl' && r() < form;
+        var twin = type !== 'ice' && type !== 'turret' && type !== 'beam' && type !== 'whirl' && type !== 'sub' && type !== 'mortar' && type !== 'crystal' && r() < form;
         addEnemy(type, yy);
         if (twin) addEnemy(type, yy + 34);
         if (twin && tier >= 2 && r() < 0.3) addEnemy(type, yy + 68);      // üçlü grup

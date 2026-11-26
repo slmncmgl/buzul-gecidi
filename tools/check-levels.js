@@ -1,5 +1,5 @@
 /* Etapların oynanabilir olduğunu doğrular: node tools/check-levels.js
- * İlk 3 turun her etabının her satırını kontrol eder.
+ * İlk 5 turun (100 etap) her etabının her satırını kontrol eder.
  */
 'use strict';
 const LV = require('../src/level.js');
@@ -9,7 +9,7 @@ let errors = 0;
 const fail = (k, msg) => { errors++; console.log(`  HATA etap ${k + 1}: ${msg}`); };
 
 console.log('etap  ad                uzunluk  enDar  enDarGeçit  maksEğim  kaynak  maksKaynakArası  düşman');
-for (let k = 0; k < LV.DEFS.length * 3; k++) {
+for (let k = 0; k < LV.DEFS.length * 5; k++) {
   const s = LV.generate(k), N = s.N;
   let minW = 1e9, minPass = 1e9, maxSlope = 0;
   for (let i = 0; i < N; i++) {
