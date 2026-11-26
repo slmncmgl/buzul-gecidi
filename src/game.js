@@ -308,6 +308,7 @@
       for (let i = 0; i < SHOP.length; i++) if (inBtn(p, shopBtn(i))) { if (isMouse) mouse.active = true; shopPick(i); break; }
       return;
     }
+    if ((G.mode === 'title' || G.mode === 'paused' || G.mode === 'gameover') && inBtn(p, BTN.mute)) { toggleMute(); return; }
     if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) {
       const act = menuAction(p);
       if (!act) return;
@@ -421,6 +422,7 @@
   const BTN = {
     titleNew: { x: 40, y: 478, w: 280, h: 36 }, titleCont: { x: 40, y: 522, w: 280, h: 36 },
     overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 },
+    mute: { x: W - 52, y: 10, w: 42, h: 34 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
   };
   const inBtn = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
@@ -2212,6 +2214,18 @@
     return 'DEVAM · ETAP ' + (k + 1);
   }
 
+  function toggleMute() { muted = !muted; A.setMuted(muted); store('bg_muted', muted ? '1' : '0'); }
+  function drawMuteBtn() {      // menüde ses aç/kapa düğmesi (sağ üst)
+    const b = BTN.mute, cx = b.x + 13, cy = b.y + b.h / 2;
+    ctx.fillStyle = 'rgba(8,18,30,0.75)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(190,215,240,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = muted ? 'rgba(190,215,240,0.5)' : '#ffffff';
+    poly([cx - 6, cy - 3, cx - 2, cy - 3, cx + 3, cy - 8, cx + 3, cy + 8, cx - 2, cy + 3, cx - 6, cy + 3]);
+    ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+    if (muted) { ctx.strokeStyle = '#ff8f80'; ctx.beginPath(); ctx.moveTo(cx + 7, cy - 5); ctx.lineTo(cx + 15, cy + 5); ctx.moveTo(cx + 15, cy - 5); ctx.lineTo(cx + 7, cy + 5); ctx.stroke(); }
+    else { ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx + 4, cy, 5, -0.8, 0.8); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + 4, cy, 9, -0.8, 0.8); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+  }
   function drawTitle() {
     dim(0.68);
     const y0 = 132;
@@ -2306,12 +2320,12 @@
     ctx.restore();
     drawVignette();
     if (G.mode === 'shop') drawShop();
-    else if (G.mode === 'title') drawTitle();
+    else if (G.mode === 'title') { drawTitle(); drawMuteBtn(); }
     else {
       drawHud();
-      if (G.mode === 'gameover') drawGameOver();
+      if (G.mode === 'gameover') { drawGameOver(); drawMuteBtn(); }
       else if (G.mode === 'paused') {
-        dim(0.55);
+        dim(0.55); drawMuteBtn();
         text('DURAKLADI', W / 2, 300, 40, '#ffffff', 'center', 700);
         text(IS_TOUCH ? 'devam etmek için dokun' : mouse.active ? 'devam etmek için tıkla' : 'devam etmek için P ya da ENTER', W / 2, 330, 15, '#ffcf8a', 'center', 500);
         text(muted ? 'ses kapalı (M)' : 'ses açık (M)', W / 2, 354, 13, 'rgba(190,215,240,0.85)', 'center', 500);
