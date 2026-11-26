@@ -1554,7 +1554,7 @@
         }
         ctx.lineCap = 'butt';
         ctx.fillStyle = '#04101c'; ctx.beginPath(); ctx.arc(x, y, 5, 0, 6.3); ctx.fill();
-      } else if (e.type === 'boss' && e.kind) {
+      } else if (e.type === 'boss') {
         drawBossKind(e, x, y, fl);
       } else if (e.type === 'boss') {
         const hpf = clamp(e.hp / e.maxHp, 0, 1);
@@ -1623,47 +1623,139 @@
     }
   }
 
-  // bekçi çeşitleri: 1 örümcek, 2 kartal, 3 kale, 4 kral
+  // bekçiler: degrade gövde, koyu kontur, parlayan çekirdek, hasar dumanı. 0 gözcü, 1 örümcek, 2 kartal, 3 kale, 4 kral
+  function bpath(pts) { ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.closePath(); }
+  function bshape(pts, x0, y0, x1, y1, c0, c1, fl, line) {
+    bpath(pts);
+    if (fl) ctx.fillStyle = '#ffffff';
+    else { const g = ctx.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, c0); g.addColorStop(1, c1); ctx.fillStyle = g; }
+    ctx.fill();
+    ctx.strokeStyle = line || 'rgba(5,10,20,0.85)'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+  }
+  function bcore(x, y, r, hpf, hue) {
+    const col = hpf > 0.4 ? hue : '255,70,50', pul = 0.5 + 0.5 * Math.sin(G.t * (hpf > 0.4 ? 5 : 13));
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(x, y, r * 3.2, col, 0.45 + 0.3 * pul); ctx.restore();
+    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, 'rgb(' + col + ')'); g.addColorStop(1, 'rgba(' + col + ',0.2)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
+    ctx.strokeStyle = 'rgba(5,10,20,0.9)'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  function beye(x, y, r, col) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(x, y, r * 3, col, 0.7); ctx.restore();
+    ctx.fillStyle = 'rgb(' + col + ')'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.4, 0, 6.3); ctx.fill();
+  }
   function drawBossKind(e, x, y, fl) {
-    const hpf = clamp(e.hp / e.maxHp, 0, 1), hot = hpf > 0.4 ? '255,90,170' : '255,70,60', k = e.kind;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x + 5, y + 10, 42, 16, 0, 0, 6.3); ctx.fill();
-    const C = [null, ['#1f4a5c', '#3fa7c9', '#bff3ff'], ['#4a2a12', '#c9772a', '#ffe0a0'], ['#2a2f3a', '#6d7a90', '#dfe8f5'], ['#2a1240', '#7a3fd0', '#ffd27a']][k];
-    if (k === 1) {      // örümcek: sekiz bacak, kristal gövde
-      ctx.strokeStyle = fl ? '#fff' : C[1]; ctx.lineWidth = 3; ctx.lineCap = 'round';
-      for (let q = 0; q < 4; q++) for (let sd = -1; sd <= 1; sd += 2) {
-        const a = (q - 1.5) * 0.45 + Math.sin(G.t * 6 + q) * 0.12, kx = x + sd * 22, ky = y - 8 + q * 7;
-        ctx.beginPath(); ctx.moveTo(x + sd * 10, y - 4 + q * 4); ctx.lineTo(kx, ky - 6); ctx.lineTo(kx + sd * 14 * Math.cos(a), ky + 10 * Math.sin(a) + 6); ctx.stroke();
+    const hpf = clamp(e.hp / e.maxHp, 0, 1), k = e.kind || 0, t = G.t;
+    // gölge + su halkası
+    ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.beginPath(); ctx.ellipse(x + 6, y + 14, 48, 15, 0, 0, 6.3); ctx.fill();
+    ctx.strokeStyle = 'rgba(220,240,255,' + (0.18 + 0.1 * Math.sin(t * 3)) + ')'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(x, y + 10, 50 + Math.sin(t * 2) * 3, 14, 0, 0, 6.3); ctx.stroke();
+    if (k === 0) {      // GÖZCÜ: zırhlı gözetleme gemisi, dönen radar
+      bshape([x - 44, y, x - 30, y - 16, x + 30, y - 16, x + 44, y, x + 30, y + 15, x, y + 21, x - 30, y + 15], x, y - 16, x, y + 21, '#5d7190', '#1a2233', fl);
+      bshape([x - 30, y - 16, x + 30, y - 16, x + 22, y - 3, x - 22, y - 3], x, y - 16, x, y - 3, '#a9bcd6', '#566a88', fl);
+      for (let s = -1; s <= 1; s += 2) {      // yan motor kapsülleri
+        bshape([x + s * 34, y - 6, x + s * 48, y - 2, x + s * 48, y + 8, x + s * 34, y + 10], x + s * 34, y, x + s * 48, y, '#4a5873', '#20293a', fl);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(x + s * 41, y + 12, 9, '120,200,255', 0.6 + 0.3 * Math.sin(t * 20 + s)); ctx.restore();
+      }
+      ctx.save(); ctx.translate(x, y - 22); ctx.rotate(t * 2.2);      // radar çanağı
+      ctx.fillStyle = fl ? '#fff' : '#c9d6e8'; ctx.fillRect(-11, -2, 22, 4); ctx.fillStyle = '#ff5fb8'; ctx.fillRect(9, -2, 3, 4);
+      ctx.restore();
+      ctx.fillStyle = '#1b2431'; ctx.fillRect(x - 1.5, y - 22, 3, 8);
+      bcore(x, y + 5, 7, hpf, '255,90,170');
+    } else if (k === 1) {      // BUZ ÖRÜMCEĞİ: eklemli bacaklar, kristal karın, sekiz göz
+      ctx.lineCap = 'round';
+      for (let q = 0; q < 4; q++) for (let s = -1; s <= 1; s += 2) {
+        const ph = Math.sin(t * 7 + q * 1.3 + (s > 0 ? 1.5 : 0)), kx = x + s * (24 + q * 2), ky = y - 14 + q * 8 - 6 + ph * 2;
+        const fx = x + s * (40 + q * 3), fy = y - 16 + q * 12 + ph * 4;
+        ctx.strokeStyle = 'rgba(5,10,20,0.9)'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(x + s * 10, y - 6 + q * 5); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+        ctx.strokeStyle = fl ? '#fff' : '#5fc9ea'; ctx.lineWidth = 2.6;
+        ctx.beginPath(); ctx.moveTo(x + s * 10, y - 6 + q * 5); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+        ctx.fillStyle = '#e8fbff'; ctx.beginPath(); ctx.arc(kx, ky, 1.6, 0, 6.3); ctx.fill();
       }
       ctx.lineCap = 'butt';
-      ctx.fillStyle = fl ? '#fff' : C[0]; poly([x, y - 20, x + 16, y - 4, x + 10, y + 16, x - 10, y + 16, x - 16, y - 4]);
-      ctx.fillStyle = fl ? '#fff' : C[1]; poly([x, y - 20, x + 16, y - 4, x, y + 2, x - 16, y - 4]);
-    } else if (k === 2) {      // kartal: çırpan geniş kanatlar
-      const fp = Math.sin(G.t * 4) * 6;
-      ctx.fillStyle = fl ? '#fff' : C[0];
-      poly([x - 8, y - 6, x - 46, y - 18 - fp, x - 40, y + 2, x - 26, y + 6, x - 10, y + 8]);
-      poly([x + 8, y - 6, x + 46, y - 18 - fp, x + 40, y + 2, x + 26, y + 6, x + 10, y + 8]);
-      ctx.fillStyle = fl ? '#fff' : C[1];
-      poly([x - 8, y - 6, x - 46, y - 18 - fp, x - 30, y - 4]); poly([x + 8, y - 6, x + 46, y - 18 - fp, x + 30, y - 4]);
-      poly([x, y + 22, x + 10, y - 4, x, y - 18, x - 10, y - 4]);
-      ctx.fillStyle = C[2]; poly([x, y + 22, x + 4, y + 12, x - 4, y + 12]);      // gaga
-    } else if (k === 3) {      // kale: kare zırh, burçlar, dönen top halkası
-      ctx.fillStyle = fl ? '#fff' : C[0]; ctx.fillRect(x - 32, y - 16, 64, 32);
-      ctx.fillStyle = fl ? '#fff' : C[1];
-      for (let q = 0; q < 5; q++) ctx.fillRect(x - 32 + q * 14, y - 22, 8, 7);
-      ctx.fillRect(x - 32, y - 16, 64, 6);
-      ctx.fillStyle = '#1b2431';
-      for (let q = 0; q < 6; q++) { const a = e.spin + q * 1.047; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 20, y + 4 + Math.sin(a) * 8, 3, 0, 6.3); ctx.fill(); }
-    } else {      // kral: taçlı, pelerinli
-      ctx.fillStyle = fl ? '#fff' : C[0]; poly([x - 44, y + 14, x - 20, y - 14, x + 20, y - 14, x + 44, y + 14, x, y + 22]);
-      ctx.fillStyle = fl ? '#fff' : C[1]; poly([x - 20, y - 14, x + 20, y - 14, x + 14, y + 8, x - 14, y + 8]);
-      ctx.fillStyle = C[2]; poly([x - 16, y - 14, x - 12, y - 26, x - 6, y - 16, x, y - 30, x + 6, y - 16, x + 12, y - 26, x + 16, y - 14]);
-      for (let q = 0; q < 6; q++) { const a = e.spin * 1.5 + q * 1.047; ctx.fillStyle = q % 2 ? '#ff7ad1' : '#7dffb0'; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 34, y + Math.sin(a) * 14, 2.6, 0, 6.3); ctx.fill(); }
+      bshape([x, y + 4, x + 15, y + 12, x + 11, y + 30, x, y + 36, x - 11, y + 30, x - 15, y + 12], x - 15, y, x + 15, y + 36, '#2a7fa3', '#0d2f42', fl);      // karın
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let q = 0; q < 3; q++) glow(x, y + 14 + q * 7, 6, '140,240,255', 0.35 + 0.25 * Math.sin(t * 4 + q));
+      ctx.restore();
+      bshape([x, y - 22, x + 17, y - 8, x + 13, y + 8, x - 13, y + 8, x - 17, y - 8], x - 17, y - 22, x + 17, y + 8, '#bff3ff', '#2d7fa6', fl);      // baş-gövde
+      bshape([x, y - 22, x + 7, y - 8, x, y + 2, x - 7, y - 8], x, y - 22, x, y + 2, '#ffffff', '#7fd8f2', fl, 'rgba(20,60,90,0.6)');
+      for (let q = 0; q < 4; q++) { beye(x - 9 + q * 6, y - 4 + Math.abs(q - 1.5) * 1.5, 1.6, '255,60,90'); }
+      ctx.strokeStyle = '#e8fbff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 4, y + 7); ctx.lineTo(x - 6, y + 13); ctx.moveTo(x + 4, y + 7); ctx.lineTo(x + 6, y + 13); ctx.stroke();      // kıskaçlar
+      bcore(x, y + 20, 5, hpf, '120,230,255');
+    } else if (k === 2) {      // FIRTINA KARTALI: tüylü katmanlı kanatlar, şimşekli kuyruk
+      const fp = Math.sin(t * 4) * 7;
+      for (let s = -1; s <= 1; s += 2) {
+        for (let f = 0; f < 4; f++) {      // tüy katmanları
+          const tx = x + s * (52 - f * 6), ty = y - 20 - fp + f * 7;
+          bshape([x + s * 8, y - 6 + f * 2, tx, ty, tx - s * 8, ty + 9, x + s * 10, y + 4 + f * 2], x, y, tx, ty, f % 2 ? '#e09a3a' : '#a85d1c', '#3a1d08', fl);
+        }
+      }
+      bshape([x - 6, y + 14, x - 12, y + 30, x, y + 26, x + 12, y + 30, x + 6, y + 14], x, y + 14, x, y + 30, '#7a3f10', '#2a1404', fl);      // kuyruk
+      bshape([x, y - 24, x + 12, y - 8, x + 9, y + 16, x - 9, y + 16, x - 12, y - 8], x - 12, y - 24, x + 12, y + 16, '#f2c27a', '#6a3810', fl);      // gövde
+      bshape([x - 7, y - 20, x + 7, y - 20, x + 6, y - 10, x - 6, y - 10], x, y - 20, x, y - 10, '#ffffff', '#d8e2ee', fl, 'rgba(60,40,20,0.7)');      // beyaz baş
+      bshape([x - 3, y - 10, x + 3, y - 10, x, y - 2], x, y - 10, x, y - 2, '#ffd24a', '#c97a10', fl);      // gaga (aşağı bakar)
+      beye(x - 3.5, y - 15, 1.8, '255,220,60'); beye(x + 3.5, y - 15, 1.8, '255,220,60');
+      if (Math.sin(t * 3) > 0.85) {      // kanat uçlarında şimşek
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(200,230,255,0.9)'; ctx.lineWidth = 1.5;
+        for (let s = -1; s <= 1; s += 2) { ctx.beginPath(); ctx.moveTo(x + s * 50, y - 22 - fp); ctx.lineTo(x + s * 56, y - 10); ctx.lineTo(x + s * 50, y - 6); ctx.lineTo(x + s * 58, y + 6); ctx.stroke(); }
+        ctx.restore();
+      }
+      bcore(x, y + 4, 5.5, hpf, '255,180,80');
+    } else if (k === 3) {      // BUZ KALESİ: taş zırh, burçlar, buz kristalleri, dönen top bataryası
+      bshape([x - 40, y - 14, x + 40, y - 14, x + 44, y + 16, x - 44, y + 16], x, y - 14, x, y + 16, '#8695ad', '#2a3242', fl);
+      ctx.strokeStyle = 'rgba(10,15,25,0.5)'; ctx.lineWidth = 1;      // taş derzleri
+      ctx.beginPath();
+      for (let r = 0; r < 3; r++) { ctx.moveTo(x - 42, y - 4 + r * 9); ctx.lineTo(x + 42, y - 4 + r * 9); for (let c = 0; c < 6; c++) { const cx = x - 36 + c * 14 + (r % 2) * 7; ctx.moveTo(cx, y - 13 + r * 9); ctx.lineTo(cx, y - 5 + r * 9); } }
+      ctx.stroke();
+      for (let q = 0; q < 5; q++) {      // burçlar
+        const bx = x - 38 + q * 17;
+        bshape([bx, y - 14, bx + 10, y - 14, bx + 10, y - 24, bx, y - 24], bx, y - 24, bx, y - 14, '#b7c4d8', '#5d6a80', fl);
+      }
+      for (let s = -1; s <= 1; s += 2) {      // köşe kuleleri + buz sivrisi
+        bshape([x + s * 44, y - 30, x + s * 52, y - 18, x + s * 52, y + 18, x + s * 36, y + 18, x + s * 36, y - 18], x + s * 36, y, x + s * 52, y, '#9aa9c0', '#333d50', fl);
+        bshape([x + s * 44, y - 44, x + s * 48, y - 30, x + s * 40, y - 30], x + s * 44, y - 44, x + s * 44, y - 30, '#ffffff', '#8fd8ff', fl, 'rgba(30,70,110,0.7)');
+        beye(x + s * 44, y - 8, 2.2, '255,120,60');
+      }
+      ctx.save(); ctx.translate(x, y + 2);      // dönen top halkası
+      for (let q = 0; q < 8; q++) {
+        const a = e.spin + q * 0.785, cx = Math.cos(a) * 24, cy = Math.sin(a) * 9;
+        if (cy < 0) continue;
+        ctx.fillStyle = '#141a24'; ctx.beginPath(); ctx.arc(cx, cy + 4, 3.6, 0, 6.3); ctx.fill();
+        ctx.fillStyle = '#ff9a4d'; ctx.beginPath(); ctx.arc(cx, cy + 4, 1.3, 0, 6.3); ctx.fill();
+      }
+      ctx.restore();
+      bshape([x - 9, y - 8, x + 9, y - 8, x + 9, y + 12, x - 9, y + 12], x, y - 8, x, y + 12, '#1b2230', '#0a0e16', fl);      // kapı
+      bcore(x, y + 2, 6, hpf, '255,150,70');
+    } else {      // KUZEY KRALI: altın taç, dalgalanan pelerin, dönen rün halkası, aura
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(x, y, 70, '160,90,255', 0.25 + 0.1 * Math.sin(t * 2)); ctx.restore();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.6);      // rün halkası
+      ctx.strokeStyle = 'rgba(200,160,255,0.55)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.arc(0, 0, 46, 0, 6.3); ctx.stroke(); ctx.setLineDash([]);
+      ctx.restore();
+      const w1 = Math.sin(t * 3) * 4, w2 = Math.sin(t * 3 + 1.5) * 4;
+      bshape([x - 18, y - 12, x + 18, y - 12, x + 40, y + 26 + w1, x + 20, y + 22 + w2, x, y + 30 + w1, x - 20, y + 22 + w2, x - 40, y + 26 + w1], x, y - 12, x, y + 30, '#7a3fd0', '#1a0838', fl);      // pelerin
+      bshape([x - 18, y - 14, x + 18, y - 14, x + 14, y + 12, x - 14, y + 12], x - 18, y, x + 18, y, '#4a3a6a', '#1e1530', fl);      // zırh
+      for (let s = -1; s <= 1; s += 2) bshape([x + s * 16, y - 16, x + s * 30, y - 10, x + s * 26, y, x + s * 14, y - 4], x + s * 14, y - 16, x + s * 30, y, '#ffe9a8', '#b07a10', fl);      // apoletler
+      bshape([x - 11, y - 30, x + 11, y - 30, x + 10, y - 14, x - 10, y - 14], x, y - 30, x, y - 14, '#e8f0ff', '#9fb2d0', fl);      // yüz maskesi
+      beye(x - 4.5, y - 22, 2, '120,255,200'); beye(x + 4.5, y - 22, 2, '120,255,200');
+      bshape([x - 13, y - 30, x - 15, y - 42, x - 8, y - 35, x - 4, y - 46, x, y - 36, x + 4, y - 46, x + 8, y - 35, x + 15, y - 42, x + 13, y - 30], x, y - 46, x, y - 30, '#fff3b0', '#c98a10', fl);      // taç
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      glow(x, y - 40, 7, '255,90,200', 0.8); glow(x - 4, y - 44, 4, '120,255,200', 0.6); glow(x + 4, y - 44, 4, '120,200,255', 0.6);
+      ctx.restore();
+      for (let q = 0; q < 6; q++) {      // yörünge kristalleri
+        const a = e.spin * 1.5 + q * 1.047, ox = x + Math.cos(a) * 38, oy = y + Math.sin(a) * 15;
+        bshape([ox, oy - 5, ox + 3, oy, ox, oy + 5, ox - 3, oy], ox, oy - 5, ox, oy + 5, q % 2 ? '#ffd0f0' : '#c8fff0', q % 2 ? '#ff4fb0' : '#20c090', fl, 'rgba(10,10,30,0.6)');
+      }
+      bcore(x, y + 2, 6.5, hpf, '190,120,255');
     }
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    glow(x, y + 3, 18, hot, 0.55 + 0.25 * Math.sin(G.t * (hpf > 0.4 ? 5 : 12)));
-    ctx.restore();
-    ctx.fillStyle = hpf > 0.4 ? '#ff5fb8' : '#ff5a4d'; ctx.beginPath(); ctx.arc(x, y + 3, 6, 0, 6.3); ctx.fill();
-    ctx.fillStyle = '#fff0fa'; ctx.beginPath(); ctx.arc(x - 1.5, y + 1.5, 2.4, 0, 6.3); ctx.fill();
+    // hasar: çatlak ve duman
+    if (hpf < 0.5) {
+      ctx.strokeStyle = 'rgba(255,120,60,' + (0.5 + 0.4 * Math.sin(t * 15)) + ')'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(x - 14, y - 6); ctx.lineTo(x - 8, y); ctx.lineTo(x - 12, y + 6); ctx.moveTo(x + 10, y - 8); ctx.lineTo(x + 15, y - 1); ctx.stroke();
+      if (Math.random() < 0.4) part(x + rand(-20, 20), e.wy + rand(-6, 10), rand(-15, 15), rand(30, 70), rand(0.5, 1), rand(2.5, 5), hpf < 0.25 ? '#ff7a3c' : '#5a6372', hpf < 0.25);
+    }
   }
   function coinIcon(x, y, r, squash) {
     ctx.fillStyle = '#b97a12';
