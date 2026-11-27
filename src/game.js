@@ -1544,6 +1544,7 @@
     if (!e.ult && e.cd3 <= 0 && e.scr > 70 && !e.lg) {
       const uk = e.kind === 9 ? [0, 4, 6, 5][(e.uc = ((e.uc || 0) + 1) % 4)] : e.kind;
       e.ult = { k: uk, t: 0, fired: false, dur: uk === 8 ? 3.8 : uk === 4 ? 1.4 : 1.1 };
+      if (uk === 0) e.x = clamp(e.x, (t.L + t.R) / 2 - 18, (t.L + t.R) / 2 + 18);      // radar: bekçi ortalanır, iki yanda eşit kaçış alanı
       pop(W / 2, P.wy + 200, ULTI_NAMES[e.kind], '#ff8f80'); A.play('blastReady'); G.shake = Math.max(G.shake, 3);
     }
     if (e.ult) {
@@ -1739,7 +1740,7 @@
     const k = u.k;
     if (k === 0) {      // Gözcü: radar ışını arenayı bir uçtan öbürüne süpürür
       const dir = (e.sw = !e.sw) ? 1 : -1;
-      lasers.push({ e: e, ang: Math.PI / 2 + dir * 0.25, sweep: -dir * 0.5 / 1.5, warn: 0.7, dur: 1.5, len: 640, w: 7, t: 0, col: '255,90,90', wedge: 0.25 });      // dar bir dilimi süpürür: dilimin dışı güvenli, uyarıda dilim gösterilir
+      lasers.push({ e: e, ang: Math.PI / 2 + dir * 0.15, sweep: -dir * 0.3 / 1.8, warn: 1.0, dur: 1.8, len: 640, w: 7, t: 0, col: '255,90,90', wedge: 0.15, safe: true });      // ±8,6°: senin hizanda ~115 px'lik şerit; iki yanı güvenli      // dar bir dilimi süpürür: dilimin dışı güvenli, uyarıda dilim gösterilir
       u.dur = 2.4;
     } else if (k === 1) {      // Örümcek: atılım, dipte halka
       startLunge(e, true); u.dur = 1.4;
@@ -1826,6 +1827,15 @@
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a0) * L.len, y0 + Math.sin(a0) * L.len); ctx.lineTo(x0 + Math.cos(a1) * L.len, y0 + Math.sin(a1) * L.len); ctx.closePath(); ctx.fill();
           ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.4 + 0.4 * k) + ')'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 6]);
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a0) * L.len, y0 + Math.sin(a0) * L.len); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a1) * L.len, y0 + Math.sin(a1) * L.len); ctx.stroke(); ctx.setLineDash([]);
+          if (L.safe) {      // güvenli alanlar: senin hizanda dilimin dışı yeşil
+            const half = Math.tan(L.wedge) * (PSY - y0) + L.w + 6, tt = terrain(P.wy, T2);
+            ctx.fillStyle = 'rgba(125,255,176,' + (0.1 + 0.12 * k) + ')';
+            if (x0 - half > tt.L) ctx.fillRect(tt.L, PSY - 34, x0 - half - tt.L, 68);
+            if (x0 + half < tt.R) ctx.fillRect(x0 + half, PSY - 34, tt.R - (x0 + half), 68);
+            ctx.strokeStyle = 'rgba(125,255,176,' + (0.5 + 0.4 * k) + ')'; ctx.lineWidth = 2; ctx.setLineDash([6, 5]);
+            ctx.beginPath(); ctx.moveTo(x0 - half, PSY - 34); ctx.lineTo(x0 - half, PSY + 34); ctx.moveTo(x0 + half, PSY - 34); ctx.lineTo(x0 + half, PSY + 34); ctx.stroke(); ctx.setLineDash([]);
+            text('GÜVENLİ', Math.max(tt.L + 26, x0 - half - 30), PSY - 40, 10, '#7dffb0', 'center', 700); text('GÜVENLİ', Math.min(tt.R - 26, x0 + half + 30), PSY - 40, 10, '#7dffb0', 'center', 700);
+          }
           // yön: ışının başlayacağı kenar kalın, süpürme yönünde akan oklu yay
           const dir = L.sweep < 0 ? -1 : 1, as = L.ang, ae = L.ang + dir * 2 * L.wedge;      // başlangıç ve bitiş açıları
           ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 + 0.5 * k) + ')'; ctx.lineWidth = 3;

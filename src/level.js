@@ -143,7 +143,7 @@
     var h = [], c = [];
     for (i = 0; i <= nc; i++) {
       h[i] = (i <= 1 || i >= nc - 1) ? GATE_HALF
-        : (arena && i >= nc - 1 - arena) ? (112 + r() * 14) * 1.1
+        : (arena && i >= nc - 1 - arena) ? (112 + r() * 14) * 1.25
         : (def.minHalf + r() * (def.maxHalf - def.minHalf)) * 1.1;      // nehir %10 daha geniş
     }
 
