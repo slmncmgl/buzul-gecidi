@@ -45,7 +45,8 @@
     { name: 'Bekçinin Kapısı', name2: 'Bekçinin Dönüşü',   pal: 2, cps: 44, minHalf: 60,  maxHalf: 130, shift: 60,  islands: 1, gap: [110, 180], form: 0.40, mix: { mine: 3, boat: 2, skim: 2, turret: 2, hunter: 2, ice: 2, beam: 1 }, ventGap: 1000, drain: 1.2, boss: true }
   ];
 
-  var NS = DEFS.length, LOOP_ROWS = 0, ARENA = 34;      // bekçi alanı uzun: kaçmadan önce daha çok süre
+  var NS = DEFS.length, LOOP_ROWS = 0, ARENA = 34, DAILY = 0;
+  function setDailySeed(n) { DAILY = (n | 0); }      // bekçi alanı uzun: kaçmadan önce daha çok süre
   for (var d = 0; d < NS; d++) LOOP_ROWS += DEFS[d].cps * CP;
 
   // Tur planı: ilk tur tablo sırasıyla oynanır. Sonraki turlarda etapların sırası karışır
@@ -133,7 +134,7 @@
   function generate(k) {
     var inf = info(k), def = inf.def, loop = inf.loop;
     var arena = def.boss ? ARENA : 0;      // bekçi alanı: etabın sonundaki geniş, düz kısım
-    var r = rng((k + 1) * 7919 + loop * 1013 + 12345);
+    var r = rng((k + 1) * 7919 + loop * 1013 + 12345 + DAILY * 7777);      // günün etabı: tarihe bağlı ek tohum
     var nc = def.cps, N = nc * CP, i, j;
     var y0 = startRow(k) * ROW;
     var hard = 1 + 0.15 * loop;      // tur attıkça düşmanlar hızlanır
@@ -312,6 +313,7 @@
     }
 
     if (def.boss) spawns.push({ type: 'boss', x: W / 2, y: y0 + (N - arena * CP) * ROW + 380 });
+    else if (k >= 5 && k % 10 === 5) spawns.push({ type: 'mini', x: W / 2, y: y0 + Math.floor(N * 0.5) * ROW });      // ara bekçi: 6, 16, 26… etapların ortasında
 
     // --- hızlı akıntı bölgeleri: içindeyken yavaşlanamaz
     var rapids = [], q2, at, ry, okr;
@@ -378,7 +380,7 @@
   var api = {
     W: W, ROW: ROW, CP: CP, GATE_HALF: GATE_HALF, MIN_PASS: MIN_PASS,
     DEFS: DEFS, LOOP_ROWS: LOOP_ROWS,
-    startRow: startRow, sectionAtRow: sectionAtRow, generate: generate, info: info
+    startRow: startRow, sectionAtRow: sectionAtRow, generate: generate, info: info, setDailySeed: setDailySeed
   };
 
   root.Level = api;

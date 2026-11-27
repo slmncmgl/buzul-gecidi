@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Buzul Geçidi ikon kaynağı: favicon ile aynı çizim. PNG'ler icons/ altında bu şekilden üretildi. -->
+  <rect width="32" height="32" rx="7" fill="#0c2236"/>
+  <path d="M16 5l8 20H8z" fill="#f26a1b"/>
+  <path d="M16 5L8 25h8z" fill="#ff9a4d"/>
+</svg>

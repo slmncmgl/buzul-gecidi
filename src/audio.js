@@ -125,6 +125,7 @@
   const AC = hasWindow ? (window.AudioContext || window.webkitAudioContext) : null;
 
   let live = null;            // the rig on the real AudioContext
+  let musicVol = 1, sfxVol = 1;   // kullanıcı ayarları (0..1), LVL ile çarpılır
   let failed = false;         // Web Audio missing or context creation failed
   let paused = false;         // explicit pause() by the game
   let muted = false;          // remembered even before init()
@@ -1001,7 +1002,7 @@
       music.on = true; music.bar = 0; music.step = 0; music.nextT = t; music.lastLead = 0;
       music.bossCur = false;
       padLP.frequency.setTargetAtTime(1100, t, 0.5);
-      hold(musicBus.gain, t); musicBus.gain.setValueAtTime(0, t); musicBus.gain.linearRampToValueAtTime(LVL.music, t + 0.6);
+      hold(musicBus.gain, t); musicBus.gain.setValueAtTime(0, t); musicBus.gain.linearRampToValueAtTime(LVL.music * musicVol, t + 0.6);
       applyIntensity(t);
     }
     function stopMusic(at) {
@@ -1035,7 +1036,8 @@
       stopMusic: stopMusic,
       setIntensity: setIntensity, setBossMode: setBossMode,
       scheduleUntil: scheduleUntil,
-      tick: tick
+      tick: tick,
+      musicBus: musicBus, sfxBus: sfxBus, uiBus: uiBus, loopBus: loopBus, musicOn: function () { return music.on; }
     };
   }
 
@@ -1069,6 +1071,18 @@
     paused = false;
     const c = live.ctx;
     if (c.state !== 'closed' && c.resume) quiet(c.resume());
+  }
+  function setMusicLevel(v) {
+    musicVol = Math.max(0, Math.min(1, +v || 0));
+    if (live && live.musicOn()) live.musicBus.gain.setTargetAtTime(LVL.music * musicVol, live.ctx.currentTime, 0.05);
+  }
+  function setSfxLevel(v) {
+    sfxVol = Math.max(0, Math.min(1, +v || 0));
+    if (!live) return;
+    const t = live.ctx.currentTime;
+    live.sfxBus.gain.setTargetAtTime(LVL.sfx * sfxVol, t, 0.05);
+    live.uiBus.gain.setTargetAtTime(LVL.ui * sfxVol, t, 0.05);
+    live.loopBus.gain.setTargetAtTime(LVL.loops * sfxVol, t, 0.05);
   }
   function setMuted(flag) {
     muted = !!flag;
@@ -1158,6 +1172,8 @@
     stopMusic: guard(stopMusic),
     setIntensity: guard(setIntensity),
     setBossMode: guard(setBossMode),
+    setMusicLevel: guard(setMusicLevel),
+    setSfxLevel: guard(setSfxLevel),
     _renderOffline: function (name, seconds, opts) {
       try { return renderOffline(name, seconds, opts); } catch (err) { return Promise.reject(err); }
     }

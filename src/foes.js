@@ -1,5 +1,5 @@
 /* Buzul Geçidi: 50. aşamadan sonraki düşmanlar ve 60-100 bekçileri.
-   window.FOES.drawEnemy(ctx, e, x, y, t) · window.FOES.drawBoss(ctx, e, x, y, t)
+   window.FOES.drawEnemy(ctx, e, x, y, t) · drawBoss(ctx, e, x, y, t) · drawMini(ctx, e, x, y, t) (e.mk 0..2) · drawMeteor(ctx, m, x, y, t) · drawMeteorShadow(ctx, x, y, r, k)
    Tarz game.js ile aynı: degrade dolgu, koyu kontur, 'lighter' ile radyal parıltı, shadowBlur yok. */
 (function () {
   'use strict';
@@ -1275,7 +1275,268 @@
   // şarj efektinin merkezi (çekirdek konumu) ve rengi
   const CORE = { 0: [0, 11, '255,90,170'], 1: [0, -11, '120,230,255'], 2: [0, 2, '255,180,80'], 3: [0, 3, '255,150,70'], 4: [0, -1, '190,120,255'], 5: [0, 1.5, '120,240,255'], 6: [0, 0, '180,120,255'], 7: [0, -14, '110,200,255'], 8: [0, 3, '190,80,255'], 9: [0, 5, '170,230,255'] };
 
+  function fr(v) { return v - Math.floor(v); }      // 0..1 kesir, negatif t'de de pozitif
+  // =====================================================================
+  //  MİNİ BEKÇİLER (e.mk 0..2): bekçinin yarısı (±26 × ±18) · METEOR YAĞMURU
+  // =====================================================================
+  // küçük hasar: çatlaklar + kısa duman (damage() yarı ölçek)
+  function miniDamage(x, y, t, hpf, cracks, smoke) {
+    if (hpf >= 0.5) return;
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    for (let pass = 0; pass < 2; pass++) {
+      if (pass) { add(); c.strokeStyle = rgba(255, 130, 60, 0.55 + 0.4 * Math.sin(t * 15)); c.lineWidth = 0.9; }
+      else { c.strokeStyle = 'rgba(10,5,10,0.7)'; c.lineWidth = 1.8; }
+      for (let i = 0; i < cracks.length; i++) {
+        const p = cracks[i], q = [];
+        for (let j = 0; j < p.length; j += 2) q.push(x + p[j], y + p[j + 1]);
+        line(q); c.stroke();
+      }
+      if (pass) end();
+    }
+    const n = hpf < 0.25 ? 4 : 2;
+    for (let i = 0; i < n; i++) {
+      const p = fr(t * 0.7 + i / n), o = cracks[i % cracks.length];
+      const sx = x + o[0] + Math.sin(t * 1.3 + i * 2) * 2 * p, sy = y + o[1] - p * 16, r = 1.5 + p * 4.5;
+      c.fillStyle = rgba(smoke[0], smoke[1], smoke[2], (1 - p) * 0.38);
+      c.beginPath(); c.arc(sx, sy, r, 0, TAU); c.fill();
+      if (hpf < 0.25 && p < 0.5) { add(); glow(sx, sy + 2, 3, '255,140,60', (0.5 - p) * 1.2); end(); }
+    }
+  }
+  // küçük şarj: çekirdeğe akan kıvılcımlar + daralan halkalar (charge() yarı ölçek, ışık direği yok)
+  function miniCharge(cx, cy, t, hue) {
+    if (U <= 0.01) return;
+    const pul = 0.5 + 0.5 * Math.sin(t * 11);
+    add();
+    glow(cx, cy, 18 + 26 * U, hue, U * (0.18 + 0.1 * pul));
+    c.lineCap = 'round';
+    for (let i = 0; i < 10; i++) {
+      const p = fr(t * 1.6 + i * 0.3137), r = (1 - p) * 40 * (0.6 + 0.4 * U), a = i * 2.399 + t * 2.4 + p * 3.5;
+      const px = cx + Math.cos(a) * r * 1.15, py = cy + Math.sin(a) * r * 0.7, al = U * (0.25 + 0.75 * p);
+      const dx = cx - px, dy = cy - py, d = Math.hypot(dx, dy) || 1, L = 3 + p * 4;
+      c.strokeStyle = 'rgba(' + hue + ',' + A(al) + ')'; c.lineWidth = 0.8 + p * 1.1;
+      c.beginPath(); c.moveTo(px, py); c.lineTo(px + dx / d * L, py + dy / d * L); c.stroke();
+      c.fillStyle = rgba(255, 255, 255, al); c.beginPath(); c.arc(px, py, 0.6 + p, 0, TAU); c.fill();
+    }
+    for (let k = 0; k < 2; k++) {
+      const p = fr(t * 1.2 + k / 2), r = 5 + (1 - p) * 32 * U;
+      c.strokeStyle = 'rgba(' + hue + ',' + A(U * (1 - p) * 0.5) + ')'; c.lineWidth = 1.2;
+      ell(cx, cy, r * 1.15, r * 0.7); c.stroke();
+    }
+    if (U > 0.6) glow(cx, cy, 9, '255,255,255', (U - 0.6) / 0.4 * (0.15 + 0.2 * pul));
+    end();
+  }
+
+  // ---------- M0 · BUZ GÖZCÜSÜ: süzülen altıgen kristal kule; e.spin ile dönen 3 namlulu halka, mavi çekirdek ----------
+  function pod(e, x, y, t, fl, hpf) {
+    const sp = e.spin || 0, ph = e.ph || 0, pul = 0.5 + 0.5 * Math.sin(t * 4 + ph), low = hpf < 0.5, ec = low ? '255,90,70' : '120,230,255';
+    c.fillStyle = 'rgba(0,0,0,0.25)'; ell(x + 3, y + 21, 16, 5); c.fill();
+    c.strokeStyle = rgba(220, 240, 255, 0.15 + 0.1 * Math.sin(t * 3)); c.lineWidth = 1; ell(x, y + 18, 20 + Math.sin(t * 2) * 2, 5); c.stroke();
+    y += Math.sin(t * 2 + ph) * 1.5;
+    add(); glow(x, y, 30, low ? '255,110,90' : '110,190,255', 0.18 + 0.1 * pul + U * 0.2); end();
+    // namlu halkası: alt piramidin çevresinde elips yörünge; arkadakiler gövdeden önce, öndekiler sonra (çekirdeği örtmez)
+    const RX = 23, RY = 7, OY = 7;
+    const barrels = function (front) {
+      for (let i = 0; i < 3; i++) {
+        const a = sp + i * TAU / 3, s = Math.sin(a);
+        if ((s > 0) !== front) continue;
+        const bx = x + Math.cos(a) * RX, by = y + OY + s * RY, k = 0.75 + 0.25 * (s + 1) / 2;
+        tube([bx, by - 4 * k, bx, by + 5 * k], 2.2 * k, lin(bx - 2, 0, bx + 2, 0, '#9fb6cf', '#2b3a4e'), fl, 0.4);      // aşağı (oyuncuya) bakan namlu
+        shape([bx - 3.2 * k, by - 5.5 * k, bx + 3.2 * k, by - 5.5 * k, bx + 2.4 * k, by - 1.5 * k, bx - 2.4 * k, by - 1.5 * k], bx, by - 5, bx, by - 1, '#d6e6f5', '#55708c', fl, OUT, 1);
+        c.fillStyle = '#0a1420'; c.beginPath(); c.arc(bx, by + 5 * k, 1.2 * k, 0, TAU); c.fill();
+        add(); glow(bx, by + 5.5 * k, 4 + U * 4, '120,210,255', 0.35 + 0.35 * Math.sin(t * 8 + i * 2.1) + U * 0.4); end();
+      }
+    };
+    add(); c.strokeStyle = rgba(150, 210, 255, 0.3 + U * 0.3); c.lineWidth = 1.2; ell(x, y + OY, RX, RY); c.stroke(); end();
+    barrels(false);
+    // gövde: altıgen çift piramit buz kristali (yarı saydam mavi, sol yüz koyu, sağ yüz açık)
+    const H = [x, y - 17, x + 13, y - 8, x + 13, y + 7, x, y + 16, x - 13, y + 7, x - 13, y - 8];
+    shape(H, x - 13, y - 17, x + 13, y + 16, '#d8f2ff', '#1f5d9a', fl, OUT, 1.6);
+    if (!fl) {
+      path([x, y - 17, x, y + 16, x - 13, y + 7, x - 13, y - 8]); c.fillStyle = 'rgba(15,50,100,0.4)'; c.fill();
+      path([x, y - 17, x + 13, y - 8, x + 13, y + 7, x, y + 16]); c.fillStyle = 'rgba(255,255,255,0.14)'; c.fill();
+      path([x, y - 17, x + 13, y - 8, x, y - 4, x - 13, y - 8]); c.fillStyle = 'rgba(255,255,255,0.22)'; c.fill();      // üst piramit daha açık
+      c.strokeStyle = 'rgba(255,255,255,0.55)'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(x - 2, y - 12); c.lineTo(x - 2, y + 10); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,0.3)'; c.beginPath(); c.moveTo(x - 11, y - 7); c.lineTo(x - 11, y + 5); c.stroke();
+    }
+    c.strokeStyle = 'rgba(5,10,20,0.5)'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(x, y - 17); c.lineTo(x, y + 16); c.moveTo(x - 13, y - 8); c.lineTo(x + 13, y - 8); c.moveTo(x - 13, y + 7); c.lineTo(x + 13, y + 7); c.moveTo(x - 13, y - 8); c.lineTo(x, y - 4); c.lineTo(x + 13, y - 8); c.stroke();
+    // çekirdek: prizmanın ortasında, kristal yuvada
+    c.fillStyle = 'rgba(5,20,45,0.55)'; c.beginPath(); c.arc(x, y + 0.5, 6, 0, TAU); c.fill();
+    core(x, y + 0.5, 3.9, hpf, '110,200,255', t);
+    // gözler: üst piramitte iki parlayan göz (koyu vizör yarıkları) + tepe anteni
+    c.fillStyle = '#0a1426'; path([x - 7.5, y - 10, x - 1.3, y - 12.5, x - 1.3, y - 7.5, x - 6.5, y - 7.5]); c.fill(); path([x + 7.5, y - 10, x + 1.3, y - 12.5, x + 1.3, y - 7.5, x + 6.5, y - 7.5]); c.fill();
+    eye(x - 4, y - 9.6, 1.6, ec, 3); eye(x + 4, y - 9.6, 1.6, ec, 3);
+    c.strokeStyle = '#1a2230'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x, y - 17); c.lineTo(x, y - 23); c.stroke();
+    const bl = Math.sin(t * 6 + ph) > 0.3;
+    c.fillStyle = bl ? '#ffffff' : '#7fb0d0'; c.beginPath(); c.arc(x, y - 23.5, 1.2, 0, TAU); c.fill();
+    if (bl) { add(); glow(x, y - 23.5, 5, '150,220,255', 0.6); end(); }
+    barrels(true);
+    return [[-9, -6, -6, 0, -9, 6], [8, -11, 11, -5], [-2, 10, 2, 14]];
+  }
+
+  // ---------- M1 · KUTUP KALAMARI: soğan baş, 6 dalgalı dokunaç, mor parlayan vantuzlar ----------
+  function squid(e, x, y, t, fl, hpf) {
+    const ph = e.ph || 0, pul = 0.5 + 0.5 * Math.sin(t * 3 + ph), low = hpf < 0.5;
+    const hue = low ? '255,120,160' : '220,140,255', ec = low ? '255,90,110' : '230,150,255';
+    c.fillStyle = 'rgba(0,0,0,0.22)'; ell(x + 3, y + 21, 15, 4.5); c.fill();
+    y += Math.sin(t * 1.6 + ph) * 1.5;
+    add(); glow(x, y - 4, 30, low ? '255,100,120' : '190,120,255', 0.18 + 0.1 * pul + U * 0.2); end();
+    // dokunaçlar: çift indeksliler arkada (koyu), tekler önde
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < 6; i++) {
+      if ((i % 2 === 0) === (pass === 1)) continue;
+      const bx = x + (i - 2.5) * 4.2, wv = t * 4 + ph + i * 1.1, L = 14 + (i % 3) * 2 + U * 3, p = [];
+      for (let k = 0; k <= 4; k++) { const q = k / 4; p.push(bx + Math.sin(wv + q * 3) * 3.5 * q + (i - 2.5) * 2.2 * q, y + 5 + L * q); }
+      tube([p[0], p[1], p[2], p[3], p[4], p[5]], pass ? 2.2 : 1.8, pass ? lin(bx - 3, 0, bx + 3, 0, '#e2d2ff', '#7a4fb0') : '#4a3270', fl, pass ? 0.35 : 0);
+      tube([p[4], p[5], p[6], p[7], p[8], p[9]], pass ? 1.3 : 1, pass ? '#9a70d0' : '#3a2558', fl, 0);
+      if (pass) {      // vantuzlar
+        add(); for (let k = 1; k <= 3; k++) glow(p[k * 2], p[k * 2 + 1], 2.6, hue, 0.5 + 0.3 * Math.sin(t * 6 + k + i)); end();
+        c.fillStyle = fl ? '#ffffff' : 'rgb(' + hue + ')'; c.beginPath();
+        for (let k = 1; k <= 3; k++) { c.moveTo(p[k * 2] + 0.9, p[k * 2 + 1]); c.arc(p[k * 2], p[k * 2 + 1], 0.9, 0, TAU); }
+        c.fill();
+      }
+    }
+    // yüzgeçler + soğan baş
+    for (let s = -1; s <= 1; s += 2) shape([x + s * 6, y - 14, x + s * 17, y - 8 + Math.sin(t * 5 + ph + s) * 1.5, x + s * 8, y - 2], x + s * 6, y - 14, x + s * 17, y - 2, '#d8c8ff', '#5a3a90', fl, OUT, 1.2);
+    ell(x, y - 5, 12, 13.5); c.fillStyle = fl ? '#ffffff' : rad(x, y - 5, 13.5, '#f4ecff', '#a98ad8', '#3d2566'); c.fill();
+    c.strokeStyle = OUT; c.lineWidth = 1.6; c.stroke();
+    if (!fl) {      // buz damarları + parlama
+      c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 0.8; c.beginPath();
+      c.moveTo(x - 6, y - 15); c.quadraticCurveTo(x - 9, y - 6, x - 7, y + 3); c.moveTo(x + 3, y - 17); c.quadraticCurveTo(x + 7, y - 10, x + 6, y - 2); c.stroke();
+      c.fillStyle = 'rgba(255,255,255,0.3)'; ell(x - 4.5, y - 11, 2.8, 5, 0.3); c.fill();
+    }
+    core(x, y - 5, 4, hpf, '200,130,255', t);
+    // etek (baş-dokunaç birleşimi) + gözler
+    shape([x - 11, y + 1, x + 11, y + 1, x + 9, y + 8, x - 9, y + 8], x, y + 1, x, y + 8, '#8a66c8', '#2e1c50', fl, OUT, 1.2);
+    eye(x - 5.5, y + 4.5, 2, ec, 3); eye(x + 5.5, y + 4.5, 2, ec, 3);
+    return [[-8, -13, -4, -7, -7, -1], [6, -15, 9, -9], [-2, 2, 1, 7]];
+  }
+
+  // ---------- M2 · KIRAĞI ŞAHİNİ: beyaz şahin, aşağı (oyuncuya) süzülür; yatık çırpan kanatlar, kırmızı vizör, arkada kırağı izi ----------
+  function hawk(e, x, y, t, fl, hpf) {
+    const ph = e.ph || 0, fp = Math.sin(t * 7 + ph), pul = 0.5 + 0.5 * Math.sin(t * 3), low = hpf < 0.5;
+    c.fillStyle = 'rgba(0,0,0,0.2)'; ell(x + 4, y + 22, 18, 4); c.fill();
+    add();      // kırağı izi (yukarı, arkada)
+    for (let i = 0; i < 7; i++) {
+      const p = fr(t * 1.3 + i / 7 + ph * 0.1), tx = x + Math.sin(t * 2 + i * 2.3) * 3 * p, ty = y - 12 - p * 26, r = 2 + p * 5;
+      glow(tx, ty, r, '190,235,255', (1 - p) * 0.35);
+      c.fillStyle = rgba(255, 255, 255, (1 - p) * 0.6); c.beginPath(); c.arc(tx, ty, 0.7 + (1 - p) * 0.6, 0, TAU); c.fill();
+    }
+    glow(x, y, 24, low ? '255,100,90' : '170,220,255', 0.12 + U * 0.2);
+    end();
+    y += fp * 1.2;
+    // kanatlar: geriye süpürülmüş, fp ile çırpar
+    for (let s = -1; s <= 1; s += 2) {
+      const wy = y - 3 - fp * 4, tipx = x + s * 27, tipy = y - 10 - fp * 7;
+      path([x + s * 5, y - 5, x + s * 14, wy - 5, tipx, tipy, x + s * 24, tipy + 6, x + s * 18, wy + 4, x + s * 12, wy + 7, x + s * 6, y + 2]);
+      c.fillStyle = fl ? '#ffffff' : lin(x, y, tipx, tipy, '#ffffff', '#b9cfe0', '#6e8aa6'); c.fill();
+      c.strokeStyle = OUT; c.lineWidth = 1.5; c.lineJoin = 'round'; c.stroke();
+      c.strokeStyle = 'rgba(60,90,120,0.45)'; c.lineWidth = 0.8; c.beginPath();      // birincil tüy ayrımları
+      for (let k = 0; k < 4; k++) { const q = k / 4; c.moveTo(x + s * (11 + q * 10), wy + 4 - q * 7 - fp * 2 * q); c.lineTo(x + s * (18 + q * 8), wy + 5 - q * 11 - fp * 4 * q); }
+      c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 1; c.beginPath(); c.moveTo(x + s * 5, y - 5); c.quadraticCurveTo(x + s * 14, wy - 6, tipx, tipy); c.stroke();      // kenar ışığı
+      add(); glow(tipx, tipy, 5, '170,230,255', 0.4 + 0.3 * pul); end();
+    }
+    // çatal kuyruk (üstte) + damla gövde
+    shape([x - 3, y - 5, x + 3, y - 5, x + 6, y - 16, x + 2, y - 13, x, y - 17, x - 2, y - 13, x - 6, y - 16], x, y - 5, x, y - 17, '#e6eef6', '#7f98b2', fl, OUT, 1.2);
+    shape([x, y - 8, x + 8, y - 2, x + 8.5, y + 5, x + 5, y + 10, x, y + 11.5, x - 5, y + 10, x - 8.5, y + 5, x - 8, y - 2], x - 8, y - 8, x + 8, y + 11, '#ffffff', '#a9bfd3', fl, OUT, 1.5);
+    if (!fl) { c.fillStyle = 'rgba(255,255,255,0.45)'; ell(x - 3.2, y + 1, 1.6, 6.5, 0.12); c.fill(); }      // göğüs parlaması
+    c.strokeStyle = 'rgba(90,120,150,0.35)'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(x - 6, y + 8); c.quadraticCurveTo(x, y + 10.5, x + 6, y + 8); c.stroke();
+    core(x, y + 2.5, 3.4, hpf, '120,220,255', t);
+    for (let s = -1; s <= 1; s += 2) {      // pençeler: gövdeye yapışık koyu tırnaklar
+      line([x + s * 6, y + 7, x + s * 8.5, y + 12]); c.strokeStyle = OUT; c.lineWidth = 2.6; c.lineCap = 'round'; c.stroke();
+      c.strokeStyle = fl ? '#ffffff' : '#4a5668'; c.lineWidth = 1.2; c.stroke();
+      c.fillStyle = fl ? '#ffffff' : '#7f8ea2'; path([x + s * 7.5, y + 11.5, x + s * 10, y + 14.5, x + s * 8.5, y + 11]); c.fill(); path([x + s * 8.5, y + 11.5, x + s * 8.2, y + 15, x + s * 7, y + 11]); c.fill();
+    }
+    // baş (aşağı bakar): geniş beyaz kafa, parlayan kırmızı vizör, koyu kancalı gaga
+    ell(x, y + 13.5, 6.5, 6); c.fillStyle = fl ? '#ffffff' : rad(x, y + 13.5, 6.5, '#ffffff', '#e4ebf2', '#8f9fb0'); c.fill(); c.strokeStyle = OUT; c.lineWidth = 1.4; c.stroke();
+    add(); glow(x, y + 13.5, 10 + U * 5, '255,60,60', 0.45 + 0.3 * pul + U * 0.3); end();
+    shape([x - 6.2, y + 12, x + 6.2, y + 12, x + 5.4, y + 15.2, x - 5.4, y + 15.2], x - 6, 0, x + 6, 0, '#ff3a3a', '#ff8a6a', fl, 'rgba(60,5,15,0.9)', 1);
+    c.fillStyle = fl ? '#ffffff' : rgba(255, 120 + 80 * pul, 110, 0.9); c.fillRect(x - 4.6, y + 13.1, 9.2, 1);
+    c.fillStyle = 'rgba(255,255,255,0.9)'; c.fillRect(x - 4 + ((t * 10) % 7.5), y + 12.8, 1.6, 1.6);      // vizörde kayan ışık
+    c.beginPath(); c.moveTo(x - 2, y + 18.3); c.quadraticCurveTo(x - 2.2, y + 21, x + 0.6, y + 22.5); c.quadraticCurveTo(x + 2.2, y + 20.5, x + 2, y + 18.3); c.closePath();
+    c.fillStyle = fl ? '#ffffff' : lin(x - 2, y + 18, x + 1, y + 22.5, '#5d6b7c', '#161c26'); c.fill(); c.strokeStyle = OUT; c.lineWidth = 1; c.stroke();
+    return [[-5, -4, -2, 2, -4, 7], [4, -6, 6, 0], [-20, -8, -15, -5], [18, -9, 23, -6]];
+  }
+
+  // ---------- METEOR: buz/kaya göktaşı, aşağı (oyuncuya) düşer; önde (altta) sıcak parıltı, arkada (üstte) ~4r alev izi ----------
+  const MROCK = [1, 0.82, 1.05, 0.9, 0.78, 1.0, 0.86, 1.08, 0.93, 0.8];      // 10 köşe yarıçap çarpanı
+  function meteor(m, x, y, t) {
+    const r = clamp(+m.r || 10, 4, 40), rot = +m.rot || 0, ph = m.ph || 0, fk = 0.5 + 0.5 * Math.sin(t * 23 + ph);
+    const L = r * 4, sw = Math.sin(t * 9 + ph) * r * 0.25;
+    add();      // alev izi: 3 katman, dışı turuncu içi beyaz
+    for (let k = 0; k < 3; k++) {
+      const w = r * (1.1 - k * 0.3), len = L * (1 - k * 0.22), col = k === 0 ? '255,110,40' : k === 1 ? '255,180,70' : '255,245,210';
+      c.beginPath(); c.moveTo(x - w, y); c.quadraticCurveTo(x - w * 0.6 + sw, y - len * 0.5, x + sw * 1.5, y - len); c.quadraticCurveTo(x + w * 0.6 + sw, y - len * 0.5, x + w, y); c.closePath();
+      c.fillStyle = lin(0, y, 0, y - len, 'rgba(' + col + ',' + A(0.55 - k * 0.1 + fk * 0.1) + ')', 'rgba(' + col + ',0)'); c.fill();
+    }
+    for (let i = 0; i < 5; i++) {      // kıvılcımlar
+      const p = fr(t * 2.2 + i / 5 + ph), px = x + Math.sin(t * 5 + i * 2.1) * r * 0.6 * p, py = y - p * L * 1.1;
+      c.fillStyle = rgba(255, 220, 150, (1 - p) * 0.9); c.beginPath(); c.arc(px, py, 0.6 + (1 - p) * r * 0.08, 0, TAU); c.fill();
+    }
+    glow(x, y + r * 0.5, r * 2.2, '255,150,60', 0.35 + fk * 0.15);
+    end();
+    // kaya: düzensiz 10-gen
+    const P = [];
+    for (let i = 0; i < 10; i++) { const a = rot + i * TAU / 10, rr = r * MROCK[i]; P.push(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+    path(P); c.fillStyle = lin(x, y - r, x, y + r, '#5a4a44', '#2a221f', '#120d0c'); c.fill();
+    c.strokeStyle = OUT; c.lineWidth = 1.5; c.lineJoin = 'round'; c.stroke();
+    c.save(); path(P); c.clip();
+    c.translate(x, y); c.rotate(rot);      // buz yüzleri + kraterler kayayla döner
+    for (let i = 0; i < 4; i++) {
+      const a = i * 1.57 + 0.4, d = r * 0.45, fx = Math.cos(a) * d, fy = Math.sin(a) * d, s = r * (0.28 + (i % 2) * 0.12);
+      path([fx, fy - s, fx + s * 0.9, fy + s * 0.3, fx - s * 0.5, fy + s * 0.7]);
+      c.fillStyle = lin(fx - s, fy - s, fx + s, fy + s, 'rgba(230,248,255,0.9)', 'rgba(110,180,230,0.55)'); c.fill();
+      c.strokeStyle = 'rgba(20,50,80,0.6)'; c.lineWidth = 0.8; c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,0.7)'; c.beginPath(); c.moveTo(fx, fy - s * 0.8); c.lineTo(fx + s * 0.5, fy); c.stroke();
+    }
+    c.fillStyle = 'rgba(0,0,0,0.3)';
+    for (let i = 0; i < 3; i++) { const a = i * 2.1 + 1; ell(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55, r * 0.14, r * 0.1, a); c.fill(); }
+    c.restore();
+    c.save(); path(P); c.clip();      // ön kenar (alt) sıcak: turuncu → beyaz
+    c.fillStyle = lin(0, y - r * 0.2, 0, y + r, 'rgba(255,120,40,0)', 'rgba(255,150,60,0.55)', 'rgba(255,240,210,0.95)'); c.fillRect(x - r * 1.2, y - r * 0.2, r * 2.4, r * 1.3);
+    c.restore();
+    add(); glow(x, y + r * 0.85, r * 1.1, '255,230,200', 0.5 + fk * 0.3); end();
+  }
+  // su üstünde gölge: k 0 uzak/yüksek (geniş, soluk) → 1 düşmek üzere (dar, koyu, halka)
+  function meteorShadow(x, y, r, k) {
+    k = clamp(+k || 0, 0, 1);
+    const rx = r * (2.2 - 1 * k), a = 0.12 + 0.5 * k;
+    c.translate(x, y); c.scale(1, 0.42);
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, rx);
+    g.addColorStop(0, 'rgba(0,10,25,' + A(a) + ')'); g.addColorStop(0.6, 'rgba(0,10,25,' + A(a * 0.6) + ')'); g.addColorStop(1, 'rgba(0,10,25,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(0, 0, rx, 0, TAU); c.fill();
+    if (k > 0.6) { c.strokeStyle = rgba(255, 170, 90, (k - 0.6) * 1.5); c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, rx * 0.8, 0, TAU); c.stroke(); }
+  }
+
+  const MINI = { 0: pod, 1: squid, 2: hawk };
+  const MINI_NAMES = ['BUZ GÖZCÜSÜ', 'KUTUP KALAMARI', 'KIRAĞI ŞAHİNİ'];
+  const MSMOKE = { 0: [90, 120, 150], 1: [90, 60, 130], 2: [150, 170, 190] };
+  const MCORE = { 0: [0, 9.5, '110,200,255'], 1: [0, -5, '200,130,255'], 2: [0, 2.5, '120,220,255'] };
+
   window.FOES = {
+    MINI_NAMES: MINI_NAMES,
+    // mini bekçi: e.mk 0..2, e.hp/e.maxHp, e.flash, e.ulti 0..1, e.spin (M0), e.ph
+    drawMini(ctx, e, x, y, t) {
+      const k = e.mk || 0, f = MINI[k];
+      if (!f) return;
+      c = ctx; ctx.save();
+      try {
+        t = t || 0; U = clamp(+e.ulti || 0, 0, 1); LG = 0;
+        const hpf = clamp(e.maxHp ? e.hp / e.maxHp : 1, 0, 1);
+        const cracks = f(e, x, y, t, e.flash > 0, hpf);
+        miniDamage(x, y, t, hpf, cracks, MSMOKE[k]);
+        const cp = MCORE[k];
+        miniCharge(x + cp[0], y + cp[1], t, cp[2]);
+      } finally { ctx.restore(); U = 0; }
+    },
+    // meteor: m.r 8..18, m.rot, m.ph; gölge: k 0 (uzak) .. 1 (düşmek üzere)
+    drawMeteor(ctx, m, x, y, t) {
+      c = ctx; ctx.save();
+      try { U = 0; LG = 0; meteor(m || {}, x, y, t || 0); } finally { ctx.restore(); }
+    },
+    drawMeteorShadow(ctx, x, y, r, k) {
+      c = ctx; ctx.save();
+      try { meteorShadow(x, y, r > 0 ? r : 8, k); } finally { ctx.restore(); }
+    },
     drawEnemy(ctx, e, x, y, t) {
       const f = ENEMY[e.type];
       if (!f) return;
