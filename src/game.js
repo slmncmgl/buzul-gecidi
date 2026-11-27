@@ -547,9 +547,9 @@
 
   // Menü düğmeleri (mantıksal koordinat)
   const BTN = {
-    titleNew: { x: 40, y: 372, w: 280, h: 46 }, titleCont: { x: 40, y: 426, w: 280, h: 38 }, titleStore: { x: 40, y: 478, w: 64, h: 62 }, titleMap: { x: 112, y: 478, w: 64, h: 62 }, titleQuests: { x: 184, y: 478, w: 64, h: 62 }, titleLb: { x: 256, y: 478, w: 64, h: 62 }, titleHelp: { x: 58, y: 10, w: 34, h: 34 }, gear: { x: 10, y: 10, w: 42, h: 34 }, titleDaily: { x: 40, y: 554, w: 280, h: 34 }, overShare: { x: 40, y: 540, w: 280, h: 34 },
+    titleNew: { x: 40, y: 372, w: 280, h: 46 }, titleCont: { x: 40, y: 426, w: 280, h: 38 }, titleStore: { x: 40, y: 478, w: 64, h: 62 }, titleMap: { x: 112, y: 478, w: 64, h: 62 }, titleQuests: { x: 184, y: 478, w: 64, h: 62 }, titleLb: { x: 256, y: 478, w: 64, h: 62 }, titleHelp: { x: 54, y: 10, w: 38, h: 38 }, gear: { x: 10, y: 10, w: 38, h: 38 }, titleDaily: { x: 40, y: 554, w: 280, h: 34 }, overShare: { x: 40, y: 540, w: 280, h: 34 },
     overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 }, overC: { x: 40, y: 494, w: 280, h: 36 }, pauseGo: { x: 40, y: 246, w: 280, h: 46 }, pauseMenu: { x: 40, y: 302, w: 280, h: 40 },
-    mute: { x: W - 52, y: 10, w: 42, h: 34 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 }, storeBuy: { x: 24, y: 596, w: 196, h: 36 }, storeBack2: { x: 230, y: 596, w: 106, h: 36 },
+    mute: { x: W - 48, y: 10, w: 38, h: 38 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 }, storeBuy: { x: 24, y: 596, w: 196, h: 36 }, storeBack2: { x: 230, y: 596, w: 106, h: 36 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
   };
   const inBtn = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
@@ -3525,17 +3525,36 @@
   }
 
   function toggleMute() { muted = !muted; A.setMuted(muted); store('bg_muted', muted ? '1' : '0'); }
-  function drawMuteBtn() {      // menüde ses aç/kapa düğmesi (sağ üst)
-    const b = BTN.mute, cx = b.x + 13, cy = b.y + b.h / 2;
-    ctx.fillStyle = 'rgba(8,18,30,0.75)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 8); ctx.fill();
-    ctx.strokeStyle = 'rgba(190,215,240,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
-    ctx.fillStyle = muted ? 'rgba(190,215,240,0.5)' : '#ffffff';
-    poly([cx - 6, cy - 3, cx - 2, cy - 3, cx + 3, cy - 8, cx + 3, cy + 8, cx - 2, cy + 3, cx - 6, cy + 3]);
-    ctx.lineWidth = 1.8; ctx.lineCap = 'round';
-    if (muted) { ctx.strokeStyle = '#ff8f80'; ctx.beginPath(); ctx.moveTo(cx + 7, cy - 5); ctx.lineTo(cx + 15, cy + 5); ctx.moveTo(cx + 15, cy - 5); ctx.lineTo(cx + 7, cy + 5); ctx.stroke(); }
-    else { ctx.strokeStyle = '#ffffff'; ctx.beginPath(); ctx.arc(cx + 4, cy, 5, -0.8, 0.8); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + 4, cy, 9, -0.8, 0.8); ctx.stroke(); }
-    ctx.lineCap = 'butt';
+  // Yuvarlak simge düğmesi: hafif degrade, ince kenar, üstte parlama
+  function iconBtn(b, draw, active) {
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = b.w / 2;
+    const g = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.5, 2, cx, cy, r);
+    g.addColorStop(0, 'rgba(44,66,92,0.95)'); g.addColorStop(1, 'rgba(8,18,30,0.92)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.3); ctx.fill();
+    ctx.strokeStyle = active ? 'rgba(255,217,90,0.8)' : 'rgba(210,228,245,0.35)'; ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, r - 2.5, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    ctx.save(); ctx.translate(cx, cy); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; draw(); ctx.restore();
   }
+  function icoGear() {
+    ctx.strokeStyle = '#ffe9b8'; ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, 6.3); ctx.stroke();
+    for (let q = 0; q < 8; q++) { const a = q * Math.PI / 4; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 8, Math.sin(a) * 8); ctx.lineTo(Math.cos(a) * 11.5, Math.sin(a) * 11.5); ctx.stroke(); }
+    ctx.fillStyle = '#ffe9b8'; ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, 6.3); ctx.fill();
+  }
+  function icoBook() {      // açık kılavuz: iki sayfa, satırlar
+    ctx.strokeStyle = '#ffe9b8'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -7); ctx.quadraticCurveTo(-5, -10, -11, -8); ctx.lineTo(-11, 7); ctx.quadraticCurveTo(-5, 5, 0, 8); ctx.quadraticCurveTo(5, 5, 11, 7); ctx.lineTo(11, -8); ctx.quadraticCurveTo(5, -10, 0, -7); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(0, 8); ctx.stroke();
+    ctx.lineWidth = 1.3; ctx.strokeStyle = 'rgba(255,233,184,0.7)';
+    for (let q = 0; q < 3; q++) { const y = -3.5 + q * 3.5; ctx.beginPath(); ctx.moveTo(-8.5, y); ctx.lineTo(-3, y + 0.6); ctx.moveTo(3, y + 0.6); ctx.lineTo(8.5, y); ctx.stroke(); }
+  }
+  function icoSpeaker(on) {
+    ctx.fillStyle = on ? '#ffe9b8' : 'rgba(255,233,184,0.45)'; ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(-10, -4); ctx.lineTo(-5.5, -4); ctx.lineTo(0.5, -9.5); ctx.lineTo(0.5, 9.5); ctx.lineTo(-5.5, 4); ctx.lineTo(-10, 4); ctx.closePath(); ctx.fill();
+    if (on) { ctx.beginPath(); ctx.arc(1, 0, 5.5, -0.75, 0.75); ctx.stroke(); ctx.beginPath(); ctx.arc(1, 0, 10, -0.75, 0.75); ctx.stroke(); }
+    else { ctx.strokeStyle = '#ff7a6a'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(-10, -11); ctx.lineTo(11, 11); ctx.stroke(); }
+  }
+  function drawMuteBtn() { iconBtn(BTN.mute, function () { icoSpeaker(!muted); }, false); }
   function drawTitle() {
     dim(0.7);
     for (let q = 0; q < 30; q++) {      // yıldızlar
@@ -3612,16 +3631,19 @@
       text('GÜNÜN ETABI' + (IS_TOUCH ? '' : '  ·  D'), b.x + 14, b.y + 22, 14, '#ffe9b8', 'left', 700);
       text(db ? 'EN İYİ ' + db : DAILY_LEN + ' ETAP · HERKESE AYNI', b.x + b.w - 14, b.y + 22, 12, '#ffd95a', 'right', 700);
     }
-    // üst bar: yardım, altın, en iyi
+    // üst bar: kılavuz, altın rozeti, en iyi puan rozeti
+    iconBtn(BTN.gear, icoGear, false);
+    iconBtn(BTN.titleHelp, icoBook, false);
+    const pill = (x, w, right) => { const px = right ? x - w : x; ctx.fillStyle = 'rgba(8,18,30,0.8)'; ctx.beginPath(); ctx.roundRect(px, 16, w, 26, 13); ctx.fill(); ctx.strokeStyle = 'rgba(210,228,245,0.25)'; ctx.lineWidth = 1; ctx.stroke(); return px; };
     {
-      const b = BTN.titleHelp;
-      ctx.fillStyle = 'rgba(8,18,30,0.75)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 8); ctx.fill();
-      ctx.strokeStyle = 'rgba(190,215,240,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
-      text('?', b.x + b.w / 2, b.y + 24, 20, '#ffffff', 'center', 700);
+      ctx.font = '700 13px ' + FONT; const cw = ctx.measureText(String(G.coins)).width + 34, px = pill(100, cw, false);
+      coinIcon(px + 13, 29, 5.5, 1); text(String(G.coins), px + 24, 33.5, 13, '#ffd95a', 'left', 700);
     }
-    coinIcon(108, 26, 5.5, 1);
-    text(String(G.coins), 118, 31, 14, '#ffd95a', 'left', 700);
-    if (G.hi > 0) text('EN İYİ ' + String(G.hi).padStart(6, '0'), W - 62, 31, 12.5, '#ffcf8a', 'right', 500);
+    if (G.hi > 0) {
+      const lbl = String(G.hi).padStart(6, '0'); ctx.font = '700 13px ' + FONT; const hw = ctx.measureText(lbl).width + 40, px = pill(W - 56, hw, true);
+      ctx.fillStyle = '#ffd95a'; ctx.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 2.6 : 6, an = i * 0.628 - 1.571; ctx.lineTo(px + 14 + Math.cos(an) * r, 29 + Math.sin(an) * r); } ctx.closePath(); ctx.fill();
+      text(lbl, px + 26, 33.5, 13, '#ffe9b8', 'left', 700);
+    }
     if (G.help) drawHelp();
   }
   function drawHelp() {      // NASIL OYNANIR: kontroller ve kısa açıklama
