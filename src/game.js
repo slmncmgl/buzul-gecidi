@@ -1107,13 +1107,19 @@
     A.play('extraLife');
   }
 
-  // Nükleer patlama: ekrandaki düşmanları ve mermileri siler (girdap ve ışık çiti kalır, bekçi hasar alır)
+  // Nükleer patlama: ekrandaki düşmanları, ışık çitlerini ve mermileri siler (girdap kalır, bekçi hasar alır)
   function nuke(free) {
     if (G.mode !== 'playing') return;
     if (G.nukeCd > 0 && !free) { A.play('deny'); return; }
     for (let i = 0; i < ents.length; i++) {
       const e = ents[i], y = sy(e.wy);
-      if (e.dead || y < -30 || y > H + 30 || e.type === 'whirl' || e.type === 'beam') continue;
+      if (e.dead || y < -30 || y > H + 30 || e.type === 'whirl') continue;
+      if (e.type === 'beam') {      // ışık çiti de patlar
+        e.dead = true;
+        for (let q = 0; q <= 6; q++) boom(e.minX + (e.maxX - e.minX) * q / 6, e.wy, 8, ['#ffffff', '#ffb0c0', '#ff5a7d'], 80);
+        addScore(80); pop(e.x, e.wy + 12, 'ÇİT YOK EDİLDİ  +80', '#ffb0c0');
+        continue;
+      }
       if (e.type === 'boss') {
         if (e.flee) continue;
         e.hp -= NUKE_BOSS_DMG + 2 * G.power; e.flash = 0.3;
