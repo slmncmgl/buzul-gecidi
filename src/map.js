@@ -10,15 +10,15 @@
   const STEP = 64;                 // iki etap arası dikey mesafe (dünya px)
   const PAD_TOP = 120;             // etap 100'ün dünya y'si
   const PAD_BOTTOM = 170;          // etap 1'in altında kalan boşluk
-  const VIEW_TOP = 70, VIEW_BOT = 495;         // başlık ile kart arası görünür bant
+  const VIEW_TOP = 70, VIEW_BOT = 450;         // başlık ile kart arası görünür bant
   const VIEW_MID = (VIEW_TOP + VIEW_BOT) / 2;  // odaklanırken düğümün geleceği ekran y'si
   const WORLD_H = (MAXLV - 1) * STEP + PAD_TOP + PAD_BOTTOM;
   const TAP_SLOP = 8;              // bundan az kayma = dokunma
   const NODE_R = 9, BOSS_R = 16;
 
   const BTN = {
-    start: { x: 40, y: 540, w: 280, h: 42 },
-    back: { x: 110, y: 596, w: 140, h: 36 },
+    start: { x: 40, y: 554, w: 280, h: 40 },
+    back: { x: 190, y: 600, w: 130, h: 34 },
   };
   const COL = {
     panel: 'rgba(8,18,30,0.8)', gold: '#ffd95a', orange: '#f26a1b', cream: '#ffe9b8', mint: '#7dffb0',
@@ -241,7 +241,8 @@
   }
 
   function drawHeader(ctx, st, best, totalStars) {
-    ctx.fillStyle = COL.panel; ctx.fillRect(0, 0, W, 64);
+    ctx.fillStyle = 'rgba(6,14,24,0.97)'; ctx.fillRect(0, 0, W, 64);      // opak başlık: harita yazıları altından görünmesin
+    const hg = ctx.createLinearGradient(0, 64, 0, 90); hg.addColorStop(0, 'rgba(6,14,24,0.97)'); hg.addColorStop(1, 'rgba(6,14,24,0)'); ctx.fillStyle = hg; ctx.fillRect(0, 64, W, 26);
     ctx.fillStyle = 'rgba(255,217,90,0.35)'; ctx.fillRect(0, 63, W, 1);
     UI.text('ETAP HARİTASI', 16, 32, 24, COL.white, 'left', 700);
     UI.text('EN İYİ: ETAP ' + best, 16, 52, 12, COL.cream, 'left', 500);
@@ -253,39 +254,41 @@
 
   function drawCard(ctx, st, best) {
     const k = sel, boss = isBossK(st, k), locked = isLocked(st, k), cost = costK(st, k), coins = fin(st && st.coins, 0);
-    ctx.fillStyle = COL.panel; ctx.beginPath(); ctx.roundRect(12, 500, W - 24, 90, 12); ctx.fill();
+    const bg = ctx.createLinearGradient(0, 440, 0, 470); bg.addColorStop(0, 'rgba(6,14,24,0)'); bg.addColorStop(1, 'rgba(6,14,24,0.97)');      // alt panel: harita görünmesin
+    ctx.fillStyle = bg; ctx.fillRect(0, 440, W, 30); ctx.fillStyle = 'rgba(6,14,24,0.97)'; ctx.fillRect(0, 470, W, H - 470);
+    ctx.fillStyle = COL.panel; ctx.beginPath(); ctx.roundRect(12, 464, W - 24, 84, 12); ctx.fill();
     ctx.strokeStyle = 'rgba(255,217,90,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
 
     // 1. satır: ETAP n · ad
     const head = 'ETAP ' + k;
     ctx.font = '700 20px ' + (UI.FONT || 'sans-serif');
     const hw = ctx.measureText(head).width;
-    UI.text(head, 24, 523, 20, COL.gold, 'left', 700);
+    UI.text(head, 24, 489, 20, COL.gold, 'left', 700);
     const name = k === MAXLV ? 'Ana Üs' : nameK(st, k);
     ctx.font = '500 15px ' + (UI.FONT || 'sans-serif');
     const nw = ctx.measureText(name).width, maxNW = W - 24 - (24 + hw + 10) - 70;
-    UI.text(name, 24 + hw + 10, 523, nw > maxNW ? Math.max(9, 15 * maxNW / nw) : 15, COL.cream, 'left', 500);
-    if (locked) UI.text('KİLİTLİ', W - 24, 523, 12, COL.red, 'right', 700);
-    else if (k === best + 1 && k <= MAXLV) UI.text('SIRADAKİ', W - 24, 523, 12, COL.mint, 'right', 700);
+    UI.text(name, 24 + hw + 10, 489, nw > maxNW ? Math.max(9, 15 * maxNW / nw) : 15, COL.cream, 'left', 500);
+    if (locked) UI.text('KİLİTLİ', W - 24, 489, 12, COL.red, 'right', 700);
+    else if (k === best + 1 && k <= MAXLV) UI.text('SIRADAKİ', W - 24, 489, 12, COL.mint, 'right', 700);
 
     // 2. satır: yıldızlar · bekçi · bedel
     const n = k <= best ? starsK(st, k) : 0;
-    for (let i = 0; i < 3; i++) star(ctx, 30 + i * 13, 534, 5, i < n ? COL.gold : 'rgba(255,255,255,0.2)');
+    for (let i = 0; i < 3; i++) star(ctx, 30 + i * 13, 520, 5, i < n ? COL.gold : 'rgba(255,255,255,0.2)');
     let x2 = 72;
     if (boss) {
       const bn = k === MAXLV ? 'SON SAVUNMA' : (bossNameK(st, k) || '?');
-      UI.text('BEKÇİ: ' + bn, x2, 538, 12, COL.orange, 'left', 700);
-    } else if (k <= best) UI.text('Geçildi', x2, 538, 12, COL.mint, 'left', 500);
-    else if (!locked) UI.text('Fener hazır', x2, 538, 12, COL.cream, 'left', 500);
-    else UI.text('Önce ' + (best + 1) + '. etabı geç', x2, 538, 12, COL.dimText, 'left', 500);
+      UI.text('BEKÇİ: ' + bn, x2, 524, 12, COL.orange, 'left', 700);
+    } else if (k <= best) UI.text('Geçildi', x2, 524, 12, COL.mint, 'left', 500);
+    else if (!locked) UI.text('Fener hazır', x2, 524, 12, COL.cream, 'left', 500);
+    else UI.text('Önce ' + (best + 1) + '. etabı geç', x2, 524, 12, COL.dimText, 'left', 500);
     const costTxt = cost === 0 ? 'BEDAVA' : cost + ' altın', costCol = cost === 0 ? COL.mint : coins >= cost ? COL.gold : COL.red;
-    if (cost > 0) UI.coinIcon(W - 24 - 6 - ctx.measureText(costTxt).width * 0.75 - 10, 534, 4.5, 1);
-    UI.text(costTxt, W - 24, 538, 12, costCol, 'right', 700);
+    if (cost > 0) UI.coinIcon(W - 24 - 6 - ctx.measureText(costTxt).width * 0.75 - 10, 520, 4.5, 1);
+    UI.text(costTxt, W - 24, 524, 12, costCol, 'right', 700);
 
     const ok = canStart(st, k);
     UI.button(BTN.start, 'BAŞLA', locked ? 'KİLİTLİ' : costTxt, true, ok, 0);
     UI.button(BTN.back, 'GERİ', null, false, true, 0);
-    if (!UI.IS_TOUCH) UI.text('↑↓ seç · PgUp/PgDn ±10 · Enter başla · Esc geri', W / 2, 636, 10, 'rgba(190,215,240,0.55)', 'center', 500);
+    if (!UI.IS_TOUCH) { UI.text('↑↓ seç · PgUp/PgDn ±10', 40, 614, 10, 'rgba(190,215,240,0.6)', 'left', 500); UI.text('Enter başla · Esc geri', 40, 628, 10, 'rgba(190,215,240,0.6)', 'left', 500); }
   }
 
   // ---- fizik ------------------------------------------------------------
