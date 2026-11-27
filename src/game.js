@@ -275,6 +275,7 @@
       const sk = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
         Enter: 'pick', Space: 'pick', KeyQ: 'tab0', KeyE: 'tab1', Escape: 'back', Backspace: 'back', KeyT: 'back' }[e.code];
       if (dg && !e.repeat && +dg[1] <= 6) { G.stKb = true; storePick(+dg[1] - 1); }
+      else if (e.code === 'KeyB' && !e.repeat) storeBuy();
       else if (sk && !e.repeat) storeKey(sk);
       e.preventDefault(); return;
     }
@@ -329,7 +330,8 @@
     if (G.mode === 'store') {
       for (let q = 0; q < 2; q++) if (inBtn(p, STORE_TAB[q])) { storeTab(q); return; }
       for (let i = 0; i < storeList().length; i++) if (inBtn(p, storeCard(i))) { G.stKb = false; storePick(i); return; }
-      if (inBtn(p, BTN.storeBack)) closeStore();
+      if (stFocusBuy()) { if (inBtn(p, BTN.storeBuy)) storeBuy(); else if (inBtn(p, BTN.storeBack2)) closeStore(); }
+      else if (inBtn(p, BTN.storeBack)) closeStore();
       return;
     }
     if (G.mode === 'title' && inBtn(p, BTN.store)) { openStore(); return; }
@@ -447,7 +449,7 @@
   const BTN = {
     titleNew: { x: 40, y: 478, w: 280, h: 36 }, titleCont: { x: 40, y: 522, w: 280, h: 36 },
     overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 },
-    mute: { x: W - 52, y: 10, w: 42, h: 34 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 },
+    mute: { x: W - 52, y: 10, w: 42, h: 34 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 }, storeBuy: { x: 24, y: 596, w: 196, h: 36 }, storeBack2: { x: 230, y: 596, w: 106, h: 36 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
   };
   const inBtn = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
@@ -494,21 +496,27 @@
   const STORE_TAB = [{ x: 24, y: 98, w: 150, h: 34 }, { x: 186, y: 98, w: 150, h: 34 }];
   const storeCard = (i) => ({ x: 24 + (i % 2) * 162, y: 142 + Math.floor(i / 2) * 149, w: 150, h: 141 });
   const storeList = () => window.COS ? (G.stTab ? COS.AVATARS : COS.SLEDS) : [];
-  function openStore() { G.mode = 'store'; G.stCur = 0; G.stKb = false; A.play('hit'); }
+  const stOwned = (it) => (G.stTab ? G.ownA : G.ownS).indexOf(it.id) >= 0;
+  const stEquipped = () => { const L = storeList(), c = G.stTab ? G.av : G.sled; for (let i = 0; i < L.length; i++) if (L[i].id === c) return i; return 0; };
+  const stFocusBuy = () => { const it = storeList()[G.stCur]; return it && !stOwned(it) ? it : null; };      // odaktaki alınmamış ürün: satın al düğmesi görünür
+  function openStore() { G.mode = 'store'; G.stCur = stEquipped(); G.stKb = false; A.play('hit'); }
   function closeStore() { G.mode = 'title'; }
-  function storeTab(q) { if (G.stTab !== q) { G.stTab = q; G.stCur = 0; A.play('hit'); } }
-  function storePick(i) {
+  function storeTab(q) { if (G.stTab !== q) { G.stTab = q; G.stCur = stEquipped(); A.play('hit'); } }
+  function stEquip(it) { if (G.stTab) { G.av = it.id; store('bg_av', String(it.id)); } else { G.sled = it.id; store('bg_sled', String(it.id)); } }
+  function storePick(i) {      // karta dokunmak: sahipsen kuşanır, değilse sadece seçer (satın almaz)
     const it = storeList()[i];
     if (!it) return;
-    const own = G.stTab ? G.ownA : G.ownS;
     G.stCur = i;
-    if (own.indexOf(it.id) < 0) {
-      if (G.coins < it.price) { G.deny = 0.5; G.stDeny = i; A.play('deny'); return; }
-      G.coins -= it.price; store('bg_coins', String(G.coins));
-      own.push(it.id); store(G.stTab ? 'bg_avs' : 'bg_sleds', JSON.stringify(own));
-      G.stBuyT = 0; A.play('buy'); A.play('extraLife');
-    } else A.play('powerUp');
-    if (G.stTab) { G.av = it.id; store('bg_av', String(it.id)); } else { G.sled = it.id; store('bg_sled', String(it.id)); }
+    if (stOwned(it)) { stEquip(it); A.play('powerUp'); } else A.play('hit');
+  }
+  function storeBuy() {
+    const it = stFocusBuy();
+    if (!it) return;
+    if (G.coins < it.price) { G.deny = 0.5; G.stDeny = G.stCur; A.play('deny'); return; }
+    G.coins -= it.price; store('bg_coins', String(G.coins));
+    const own = G.stTab ? G.ownA : G.ownS;
+    own.push(it.id); store(G.stTab ? 'bg_avs' : 'bg_sleds', JSON.stringify(own));
+    stEquip(it); G.stBuyT = 0; A.play('buy'); A.play('extraLife');
   }
   function storeKey(code) {      // klavye / kol: oklar gezinir, Enter alır ya da seçer, Q/E sekme, Esc geri
     const n = storeList().length;
@@ -517,7 +525,7 @@
     else if (code === 'right') G.stCur = Math.min(n - 1, G.stCur + 1);
     else if (code === 'up') G.stCur = Math.max(0, G.stCur - 2);
     else if (code === 'down') G.stCur = Math.min(n - 1, G.stCur + 2);
-    else if (code === 'pick') storePick(G.stCur);
+    else if (code === 'pick') { if (stFocusBuy()) storeBuy(); else storePick(G.stCur); }
     else if (code === 'tab0') storeTab(0);
     else if (code === 'tab1') storeTab(1);
     else if (code === 'back') closeStore();
@@ -559,16 +567,22 @@
         ctx.strokeStyle = 'rgba(255,230,150,' + (1 - k) + ')'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(px, py, 20 + 60 * k, 0, 6.3); ctx.stroke(); ctx.restore();
       }
-      const kb = G.stKb && G.stCur === i;
+      const kb = G.stCur === i && !sel;
       ctx.strokeStyle = kb ? '#ffffff' : sel ? '#ffd95a' : has ? 'rgba(125,255,176,0.55)' : 'rgba(190,215,240,0.3)';
       ctx.lineWidth = sel || kb ? 2.4 : 1.3; ctx.beginPath(); ctx.roundRect(x, c.y, c.w, c.h, 12); ctx.stroke();
+      if (kb && !has) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.roundRect(x, c.y, c.w, c.h, 12); ctx.fill(); }
       fitText(it.name, px, c.y + 105, 14, c.w - 12, '#ffffff', 700);
       fitText(it.desc || '', px, c.y + 120, 10.5, c.w - 12, 'rgba(190,215,240,0.82)', 500);
       if (sel) text('SEÇİLİ', px, c.y + 135, 12.5, '#7dffb0', 'center', 700);
       else if (has) text('SEÇ', px, c.y + 135, 12.5, '#ffe9b8', 'center', 700);
       else { coinIcon(px - 20, c.y + 131, 4.5, 1); text(String(it.price), px - 12, c.y + 135.5, 13.5, can ? '#ffd95a' : '#ff8f80', 'left', 700); }
     }
-    button(BTN.storeBack, IS_TOUCH ? 'GERİ' : 'GERİ  ·  ESC', null, false, true);
+    const fb = stFocusBuy();
+    if (fb) {
+      const can = G.coins >= fb.price, sh = G.deny > 0 ? Math.sin(G.deny * 60) * 3 : 0;
+      button(BTN.storeBuy, IS_TOUCH ? 'SATIN AL' : 'SATIN AL · B', fb.price + ' altın', true, can, can ? 0 : sh);
+      button(BTN.storeBack2, 'GERİ', null, false, true);
+    } else button(BTN.storeBack, IS_TOUCH ? 'GERİ' : 'GERİ  ·  ESC', null, false, true);
   }
   function drawStoreBtn() {      // ana menü sol üst: mağaza düğmesi + seçili avatar
     const b = BTN.store, pulse = 0.55 + 0.25 * Math.sin(G.t * 3);

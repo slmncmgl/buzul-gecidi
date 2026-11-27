@@ -497,7 +497,7 @@
     }
   }
 
-  /* ---------- 0 KAPTAN DERYA ---------- */
+  /* ---------- 0 NOVA ---------- */
   function av0(ctx, t) {
     ctx.fillStyle = 'rgba(255,255,255,0.8)';               // kar taneleri
     for (let i = 0; i < 9; i++) {
@@ -555,7 +555,7 @@
     ctx.beginPath(); ctx.moveTo(-2.2, 14.3); ctx.quadraticCurveTo(0, 15.4, 2.2, 14.3); ctx.quadraticCurveTo(0, 13.8, -2.2, 14.3); fill(ctx, '#e0706a');
   }
 
-  /* ---------- 1 PENGUEN POPO ---------- */
+  /* ---------- 1 ROKET (penguen) ---------- */
   function av1(ctx, t) {
     twinkles(ctx, t, [-28, -20, 27, -26, -31, 10, 30, 6, -18, -32, 20, -33], 2, '255,255,255');
     ell(ctx, 0, 48, 30, 24); fill(ctx, rad(ctx, -10, 30, 2, 0, 48, 32, [0, '#3d4a63', 1, '#0f141d']));
@@ -598,7 +598,7 @@
     ell(ctx, -1.6, 8.9, 1.4, 0.6); fill(ctx, 'rgba(255,255,255,0.6)');
   }
 
-  /* ---------- 2 KUTUP AYISI BORA ---------- */
+  /* ---------- 2 AYAZ (kutup ayısı) ---------- */
   function av2(ctx, t) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';     // kutup ışıkları
     for (let k = 0; k < 2; k++) {
@@ -641,7 +641,7 @@
     for (let i = 0; i < D.length; i += 2) { circ(ctx, D[i], D[i + 1], 0.45); ctx.fill(); }
   }
 
-  /* ---------- 3 BAYKUŞ ZEYNO ---------- */
+  /* ---------- 3 VEGA (kar baykuşu) ---------- */
   function eyeOwl(ctx, x, y, r, closed, look) {
     const k = Math.max(0.07, 1 - closed);
     ctx.save(); ctx.translate(x, y);
@@ -697,7 +697,7 @@
     ctx.restore();
   }
 
-  /* ---------- 4 FOK MİNO ---------- */
+  /* ---------- 4 PUSULA (fok) ---------- */
   function av4(ctx, t) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';     // sudan süzülen ışık
     for (let i = 0; i < 3; i++) {
@@ -743,7 +743,7 @@
     ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 0.55; ctx.stroke();
   }
 
-  /* ---------- 5 BUZ CADISI AYZA ---------- */
+  /* ---------- 5 AURORA (buz cadısı) ---------- */
   function flake(ctx, x, y, s, col) {
     ctx.beginPath();
     for (let i = 0; i < 3; i++) { const a = i * Math.PI / 3, c = Math.cos(a) * s, d = Math.sin(a) * s; ctx.moveTo(x - c, y - d); ctx.lineTo(x + c, y + d); }
@@ -838,12 +838,12 @@
       { id: 5, name: 'ALTIN İMPARATOR', price: 2500, desc: 'Altın ve fildişi; buzun hükümdarı.' },
     ],
     AVATARS: [
-      { id: 0, name: 'KAPTAN DERYA', price: 0, desc: 'Kürk kapüşonlu, gözlüklü kâşif.' },
-      { id: 1, name: 'PENGUEN POPO', price: 200, desc: 'Bereli, atkılı, hep neşeli.' },
-      { id: 2, name: 'KUTUP AYISI BORA', price: 400, desc: 'İri, sakin ve buz gibi cesur.' },
-      { id: 3, name: 'BAYKUŞ ZEYNO', price: 700, desc: 'Gece nöbetindeki kar baykuşu.' },
-      { id: 4, name: 'FOK MİNO', price: 1100, desc: 'Denizci yakalı, meraklı fok.' },
-      { id: 5, name: 'BUZ CADISI AYZA', price: 1800, desc: 'Kristal taçlı buzların büyücüsü.' },
+      { id: 0, name: 'NOVA', price: 0, desc: 'Kürk kapüşonlu, gözlüklü kâşif pilot.' },
+      { id: 1, name: 'ROKET', price: 200, desc: 'Atkılı, bereli, durmadan gaza basar.' },
+      { id: 2, name: 'AYAZ', price: 400, desc: 'İri, sakin, buz gibi cesur kutup ayısı.' },
+      { id: 3, name: 'VEGA', price: 700, desc: 'Gece nöbetini kaçırmayan kar baykuşu.' },
+      { id: 4, name: 'PUSULA', price: 1100, desc: 'Denizci yakalı, rotayı hiç şaşırmaz.' },
+      { id: 5, name: 'AURORA', price: 1800, desc: 'Kristal taçlı, kutup ışıklarının sahibi.' },
     ],
     drawSled(ctx, id, tier, t) {
       tier = Math.max(0, Math.min(3, tier | 0)); t = +t || 0;
