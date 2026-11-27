@@ -8,7 +8,7 @@
   const SPEED_MIN = 80, SPEED_CRUISE = 150, SPEED_MAX = 270;
   const HEAT_DRAIN = 3.6, HEAT_CHARGE = 60;
   const PTS = { mine: 30, boat: 60, skim: 100, turret: 150, orb: 20, ice: 10, hunter: 120, boss: 2500, wasp: 140, sub: 180, crystal: 160, shard: 25, mortar: 200 };
-  const SIZE = { mine: [7, 7], boat: [12, 6], skim: [10, 5], turret: [10, 10], ice: [9, 7], hunter: [9, 8], beam: [0, 4], whirl: [0, 0], boss: [34, 14], wasp: [9, 8], sub: [13, 7], crystal: [10, 10], shard: [6, 6], mortar: [12, 8] };
+  const SIZE = { mine: [8, 8], boat: [12, 6], skim: [10, 5], turret: [10, 10], ice: [9, 7], hunter: [9, 8], beam: [0, 4], whirl: [0, 0], boss: [34, 14], wasp: [9, 8], sub: [13, 7], crystal: [10, 10], shard: [6, 6], mortar: [12, 8] };
   const NEWHP = { wasp: 2, sub: 3, crystal: 3, shard: 1, mortar: 4 };      // 50. etaptan sonra gelen düşmanlar
   // Etap ilerledikçe akış hızlanır; devam etmenin altın bedeli de etapla artar
   const speedMul = (k) => k <= 50 ? Math.min(1.5, 1 + 0.01 * k) : Math.min(1.65, 1.5 + 0.003 * (k - 50));
@@ -1639,25 +1639,25 @@
         ctx.translate(x, y); ctx.scale(1, 2.1); glow(0, 0, hw + 14, '255,180,90', 0.16 + 0.08 * pulse);
         ctx.restore();
         const pg = ctx.createLinearGradient(x - hw, 0, x + hw, 0);
-        pg.addColorStop(0, 'rgba(18,26,38,0.82)'); pg.addColorStop(0.5, 'rgba(34,46,62,0.82)'); pg.addColorStop(1, 'rgba(18,26,38,0.82)');
+        pg.addColorStop(0, 'rgba(247,206,160,0.85)'); pg.addColorStop(0.5, 'rgba(255,228,196,0.88)'); pg.addColorStop(1, 'rgba(247,206,160,0.85)');      // pastel şeftali
         ctx.fillStyle = pg; ctx.beginPath(); ctx.roundRect(x - hw, y - hl, hw * 2, hl * 2, 6); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,214,150,0.55)'; ctx.lineWidth = 1; ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.roundRect(x - hw + 3, y - hl + 3, hw * 2 - 6, hl * 2 - 6, 4); ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,236,200,0.45)'; ctx.lineWidth = 1.4; ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;      // orta çizgi
+        ctx.strokeStyle = 'rgba(196,130,70,0.75)'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.roundRect(x - hw + 3, y - hl + 3, hw * 2 - 6, hl * 2 - 6, 4); ctx.stroke();
+        ctx.strokeStyle = 'rgba(200,140,80,0.6)'; ctx.lineWidth = 1.4; ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;      // orta çizgi
         ctx.beginPath(); ctx.moveTo(x, y - hl + 12); ctx.lineTo(x, y - 11); ctx.moveTo(x, y + 9); ctx.lineTo(x, y + hl - 12); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(255,236,200,0.5)';      // eşik çizgileri
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';      // eşik çizgileri
         for (let q = -2; q <= 2; q++) if (q) { ctx.fillRect(x + q * (hw / 3.2) - 1, y - hl + 4, 2, 5); ctx.fillRect(x + q * (hw / 3.2) - 1, y + hl - 9, 2, 5); }
         const n = Math.max(5, Math.round(hl / 9)), step = (hl * 2 - 10) / (n - 1), head = (G.t * 9 + hash(v.y) * n) % (n + 3);
         for (let i = 0; i < n; i++) {
           const ly = y - hl + 5 + i * step, d = head - i, k = d >= 0 && d < 3 ? 1 - d / 3 : 0;      // önden geriye kayan ışık dalgası
           for (let sd = -1; sd <= 1; sd += 2) {
             const lx = x + sd * (hw - 2.5);
-            ctx.fillStyle = k > 0 ? 'rgba(255,' + Math.round(200 + 40 * k) + ',' + Math.round(120 + 100 * k) + ',1)' : 'rgba(150,120,80,0.7)';
+            ctx.fillStyle = k > 0 ? 'rgba(255,' + Math.round(200 + 40 * k) + ',' + Math.round(120 + 100 * k) + ',1)' : 'rgba(190,140,95,0.75)';
             ctx.beginPath(); ctx.arc(lx, ly, 1.3 + 0.5 * k, 0, 6.3); ctx.fill();
             if (k > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(lx, ly, 7, '255,200,120', 0.75 * k); ctx.restore(); }
           }
         }
-        ctx.strokeStyle = 'rgba(255,200,120,' + (0.55 + 0.35 * pulse) + ')'; ctx.lineWidth = 1.2;      // ortada ince yakıt simgesi
+        ctx.strokeStyle = 'rgba(214,120,50,' + (0.6 + 0.3 * pulse) + ')'; ctx.lineWidth = 1.3;      // ortada ince yakıt simgesi
         ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.bezierCurveTo(x + 5.5, y - 1, x + 5, y + 5, x, y + 5); ctx.bezierCurveTo(x - 5, y + 5, x - 5.5, y - 1, x, y - 7); ctx.stroke();
       }
     }
@@ -1698,7 +1698,7 @@
       if (y < -30 || y > H + 30 || e.dead) continue;
       const x = e.x, fl = e.flash > 0;
       const big = e.type === 'mine' || e.type === 'boat' || e.type === 'skim' || e.type === 'hunter' || e.type === 'turret' || !!NEWHP[e.type];
-      if (big) { ctx.save(); ctx.translate(x, y); ctx.scale(ES, ES); ctx.translate(-x, -y); }
+      if (big) { const sc = e.type === 'mine' ? ES * 1.15 : ES; ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.translate(-x, -y); }      // mayınlar %15 büyük
       if (e.type === 'mine') {
         const bob = Math.sin(G.t * 2.4 + e.ph) * 1.2, yy = y + bob;
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -2237,8 +2237,10 @@
     }
     if (G.shield > 0) {
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = 'rgba(120,200,255,' + (0.55 + 0.2 * Math.sin(G.t * 5)) + ')'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(x, y, 15, 19, 0, 0, 6.3); ctx.stroke();
+      const sg = ctx.createRadialGradient(x, y, 6, x, y, 19);      // yumuşak, şeffaf kalkan balonu
+      sg.addColorStop(0, 'rgba(120,200,255,0)'); sg.addColorStop(0.75, 'rgba(120,200,255,0.07)'); sg.addColorStop(1, 'rgba(150,215,255,' + (0.18 + 0.06 * Math.sin(G.t * 5)) + ')');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(x, y, 15, 19, 0, 0, 6.3); ctx.fill();
+      ctx.strokeStyle = 'rgba(170,225,255,' + (0.16 + 0.06 * Math.sin(G.t * 5)) + ')'; ctx.lineWidth = 0.8; ctx.stroke();
       if (G.shield > 1) { ctx.strokeStyle = 'rgba(120,200,255,0.4)'; ctx.beginPath(); ctx.ellipse(x, y, 19, 23, 0, 0, 6.3); ctx.stroke(); }
       ctx.restore();
     }
