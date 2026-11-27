@@ -266,6 +266,7 @@
       return;
     }
     if (G.mode === 'title' && hit[2]) { openStore(); return; }
+    if (G.mode === 'gameover' && G.overT > 0.8 && hit[1]) { toMenu(); return; }
     if (hit[0] || hit[9]) {
       firstGesture();
       if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) startGame(0);
@@ -301,6 +302,9 @@
       e.preventDefault(); return;
     }
     if (G.mode === 'title' && e.code === 'KeyT' && !e.repeat) { openStore(); e.preventDefault(); return; }
+    if (G.mode === 'title' && e.code === 'KeyH' && !e.repeat) { G.help = !G.help; e.preventDefault(); return; }
+    if (G.mode === 'title' && G.help && !e.repeat && (e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space')) { G.help = false; e.preventDefault(); return; }
+    if (G.mode === 'gameover' && G.overT > 0.8 && e.code === 'Escape' && !e.repeat) { toMenu(); e.preventDefault(); return; }
     if (dg && !e.repeat) {
       if (!digits[1] && !digits[3] && !digits[5]) sensBeforeCombo = mouse.level;   // 1+3+5 hilesi hassasiyeti bozmasın
       digits[+dg[1]] = true;
@@ -355,11 +359,14 @@
       else if (inBtn(p, BTN.storeBack)) closeStore();
       return;
     }
-    if (G.mode === 'title' && inBtn(p, BTN.store)) { openStore(); return; }
+    if (G.mode === 'title' && G.help) { G.help = false; return; }      // yardım açıkken her dokunuş kapatır
     if ((G.mode === 'title' || G.mode === 'paused' || G.mode === 'gameover') && inBtn(p, BTN.mute)) { toggleMute(); return; }
     if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) {
       const act = menuAction(p);
       if (!act) return;
+      if (act === 'store') { openStore(); return; }
+      if (act === 'help') { G.help = true; A.play('hit'); return; }
+      if (act === 'menu') { toMenu(); return; }
       if (isMouse) mouse.active = true;         // fareyle başlatan fareyle oynar
       let ok = true;
       if (act === 'new') startGame(0);
@@ -468,16 +475,20 @@
 
   // Menü düğmeleri (mantıksal koordinat)
   const BTN = {
-    titleNew: { x: 40, y: 478, w: 280, h: 36 }, titleCont: { x: 40, y: 522, w: 280, h: 36 },
-    overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 },
+    titleNew: { x: 40, y: 392, w: 280, h: 46 }, titleCont: { x: 40, y: 448, w: 280, h: 40 }, titleStore: { x: 40, y: 498, w: 135, h: 40 }, titleHelp: { x: 185, y: 498, w: 135, h: 40 },
+    overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 }, overC: { x: 40, y: 494, w: 280, h: 36 },
     mute: { x: W - 52, y: 10, w: 42, h: 34 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 }, storeBuy: { x: 24, y: 596, w: 196, h: 36 }, storeBack2: { x: 230, y: 596, w: 106, h: 36 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
   };
   const inBtn = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
   function menuAction(p) {
-    if (G.mode === 'title') return (G.last > 0 && inBtn(p, BTN.titleCont)) ? 'cont-title' : 'new';
-    if (G.sec > 0 && !G.won) return inBtn(p, BTN.overA) ? 'cont' : inBtn(p, BTN.overB) ? 'new' : null;
-    return inBtn(p, BTN.overA) ? 'new' : null;
+    if (G.mode === 'title') return inBtn(p, BTN.titleNew) ? 'new' : (G.last > 0 && inBtn(p, BTN.titleCont)) ? 'cont-title' : inBtn(p, BTN.titleStore) ? 'store' : inBtn(p, BTN.titleHelp) ? 'help' : null;
+    if (G.sec > 0 && !G.won) return inBtn(p, BTN.overA) ? 'cont' : inBtn(p, BTN.overB) ? 'new' : inBtn(p, BTN.overC) ? 'menu' : null;
+    return inBtn(p, BTN.overA) ? 'new' : inBtn(p, BTN.overB) ? 'menu' : null;
+  }
+  function toMenu() {      // oyun bittikten sonra ana menüye dön
+    G.mode = 'title'; G.boss = null; G.help = false; clearUltis(); shells.length = 0; orbs.length = 0; shots.length = 0;
+    mouse.down = false; unlockPointer(); A.stopMusic(); A.stopEngine(); A.play('hit');
   }
   // Altın harcayıp k. etabın başından devam et (puan sıfırlanır)
   // altın yetmezse son yenilen bekçinin ardından bedava başla
@@ -2904,43 +2915,42 @@
     ctx.lineCap = 'butt';
   }
   function drawTitle() {
-    dim(0.68);
-    const y0 = 132;
-    text('KRİYO-7 BUZ GEZEGENİ · YAKIT KURYESİ', W / 2, y0 - 44, 13, '#ffcf8a', 'center', 500);
-    for (let q = 0; q < 26; q++) {      // yıldızlar
-      const sx2 = hash(q * 7.3) * W, sy2 = 50 + hash(q * 3.1 + 1) * 150, tw = 0.35 + 0.65 * Math.abs(Math.sin(G.t * (0.8 + hash(q) * 2) + q));
+    dim(0.7);
+    for (let q = 0; q < 30; q++) {      // yıldızlar
+      const sx2 = hash(q * 7.3) * W, sy2 = 20 + hash(q * 3.1 + 1) * 230, tw = 0.35 + 0.65 * Math.abs(Math.sin(G.t * (0.8 + hash(q) * 2) + q));
       ctx.fillStyle = 'rgba(230,240,255,' + tw * 0.8 + ')'; ctx.fillRect(sx2, sy2, 1.6, 1.6);
     }
     {      // Kriyo-7: halkalı buz gezegeni
-      const gx = 296, gy = 96, gr = 19;
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(gx, gy, 44, '120,200,255', 0.25); ctx.restore();
-      ctx.strokeStyle = 'rgba(200,230,255,0.55)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(gx, gy, 34, 9, -0.35, Math.PI, 6.28); ctx.stroke();
-      const pg = ctx.createRadialGradient(gx - 7, gy - 7, 2, gx, gy, gr);
+      const gx = 300, gy = 118, gr = 22;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(gx, gy, 50, '120,200,255', 0.25); ctx.restore();
+      ctx.strokeStyle = 'rgba(200,230,255,0.5)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(gx, gy, 38, 10, -0.35, Math.PI, 6.28); ctx.stroke();
+      const pg = ctx.createRadialGradient(gx - 8, gy - 8, 2, gx, gy, gr);
       pg.addColorStop(0, '#f2fbff'); pg.addColorStop(0.5, '#8fd0ee'); pg.addColorStop(1, '#2b5f8c');
       ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(gx, gy, gr, 0, 6.3); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(gx, gy, gr - 6, 3.6, 5.2); ctx.stroke();
-      ctx.strokeStyle = 'rgba(200,230,255,0.8)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(gx, gy, 34, 9, -0.35, 0, Math.PI); ctx.stroke();
+      ctx.strokeStyle = 'rgba(200,230,255,0.8)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(gx, gy, 38, 10, -0.35, 0, Math.PI); ctx.stroke();
     }
-    text('BUZUL', W / 2, y0 + 10, 66, '#ffffff', 'center', 700);
-    text('GEÇİDİ', W / 2, y0 + 66, 66, '#ff9a4d', 'center', 700);
-    if (window.COS) { ctx.save(); ctx.translate(W / 2, y0 + 98); ctx.scale(0.95, 0.95); COS.drawSled(ctx, G.sled, 0, G.t); ctx.restore(); } else miniShip(W / 2, y0 + 96);
+    text('KRİYO-7 · YAKIT KURYESİ', W / 2, 112, 12, '#ffcf8a', 'center', 500);
+    text('BUZUL', W / 2, 176, 68, '#ffffff', 'center', 700);
+    text('GEÇİDİ', W / 2, 236, 68, '#ff9a4d', 'center', 700);
 
-    const lines = [
-      'Yakıtın bitmeden buz kanyonunu geç.',
-      'Yakıt istasyonlarının üstünden yavaş',
-      'geçersen daha çok yakıt alırsın. Altınla',
-      'kaldığın etaptan devam edebilirsin.'
-    ];
-    for (let i = 0; i < lines.length; i++) text(lines[i], W / 2, y0 + 134 + i * 18, 14, 'rgba(225,238,250,0.92)', 'center', 500);
-
-    const cy = y0 + 226;
-    const rows = IS_TOUCH
-      ? [['SÜRÜKLE', 'yön'], ['YUKARI / AŞAĞI', 'hızlan / yavaşla'], ['ATEŞ', 'otomatik'], ['DÜĞMELER', 'yaylım  ·  nükleer']]
-      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK / TIK', 'ateş'], ['BASILI TUT', 'şarj et, bırak: yaylım'], ['X / SAĞ TIK', 'nükleer patlama (60 sn)'], ['FARE', 'yön + hız'], ['1 – 9', 'hareket hassasiyeti: ' + mouse.level], ['P  ·  M', 'duraklat  ·  ses']];
-    for (let i = 0; i < rows.length; i++) {
-      text(rows[i][0], W / 2 - 10, cy + i * (rows.length > 7 ? 15.5 : 17.5), 14, '#ffe9b8', 'right', 700);
-      text(rows[i][1], W / 2 + 10, cy + i * (rows.length > 7 ? 15.5 : 17.5), 14, 'rgba(225,238,250,0.92)', 'left', 500);
-    }
+    // hangar kartı: seçili gemi, pilot, pilot seviyesi
+    const cy0 = 266, ch = 108;
+    ctx.fillStyle = 'rgba(8,18,30,0.82)'; ctx.beginPath(); ctx.roundRect(24, cy0, 312, ch, 14); ctx.fill();
+    ctx.strokeStyle = 'rgba(190,215,240,0.28)'; ctx.lineWidth = 1.2; ctx.stroke();
+    const sName = window.COS ? COS.SLEDS[G.sled].name : 'KEŞİF', pName = window.COS ? COS.AVATARS[G.av].name : '';
+    if (window.COS) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(78, cy0 + 44, 36, '255,170,90', 0.22); ctx.restore();
+      ctx.save(); ctx.translate(78, cy0 + 46 + Math.sin(G.t * 2) * 2); ctx.scale(1.9, 1.9); COS.drawSled(ctx, G.sled, 0, G.t); ctx.restore();
+      COS.drawAvatar(ctx, G.av, 290, cy0 + 40, 26, G.t);
+    } else miniShip(78, cy0 + 46);
+    text(sName, 134, cy0 + 36, 15, '#ffffff', 'left', 700);
+    text('GEMİ', 134, cy0 + 20, 10, 'rgba(190,215,240,0.75)', 'left', 500);
+    text(pName, 290, cy0 + 84, 11.5, '#ffe9b8', 'center', 700);
+    const lv = pilotLevel();
+    text('PİLOT SV ' + lv, 134, cy0 + 62, 11.5, '#ffe9b8', 'left', 700);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(134, cy0 + 68, 110, 4);
+    ctx.fillStyle = '#ffd95a'; ctx.fillRect(134, cy0 + 68, 110 * lvProgress(), 4);
+    text(lv >= LV_MIN.length ? 'en üst seviye' : 'sonraki seviye ' + Math.max(0, Math.ceil(LV_MIN[lv] - G.fly / 60)) + ' dk uçuşta', 134, cy0 + 88, 10.5, 'rgba(190,215,240,0.75)', 'left', 500);
 
     const blink = Math.floor(G.t * 1.6) % 2 === 0;
     button(BTN.titleNew, IS_TOUCH ? 'YENİ OYUN' : (blink ? 'YENİ OYUN  ·  ENTER' : 'YENİ OYUN'), null, true, true);
@@ -2948,12 +2958,30 @@
       const ck = contK(G.last), cost = contCost(ck), can = G.coins >= cost;
       const sh = G.deny > 0 ? Math.sin(G.deny * 60) * 4 : 0;
       button(BTN.titleCont, contLabel(ck), (IS_TOUCH ? '' : 'C  ·  ') + (cost ? cost + ' altın' : 'BEDAVA'), false, can, sh);
-    } else {
-      text('Fenerlere ulaştıkça buradan devam seçeneği açılır.', W / 2, BTN.titleCont.y + 22, 13, 'rgba(190,215,240,0.8)', 'center', 500);
+    } else text('İlk fenere ulaşınca buradan devam edebilirsin.', W / 2, BTN.titleCont.y + 25, 12.5, 'rgba(190,215,240,0.75)', 'center', 500);
+    button(BTN.titleStore, IS_TOUCH ? 'MAĞAZA' : 'MAĞAZA  ·  T', null, false, true);
+    button(BTN.titleHelp, IS_TOUCH ? 'NASIL OYNANIR' : 'NASIL OYNANIR  ·  H', null, false, true);
+
+    coinIcon(34, H - 30, 5.5, 1);
+    text(String(G.coins) + ' altın', 44, H - 25, 15, '#ffd95a', 'left', 700);
+    if (G.hi > 0) text('EN İYİ  ' + String(G.hi).padStart(6, '0'), W - 56, H - 25, 14, '#ffcf8a', 'right', 500);
+
+    if (G.help) drawHelp();
+  }
+  function drawHelp() {      // NASIL OYNANIR: kontroller ve kısa açıklama
+    dim(0.85);
+    text('NASIL OYNANIR', W / 2, 96, 28, '#ffffff', 'center', 700);
+    const lines = ['Yakıtın bitmeden buz kanyonunu geç.', 'Yakıt istasyonlarının üstünden yavaş geçersen', 'daha çok yakıt alırsın. Fenerler kayıt noktasıdır;', 'altınla kaldığın etaptan devam edebilirsin.'];
+    for (let i = 0; i < lines.length; i++) text(lines[i], W / 2, 132 + i * 19, 14, 'rgba(225,238,250,0.92)', 'center', 500);
+    const rows = IS_TOUCH
+      ? [['SÜRÜKLE', 'yön'], ['YUKARI / AŞAĞI', 'hızlan / yavaşla'], ['ATEŞ', 'otomatik'], ['YAYLIM', 'dokun: at · basılı tut: şarj'], ['NÜKLEER', 'ekrandaki her şeyi siler (60 sn)'], ['SAĞ ÜST', 'duraklat']]
+      : [['←  →', 'yön'], ['↑  ↓', 'hızlan / yavaşla'], ['BOŞLUK / TIK', 'ateş'], ['BASILI TUT', 'şarj et, bırak: yaylım'], ['X / SAĞ TIK', 'nükleer patlama (60 sn)'], ['FARE', 'yön + hız'], ['1 – 9', 'hareket hassasiyeti: ' + mouse.level], ['P  ·  M', 'duraklat  ·  ses'], ['T', 'mağaza']];
+    const y0 = 236;
+    for (let i = 0; i < rows.length; i++) {
+      text(rows[i][0], W / 2 - 12, y0 + i * 24, 14.5, '#ffe9b8', 'right', 700);
+      text(rows[i][1], W / 2 + 12, y0 + i * 24, 14.5, 'rgba(225,238,250,0.92)', 'left', 500);
     }
-    coinIcon(48, H - 52, 5.5, 1);
-    text(String(G.coins) + ' altın', 58, H - 47, 15, '#ffd95a', 'left', 700);
-    if (G.hi > 0) text('EN İYİ  ' + String(G.hi).padStart(6, '0'), W - 42, H - 47, 14, '#ffcf8a', 'right', 500);
+    text(IS_TOUCH ? 'kapatmak için dokun' : 'kapatmak için H ya da ESC', W / 2, H - 60, 13, '#ffcf8a', 'center', 500);
   }
 
   function drawGameOver() {
@@ -2972,10 +3000,12 @@
       const sh = G.deny > 0 ? Math.sin(G.deny * 60) * 4 : 0;
       button(BTN.overA, contLabel(ck), (IS_TOUCH ? '' : 'C  ·  ') + (cost ? cost + ' altın' : 'BEDAVA'), true, can, sh);
       button(BTN.overB, IS_TOUCH ? 'BAŞTAN BAŞLA' : 'BAŞTAN BAŞLA  ·  ENTER', null, false, true);
-      text(can ? 'Devam edince puan sıfırlanır, 3 gemiyle etabın başından başlarsın.' : 'Devam için ' + (cost - G.coins) + ' altın daha gerekli.',
-        W / 2, BTN.overB.y + BTN.overB.h + 22, 12.5, can ? 'rgba(190,215,240,0.85)' : '#ff8f80', 'center', 500);
+      button(BTN.overC, IS_TOUCH ? 'ANA MENÜ' : 'ANA MENÜ  ·  ESC', null, false, true);
+      text(can ? 'Devam edince puan sıfırlanır, etabın başından başlarsın.' : 'Devam için ' + (cost - G.coins) + ' altın daha gerekli.',
+        W / 2, BTN.overC.y + BTN.overC.h + 22, 12.5, can ? 'rgba(190,215,240,0.85)' : '#ff8f80', 'center', 500);
     } else {
       button(BTN.overA, IS_TOUCH ? 'YENİDEN BAŞLA' : 'YENİDEN BAŞLA  ·  ENTER', null, true, true);
+      button(BTN.overB, IS_TOUCH ? 'ANA MENÜ' : 'ANA MENÜ  ·  ESC', null, false, true);
     }
   }
 
@@ -3012,7 +3042,7 @@
     drawVignette();
     if (G.mode === 'shop') drawShop();
     else if (G.mode === 'store') drawStore();
-    else if (G.mode === 'title') { drawTitle(); drawMuteBtn(); drawStoreBtn(); }
+    else if (G.mode === 'title') { drawTitle(); drawMuteBtn(); }
     else {
       drawHud();
       if (G.mode === 'gameover') { drawGameOver(); drawMuteBtn(); }
