@@ -881,8 +881,10 @@
       fitText(it.name, px, c.y + 101, 14, c.w - 12, lock ? 'rgba(225,238,250,0.6)' : '#ffffff', 700);
       if (sel) text('SEÇİLİ', px, c.y + 118, 12.5, '#7dffb0', 'center', 700);
       else if (has) text('SEÇ', px, c.y + 118, 12.5, '#ffe9b8', 'center', 700);
-      else if (lock) text('PİLOT SV ' + stInfo(i).req + ' GEREKLİ', px, c.y + 118, 11.5, '#9fb2c8', 'center', 700);
-      else { coinIcon(px - 20, c.y + 114, 4.5, 1); text(String(it.price), px - 12, c.y + 118.5, 13.5, can ? '#ffd95a' : '#ff8f80', 'left', 700); }
+      else {      // fiyat her zaman görünür; kilitliyse soluk ve sağ üstte seviye rozeti
+        coinIcon(px - 20, c.y + 114, 4.5, 1); text(String(it.price), px - 12, c.y + 118.5, 13.5, lock ? 'rgba(255,217,90,0.55)' : can ? '#ffd95a' : '#ff8f80', 'left', 700);
+        if (lock) { const lb = 'SV ' + stInfo(i).req; ctx.font = '700 10px ' + FONT; const lw = ctx.measureText(lb).width + 14; ctx.fillStyle = 'rgba(255,217,90,0.18)'; ctx.beginPath(); ctx.roundRect(x + c.w - lw - 6, c.y + 6, lw, 16, 8); ctx.fill(); text(lb, x + c.w - 6 - lw / 2, c.y + 18, 10, '#ffe9b8', 'center', 700); }
+      }
     }
     ctx.restore();
     if (stMaxScroll() > 0) { const f = (G.stScroll || 0) / stMaxScroll(); ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(W - 10, 114, 3, 400); ctx.fillStyle = '#ffd95a'; ctx.fillRect(W - 10, 114 + f * 340, 3, 60); }
