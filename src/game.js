@@ -1824,6 +1824,22 @@
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a0) * L.len, y0 + Math.sin(a0) * L.len); ctx.lineTo(x0 + Math.cos(a1) * L.len, y0 + Math.sin(a1) * L.len); ctx.closePath(); ctx.fill();
           ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.4 + 0.4 * k) + ')'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 6]);
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a0) * L.len, y0 + Math.sin(a0) * L.len); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a1) * L.len, y0 + Math.sin(a1) * L.len); ctx.stroke(); ctx.setLineDash([]);
+          // yön: ışının başlayacağı kenar kalın, süpürme yönünde akan oklu yay
+          const dir = L.sweep < 0 ? -1 : 1, as = L.ang, ae = L.ang + dir * 2 * L.wedge;      // başlangıç ve bitiş açıları
+          ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 + 0.5 * k) + ')'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(as) * L.len, y0 + Math.sin(as) * L.len); ctx.stroke();
+          for (let rr = 150; rr <= 390; rr += 120) {      // üç yayda akan çizgiler
+            const flow = (G.t * 2.5) % 1, segs = 6;
+            for (let q = 0; q < segs; q++) {
+              const f0 = (q + flow) / segs, f1 = f0 + 0.08; if (f1 > 1) continue;
+              ctx.strokeStyle = 'rgba(255,230,200,' + ((0.25 + 0.55 * f0) * (0.5 + 0.5 * k)) + ')'; ctx.lineWidth = 2.5;
+              ctx.beginPath(); ctx.arc(x0, y0, rr, as + (ae - as) * f0, as + (ae - as) * f1, dir < 0); ctx.stroke();
+            }
+            const tipA = ae, tx = x0 + Math.cos(tipA) * rr, ty = y0 + Math.sin(tipA) * rr, tangent = tipA + dir * Math.PI / 2;      // ok ucu
+            ctx.fillStyle = 'rgba(255,255,255,' + (0.6 + 0.4 * k) + ')';
+            ctx.beginPath(); ctx.moveTo(tx + Math.cos(tangent) * 9, ty + Math.sin(tangent) * 9);
+            ctx.lineTo(tx + Math.cos(tangent - 2.5) * 7, ty + Math.sin(tangent - 2.5) * 7); ctx.lineTo(tx + Math.cos(tangent + 2.5) * 7, ty + Math.sin(tangent + 2.5) * 7); ctx.closePath(); ctx.fill();
+          }
         }
       } else {
         const fl = 0.8 + 0.2 * Math.sin(G.t * 40);
