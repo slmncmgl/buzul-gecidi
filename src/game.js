@@ -1582,7 +1582,7 @@
     for (let i = shots.length - 1; i >= 0; i--) {
       const s = shots[i];
       if (s.homing && s.loiter > 0) {      // bekleyen misil: hedef yoksa gemi çevresinde tur atar
-        s.loiter -= dt; s.orbA += 3.2 * dt;
+        s.loiter -= dt; s.orbA += 1.9 * dt;
         if (!s.tgt || s.tgt.dead) {
           s.tgt = null;
           const cand = [];
@@ -1590,9 +1590,11 @@
           if (cand.length) s.tgt = cand[Math.floor(Math.random() * cand.length)];
         }
         if (!s.tgt) {
-          const tx = P.x + Math.cos(s.orbA) * 44, tw = P.wy + 36 + Math.sin(s.orbA) * 34;
-          s.vx = approach(s.vx, (tx - s.x) * 7, 1600 * dt);
-          s.v = approach(s.v, P.speed + (tw - s.wy) * 7, 1600 * dt);
+          // bekleme deseni: geminin ilerisinde geniş bir daire (piste inemeyen uçaklar gibi)
+          const cw = P.wy + 215, tt = terrain(cw, T2), cx = clamp(P.x, tt.L + 70, tt.R - 70), rx = Math.min(95, (tt.R - tt.L) / 2 - 16);
+          const tx = cx + Math.cos(s.orbA) * rx, tw = cw + Math.sin(s.orbA) * 62;
+          s.vx = approach(s.vx, (tx - s.x) * 4.5, 1300 * dt);
+          s.v = approach(s.v, P.speed + (tw - s.wy) * 4.5, 1300 * dt);
           if (Math.random() < 0.5) part(s.x, s.wy - 4, rand(-8, 8), P.speed * 0.7, rand(0.2, 0.4), rand(1, 2), '#b8ffd8', true);
           s.wy += s.v * dt; s.x += s.vx * dt;
           continue;
