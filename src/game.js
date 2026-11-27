@@ -1190,7 +1190,8 @@
     e.wy = P.wy + PSY - e.scr;
     const t = terrain(e.wy, T2);
     const swayX = W / 2 + Math.sin(G.t * 0.9 + e.ph) * (e.kind === 5 ? 110 : 84);
-    if (e.lg) e.x = clamp(approach(e.x, e.lg.lx, 520 * dt), t.L + 30, t.R - 30);      // atılımda hedef: başlangıçtaki kızak konumu
+    if (e.ult) { /* özel saldırı boyunca bekçi yerinde durur: kaçış alanı sabit kalsın */ }
+    else if (e.lg) e.x = clamp(approach(e.x, e.lg.lx, 520 * dt), t.L + 30, t.R - 30);      // atılımda hedef: başlangıçtaki kızak konumu
     else if (e.tx != null) { e.tx = approach(e.tx, swayX, 22 * dt); e.x = clamp(e.tx, t.L + 46, t.R - 46); }      // kuzgun ışınlandıktan sonra yavaşça yörüngesine döner
     else e.x = clamp(swayX, t.L + 46, t.R - 46);
     if (e.flee) return false;
@@ -1209,7 +1210,7 @@
       const u = e.ult; u.t += dt; e.ulti = clamp(u.t / 0.9, 0, 1);
       if (u.t >= 0.9 && !u.fired) { u.fired = true; ultiFire(e, u, t, shoot, rage, tier); }
       if (u.fired) ultiTick(e, u, t, shoot, rage);
-      if (u.t >= 0.9 + u.dur) { e.ult = null; e.ulti = 0; e.cd3 = Math.max(4.2, 7.5 - 0.3 * tier) / rage; }
+      if (u.t >= 0.9 + u.dur) { e.ult = null; e.ulti = 0; e.tx = e.x; e.cd3 = Math.max(4.2, 7.5 - 0.3 * tier) / rage; }      // sonra yörüngesine yumuşakça döner
     }
     if (e.cd <= 0 && e.scr > 70 && !e.ult) {
       const v = 135 * e.hard, k = e.kind === 4 ? Math.floor(G.t / 4) % 4 : e.kind === 9 ? 5 + Math.floor(G.t / 4) % 4 : e.kind;      // 5. ve 10. bekçi önceki desenleri sırayla dener
