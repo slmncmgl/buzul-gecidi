@@ -167,7 +167,7 @@
     stats: { deaths: [], gates: 0 }
   };
   const P = { x: W / 2, wy: 40, vx: 0, speed: SPEED_CRUISE, inv: 0, fireCd: 0, tilt: 0, holdT: 0, charge: 0 };
-  let shots = [], ents = [], orbs = [], parts = [], pops = [], coinsL = [], shells = [], bolts = [], rings = [];
+  let shots = [], ents = [], orbs = [], parts = [], pops = [], coinsL = [], shells = [], bolts = [], rings = [], lasers = [], novas = [], walls = [];
   let armed = {};
   let muted = store('bg_muted') === '1';
 
@@ -457,7 +457,7 @@
       if (sp.type === 'beam') { e.hw = (sp.maxX - sp.minX) / 2; e.hp = 1e9; e.onT = sp.period * 0.55; e.period = sp.period + 2; e.bph = sp.ph;   // açık süre aynı, kapalı süre +2 sn
         e.on = false; e.warn = false; }
       else if (sp.type === 'whirl') { e.hp = 1e9; e.r = sp.r; }
-      else if (sp.type === 'boss') { e.hp = e.maxHp = 160 + 90 * tier; e.kind = tier % 10; e.spin = 0; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
+      else if (sp.type === 'boss') { e.baseHp = 200 + 110 * tier; e.hp = e.maxHp = e.baseHp; e.kind = tier % 10; e.cd3 = 4.5; e.ulti = 0; e.lunge = 0; e.spin = 0; e.scr = -60; e.on = false; e.flee = false; e.cd = 1.6; e.cd2 = 4; e.arenaEnd = s.arenaEnd; }
     }
     for (let i = 0; i < s.coins.length; i++) {
       const c = s.coins[i];
@@ -660,7 +660,7 @@
     G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0; G.magOn = 0; G.windPf = 0; G.skate = 0; G.onLand = false;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
-    G.stats.deaths = []; G.stats.gates = 0; G.breath = 0; bolts.length = 0; rings.length = 0;
+    G.stats.deaths = []; G.stats.gates = 0; G.breath = 0; bolts.length = 0; rings.length = 0; clearUltis();
     pilotStart();
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.5; P.fireCd = 0.35; P.tilt = 0;
     shots.length = 0; orbs.length = 0; shells.length = 0; parts.length = 0; pops.length = 0;
@@ -680,14 +680,14 @@
 
   function die(why, hard) {
     if (G.mode !== 'playing') return;
-    if (G.shield > 0 && !hard && (why === 'crash' || why === 'beam')) {      // kalkan: düşman, mermi ve ışık çitini bir kez emer (kıyı ve girdap hariç)
+    if (G.shield > 0 && !hard && (why === 'crash' || why === 'beam' || why.indexOf('ulti:') === 0)) {      // kalkan: düşman, mermi ve ışık çitini bir kez emer (kıyı ve girdap hariç)
       G.shield--; P.inv = 1.3; G.flash = Math.max(G.flash, 0.3); G.shake = Math.max(G.shake, 6); padRumble(200, 0.6);
       boom(P.x, P.wy, 18, ['#ffffff', '#bfe4ff', '#5fb4ff'], 130);
       pop(P.x, P.wy + 40, G.shield ? 'KALKAN −1' : 'KALKAN KIRILDI', '#8fd0ff'); A.play('shatter');
       return;
     }
     G.mode = 'dying'; G.deathT = 1.5; G.shake = 9; padRumble(450, 1);
-    G.deathMsg = why === 'freeze' ? (G.heat <= 0 ? 'YAKIT BİTTİ — DÜŞTÜN' : 'BUZA SAPLANDIN') : why === 'beam' ? 'IŞIK ÇİTİNE ÇARPTIN' : why === 'whirl' ? 'GİRDABA KAPILDIN' : 'GEMİ PARÇALANDI';
+    G.deathMsg = why.indexOf('ulti:') === 0 ? why.slice(5) : why === 'freeze' ? (G.heat <= 0 ? 'YAKIT BİTTİ — DÜŞTÜN' : 'BUZA SAPLANDIN') : why === 'beam' ? 'IŞIK ÇİTİNE ÇARPTIN' : why === 'whirl' ? 'GİRDABA KAPILDIN' : 'GEMİ PARÇALANDI';
     G.stats.deaths.push({ why: why, sec: G.sec, wy: Math.round(P.wy), x: Math.round(P.x) });
     if (why === 'freeze') { boom(P.x, P.wy, 26, ['#ffffff', '#bfe9ff', '#7fc8ff', '#e8f7ff'], 90); A.play('freeze'); }
     else { boom(P.x, P.wy, 34, ['#ffffff', '#ffd27a', '#ff8a3c', '#ff5a36'], 150); A.play('playerDie'); }
@@ -712,7 +712,7 @@
       return;
     }
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0;
-    G.heat = 100; shots.length = 0; orbs.length = 0; shells.length = 0;
+    G.heat = 100; shots.length = 0; orbs.length = 0; shells.length = 0; clearUltis();
     mouse.mx = 0; mouse.my = 0;                          // yeniden doğunca sıfır noktası da yenilenir
     G.blastCd = 0; P.holdT = 0; P.charge = 0; G.breath = 0;            // yeni kızak, yaylım hazır
     pilotStart();
@@ -783,6 +783,10 @@
       G.wind = G.windPf ? 0 : w0 * dir * env * (1 + 0.15 * s.loop);
       G.windWarn = c > 0.2 && c < 3.2 ? dir : 0;
     } else { G.wind = 0; G.windWarn = 0; G.windT = 0; }
+    if (G.gust && G.gust.t > 0) {      // bekçi fırtınası: güçlü yan rüzgâr (Vega etkilenmez)
+      G.gust.t -= dt;
+      if (!G.windPf) { G.wind += G.gust.dir * 125 * Math.min(1, G.gust.t * 2, (2.6 - G.gust.t) * 3); G.windWarn = G.gust.dir; }
+    }
     A.setWind(Math.min(1, Math.abs(G.wind) / 60));
 
     if (touch.on && !cfg.auto) {
@@ -1143,23 +1147,49 @@
   }
   function bossUpdate(e, dt, playing) {
     if (!playing) return false;
-    if (!e.on) { e.on = true; e.scr = -60; G.boss = e; pop(W / 2, P.wy + 260, BOSS_NAMES[e.kind || 0] + ' GELİYOR', '#ff8f80'); A.play('orb'); }
+    if (!e.on) {
+      e.on = true; e.scr = -60; G.boss = e; pop(W / 2, P.wy + 260, BOSS_NAMES[e.kind || 0] + ' GELİYOR', '#ff8f80'); A.play('orb');
+      e.maxHp = e.hp = Math.round(e.baseHp * (1 + 0.1 * G.power + 0.12 * G.wing));      // can: silah gücüne ve dronlara göre katsayı
+    }
     if (e.flee || P.wy > e.arenaEnd) {
-      if (!e.flee) { e.flee = true; pop(W / 2, P.wy + 220, 'BEKÇİ KAÇTI', '#ff8f80'); }
+      if (!e.flee) { e.flee = true; pop(W / 2, P.wy + 220, 'BEKÇİ KAÇTI', '#ff8f80'); clearUltis(); e.lg = null; e.ult = null; e.ulti = 0; e.lunge = 0; }
       e.scr -= 240 * dt;
       if (e.scr < -36) { e.dead = true; G.boss = null; }
-    } else e.scr += (120 - e.scr) * Math.min(1, dt * 1.4);
+    } else {
+      let scrT = 120;
+      if (e.lg) {      // atılım: hızla kızağın üstüne iner, sonra geri çekilir
+        const g = e.lg; g.t += dt;
+        const ph = g.t < 0.4 ? g.t / 0.4 : g.t < 0.55 ? 1 : g.t < 1.3 ? 1 - (g.t - 0.55) / 0.75 : 0;
+        e.lunge = ph; scrT = 120 + (PSY - 6 - 120) * ph;
+        if (g.t >= 1.3) { e.lg = null; e.lunge = 0; }
+      }
+      e.scr += (scrT - e.scr) * Math.min(1, dt * (e.lg ? 10 : 1.4));
+    }
     e.wy = P.wy + PSY - e.scr;
     const t = terrain(e.wy, T2);
     const swayX = W / 2 + Math.sin(G.t * 0.9 + e.ph) * (e.kind === 5 ? 110 : 84);
-    if (e.tx != null) { e.tx = approach(e.tx, swayX, 22 * dt); e.x = clamp(e.tx, t.L + 46, t.R - 46); }      // kuzgun ışınlandıktan sonra yavaşça yörüngesine döner
+    if (e.lg) e.x = clamp(approach(e.x, e.lg.lx, 520 * dt), t.L + 30, t.R - 30);      // atılımda hedef: başlangıçtaki kızak konumu
+    else if (e.tx != null) { e.tx = approach(e.tx, swayX, 22 * dt); e.x = clamp(e.tx, t.L + 46, t.R - 46); }      // kuzgun ışınlandıktan sonra yavaşça yörüngesine döner
     else e.x = clamp(swayX, t.L + 46, t.R - 46);
     if (e.flee) return false;
-    e.cd -= dt; e.cd2 -= dt;
-    const base = Math.atan2(PSY - e.scr, P.x - e.x), rage = e.hp < e.maxHp * 0.4 ? 1.35 : 1;
+    e.cd -= dt; e.cd2 -= dt; e.cd3 -= dt;
+    const base = Math.atan2(PSY - e.scr, P.x - e.x), rage = e.hp < e.maxHp * 0.4 ? 1.35 : 1, tier = Math.floor(G.sec / BOSS_EVERY);
     const shoot = (a, v) => orbs.push({ x: e.x, wy: e.wy - 12, vx: Math.cos(a) * v, vy: P.speed - Math.sin(a) * v });
     e.spin = (e.spin || 0) + dt * (e.kind === 1 ? 2.6 : 1.2) * rage;
-    if (e.cd <= 0 && e.scr > 70) {
+    if (e.lg && e.lg.ring && !e.lg.shot && e.lg.t >= 0.4) { e.lg.shot = true; for (let q = 0; q < 12; q++) shoot(q * Math.PI / 6 + e.spin, 150 * e.hard); A.play('orb'); }
+    // --- özel saldırı (ulti): şarj, sonra bekçiye özgü büyük saldırı
+    if (!e.ult && e.cd3 <= 0 && e.scr > 70 && !e.lg) {
+      const uk = e.kind === 9 ? [0, 4, 6, 5][(e.uc = ((e.uc || 0) + 1) % 4)] : e.kind;
+      e.ult = { k: uk, t: 0, fired: false, dur: uk === 8 ? 3.8 : uk === 4 ? 1.4 : 1.1 };
+      pop(W / 2, P.wy + 200, ULTI_NAMES[e.kind], '#ff8f80'); A.play('blastReady'); G.shake = Math.max(G.shake, 3);
+    }
+    if (e.ult) {
+      const u = e.ult; u.t += dt; e.ulti = clamp(u.t / 0.9, 0, 1);
+      if (u.t >= 0.9 && !u.fired) { u.fired = true; ultiFire(e, u, t, shoot, rage, tier); }
+      if (u.fired) ultiTick(e, u, t, shoot, rage);
+      if (u.t >= 0.9 + u.dur) { e.ult = null; e.ulti = 0; e.cd3 = Math.max(4.2, 7.5 - 0.3 * tier) / rage; }
+    }
+    if (e.cd <= 0 && e.scr > 70 && !e.ult) {
       const v = 135 * e.hard, k = e.kind === 4 ? Math.floor(G.t / 4) % 4 : e.kind === 9 ? 5 + Math.floor(G.t / 4) % 4 : e.kind;      // 5. ve 10. bekçi önceki desenleri sırayla dener
       if (k === 0) {      // Gözcü: oyuncuya yelpaze
         const n = e.hard > 1.2 ? 5 : 3;
@@ -1204,8 +1234,146 @@
     }
     return true;
   }
+  const ULTI_NAMES = ['RADAR SÜPÜRMESİ', 'ÖRÜMCEK ATILIMI', 'FIRTINA', 'BOMBARDIMAN', 'DON DALGASI', 'KUYRUK SÜPÜRMESİ', 'ÖLÜM BAKIŞI', 'YER SARSINTISI', 'KARANLIK', 'YARGI'];
+  function clearUltis() { lasers.length = 0; novas.length = 0; walls.length = 0; G.gust = null; G.dark = 0; }
+  function startLunge(e, ring) { e.lg = { t: 0, lx: P.x, ring: !!ring, shot: false }; A.play('bigExplode'); }
+  function novaCast(e, th, gaps) {      // don dalgası: halkada iki-üç açıklık var, oradan geçilir
+    const ga = [], base = rand(0, 6.28);
+    for (let q = 0; q < gaps; q++) ga.push(base + q * 6.283 / gaps);
+    novas.push({ x: e.x, wy: e.wy, r: 14, v: 190, th: th, gaps: ga, gw: 0.8, life: 3 });
+  }
+  function ultiFire(e, u, t, shoot, rage, tier) {
+    const k = u.k;
+    if (k === 0) {      // Gözcü: radar ışını arenayı bir uçtan öbürüne süpürür
+      const dir = (e.sw = !e.sw) ? 1 : -1;
+      lasers.push({ e: e, ang: Math.PI / 2 + dir * 1.05, sweep: -dir * 2.1 / 1.7, warn: 0.6, dur: 1.7, len: 620, w: 7, t: 0, col: '255,90,90' });
+      u.dur = 2.4;
+    } else if (k === 1) {      // Örümcek: atılım, dipte halka
+      startLunge(e, true); u.dur = 1.4;
+    } else if (k === 2) {      // Kartal: fırtına + tüy yağmuru
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      G.gust = { dir: dir, t: 2.6 };
+      for (let q = 0; q < 9; q++) orbs.push({ x: rand(t.L + 10, t.R - 10), wy: P.wy + 540 + q * 2, vx: dir * 45, vy: P.speed - 150 - q * 16 });      // tüyler art arda iner
+      u.dur = 2.8;
+    } else if (k === 3) {      // Kale: bombardıman + buz duvarı
+      for (let q = 0; q < 6; q++) { const T = 1.1 + q * 0.12; shells.push({ sx: e.x, swy: e.wy, x: clamp(P.x + rand(-70, 70), 16, W - 16), wy: P.wy + P.speed * T + rand(-40, 40), t: T, T: T }); }
+      const wy = P.wy + 210, tt = terrain(wy, T2), cnt = Math.floor((tt.R - tt.L - 6) / 20), x0 = tt.L + (tt.R - tt.L - (cnt - 1) * 20) / 2;
+      for (let b = 0; b < cnt; b++) mkEnt('ice', x0 + b * 20, wy, e.hard, { hp: 2 });
+      u.dur = 1.8;
+    } else if (k === 4) {      // Kral: don dalgası (ikinci dalga ultiTick'te)
+      novaCast(e, 9, 2); u.n2 = true; u.dur = 2.2;
+    } else if (k === 5) {      // Yılan: kuyruk süpürmesi, tek geçit
+      const tt = terrain(e.wy - 70, T2);
+      walls.push({ wy: e.wy - 70, L: tt.L, R: tt.R, gx: rand(tt.L + 50, tt.R - 50), gw: 78, v: 115, life: 6 });
+      u.dur = 1.2;
+    } else if (k === 6) {      // Göz: bakış ışını kızağı izler, kilitlenir, ateşler
+      lasers.push({ e: e, ang: Math.PI / 2, sweep: 0, warn: 1.0, dur: 0.6, len: 640, w: 9, t: 0, track: true, col: '255,120,220' });
+      u.dur = 1.8;
+    } else if (k === 7) {      // Dev: yer sarsıntısı, kaya yağmuru, dalga
+      G.shake = 12; novaCast(e, 7, 3);
+      for (let q = 0; q < 7; q++) orbs.push({ x: rand(t.L + 20, t.R - 20), wy: P.wy + 545 + q * 2, vx: rand(-20, 20), vy: P.speed - 120 - q * 20, big: true, hp: 4 });
+      u.dur = 2.4;
+    } else if (k === 8) {      // Kuzgun: karanlık; ışınlanıp nişan alır, sonunda dalar (ultiTick)
+      G.dark = 3.8; u.dur = 3.8;
+    }
+  }
+  function ultiTick(e, u, t, shoot, rage) {
+    const k = u.k, ft = u.t - 0.9;      // ateşlemeden bu yana geçen süre
+    if (k === 4 && u.n2 && ft > 0.7) { u.n2 = false; novaCast(e, 9, 2); }
+    if (k === 8) {
+      const base = Math.atan2(PSY - e.scr, P.x - e.x);
+      if (!u.s1 && ft > 0.9) { u.s1 = true; e.tx = rand(t.L + 50, t.R - 50); for (let q = -1; q <= 1; q++) shoot(base + q * 0.12, 160 * e.hard); A.play('orb'); }
+      if (!u.s2 && ft > 1.8) { u.s2 = true; e.tx = rand(t.L + 50, t.R - 50); for (let q = -1; q <= 1; q++) shoot(base + q * 0.12, 160 * e.hard); A.play('orb'); }
+      if (!u.s3 && ft > 2.5) { u.s3 = true; startLunge(e, false); }
+    }
+  }
+  function updateUltis(dt) {
+    G.dark = Math.max(0, (G.dark || 0) - dt);
+    const live = P.inv <= 0 && !cfg.god && G.mode === 'playing';
+    for (let i = lasers.length - 1; i >= 0; i--) {
+      const L = lasers[i], e = L.e; L.t += dt;
+      if (e.dead || e.flee || L.t > L.warn + L.dur) { lasers.splice(i, 1); continue; }
+      const x0 = e.x, y0 = e.scr - 4;
+      if (L.track && L.t < L.warn) L.ang = Math.atan2(PSY - y0, P.x - x0);
+      else if (L.t >= L.warn) L.ang += L.sweep * dt;
+      L.on = L.t >= L.warn;
+      if (L.on && live) {      // nokta-doğru parçası uzaklığı
+        const cx = Math.cos(L.ang), cy = Math.sin(L.ang), px = P.x - x0, py = PSY - y0, pr = clamp(px * cx + py * cy, 0, L.len);
+        if (Math.hypot(px - cx * pr, py - cy * pr) < L.w + 7) die('ulti:IŞINA YAKALANDIN');
+      }
+    }
+    for (let i = novas.length - 1; i >= 0; i--) {
+      const n = novas[i]; n.r += n.v * dt; n.life -= dt;
+      if (n.life <= 0 || n.r > 560) { novas.splice(i, 1); continue; }
+      if (live) {
+        const dx = P.x - n.x, dy = P.wy - n.wy, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+        let inGap = false;
+        for (let q = 0; q < n.gaps.length; q++) { let da = Math.abs(((a - n.gaps[q]) % 6.283 + 9.425) % 6.283 - 3.1416); if (da < n.gw / 2) inGap = true; }
+        if (!inGap && Math.abs(d - n.r) < n.th + 8) die('ulti:DON DALGASINA YAKALANDIN');
+      }
+    }
+    for (let i = walls.length - 1; i >= 0; i--) {
+      const w = walls[i]; w.wy -= w.v * dt; w.life -= dt;
+      if (w.life <= 0 || w.wy < P.wy - 80) { walls.splice(i, 1); continue; }
+      if (live && Math.abs(P.wy - w.wy) < 11 && P.x > w.L && P.x < w.R && Math.abs(P.x - w.gx) > w.gw / 2) die('ulti:KUYRUK SÜPÜRMESİNE ÇARPTIN');
+    }
+  }
+  function drawUltis() {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    for (let i = 0; i < lasers.length; i++) {
+      const L = lasers[i], e = L.e, x0 = e.x, y0 = e.scr - 4, x1 = x0 + Math.cos(L.ang) * L.len, y1 = y0 + Math.sin(L.ang) * L.len;
+      if (!L.on) {      // uyarı: ince kesik çizgi, gittikçe parlar
+        const k = L.t / L.warn;
+        ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.25 + 0.5 * k) + ')'; ctx.lineWidth = 1.5 + k; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -G.t * 60;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+        glow(x0, y0, 16 + 14 * k, L.col, 0.5 + 0.4 * k);
+      } else {
+        const fl = 0.8 + 0.2 * Math.sin(G.t * 40);
+        ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.35 * fl) + ')'; ctx.lineWidth = L.w * 3.2; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.9 * fl) + ')'; ctx.lineWidth = L.w * 1.4; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.95 * fl) + ')'; ctx.lineWidth = L.w * 0.5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        glow(x0, y0, 34, L.col, 0.9);
+      }
+    }
+    for (let i = 0; i < novas.length; i++) {
+      const n = novas[i], y = sy(n.wy), a = Math.min(1, n.life / 0.8);
+      for (let w = 0; w < 2; w++) {
+        ctx.strokeStyle = w ? 'rgba(255,255,255,' + (0.9 * a) + ')' : 'rgba(150,220,255,' + (0.5 * a) + ')'; ctx.lineWidth = w ? n.th * 0.9 : n.th * 2.6;
+        ctx.beginPath();
+        for (let q = 0; q < n.gaps.length; q++) {      // açıklıklar arasındaki yaylar (dünya açısı; ekran y ters)
+          const a0 = n.gaps[q] + n.gw / 2, a1 = n.gaps[(q + 1) % n.gaps.length] - n.gw / 2 + (q + 1 >= n.gaps.length ? 6.283 : 0);
+          ctx.moveTo(n.x + Math.cos(a0) * n.r, y - Math.sin(a0) * n.r);
+          for (let s2 = 1; s2 <= 24; s2++) { const an = a0 + (a1 - a0) * s2 / 24; ctx.lineTo(n.x + Math.cos(an) * n.r, y - Math.sin(an) * n.r); }
+        }
+        ctx.stroke();
+      }
+    }
+    for (let i = 0; i < walls.length; i++) {      // yılan gövdesi: geçit dışında halkalı kuyruk
+      const w = walls[i], y = sy(w.wy), bob = Math.sin(G.t * 6) * 2;
+      for (let x = w.L + 8; x < w.R - 6; x += 13) {
+        if (Math.abs(x - w.gx) < w.gw / 2) continue;
+        const yy = y + Math.sin(x * 0.12 + G.t * 7) * 3 + bob;
+        glow(x, yy, 12, '120,200,255', 0.35);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = '#2f6f99'; ctx.beginPath(); ctx.arc(x, yy, 7, 0, 6.3); ctx.fill();
+        ctx.fillStyle = '#9fdcff'; ctx.beginPath(); ctx.arc(x - 2, yy - 2, 3.5, 0, 6.3); ctx.fill();
+        ctx.strokeStyle = '#0b2538'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, yy, 7, 0, 6.3); ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+      }
+      ctx.strokeStyle = 'rgba(125,255,176,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);      // geçit işareti
+      ctx.beginPath(); ctx.moveTo(w.gx - w.gw / 2, y - 12); ctx.lineTo(w.gx - w.gw / 2, y + 12); ctx.moveTo(w.gx + w.gw / 2, y - 12); ctx.lineTo(w.gx + w.gw / 2, y + 12); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.restore();
+    if (G.dark > 0) {      // kuzgunun karanlığı: yalnız kızağın çevresi görünür
+      const a = Math.min(1, G.dark * 2, (3.8 - G.dark) * 2.5) * 0.93;
+      const g = ctx.createRadialGradient(P.x, PSY, 60, P.x, PSY, 170);
+      g.addColorStop(0, 'rgba(8,2,20,0)'); g.addColorStop(1, 'rgba(8,2,20,' + a + ')');
+      ctx.fillStyle = g; ctx.fillRect(-12, -12, W + 24, H + 24);
+      if (G.boss) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(G.boss.x, G.boss.scr, 30, '255,60,60', 0.8 * a); ctx.restore(); }      // sadece gözleri parlar
+    }
+  }
   function bossDown(e) {
-    G.boss = null;
+    G.boss = null; clearUltis();
     for (let q = 0; q < 3; q++) boom(e.x + rand(-26, 26), e.wy + rand(-10, 10), 30, ['#ffffff', '#ffd27a', '#d58bff', '#ff5a36'], 170);
     G.shake = 11; G.flash = 0.4;
     // ödül: önüne altın saçılır
@@ -1401,6 +1569,7 @@
       }
       if (e.dead) continue;
       if (!(e.sub > 0.5) && P.inv <= 0 && !cfg.god && Math.abs(P.x - e.x) < e.hw + 5 && Math.abs(P.wy - e.wy) < e.hh + 8) {
+        if (e.type === 'boss') { if (!e.flee) die('ulti:BEKÇİYE ÇARPTIN'); continue; }      // bekçi çarpışmadan ölmez
         kill(e, false);
         die('crash');
       }
@@ -1553,7 +1722,7 @@
       A.stopEngine(); A.setWind(0);
     } else if (G.mode === 'playing') {
       updatePlayer(dt);
-      updateShots(dt); updateEnts(dt); updateOrbs(dt); updateShells(dt);
+      updateShots(dt); updateEnts(dt); updateOrbs(dt); updateShells(dt); updateUltis(dt);
       scroll = P.speed;
       setPal(dt, sec(G.sec).info.pal);
       G.fog += ((sec(G.sec).info.fog || 0) * (G.av === 3 ? 0.35 : 1) - G.fog) * Math.min(1, dt * 0.9);
@@ -2037,7 +2206,7 @@
   }
   function drawBossKind(e, x, y, fl) {
     const hpf = clamp(e.hp / e.maxHp, 0, 1), k = e.kind || 0, t = G.t;
-    if (k >= 5 && window.FOES) { FOES.drawBoss(ctx, e, x, y, t); return; }
+    if (window.FOES) { FOES.drawBoss(ctx, e, x, y, t); return; }      // tüm bekçiler foes.js'te çizilir; aşağısı yedek
     // gölge + su halkası
     ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.beginPath(); ctx.ellipse(x + 6, y + 14, 48, 15, 0, 0, 6.3); ctx.fill();
     ctx.strokeStyle = 'rgba(220,240,255,' + (0.18 + 0.1 * Math.sin(t * 3)) + ')'; ctx.lineWidth = 1.2;
@@ -2815,7 +2984,7 @@
     ROUND = 1.6; drawDeco(); ROUND = 0;
     drawGates();
     if (G.mode !== 'title' && G.mode !== 'store') {
-      drawCoins(); ROUND = 2.2; drawEnts(); ROUND = 0; drawShots(); drawBlastFx(); drawOrbs(); drawShells();
+      drawCoins(); ROUND = 2.2; drawEnts(); ROUND = 0; drawShots(); drawBlastFx(); drawOrbs(); drawShells(); drawUltis();
       if (G.mode === 'playing' || G.mode === 'paused') { ROUND = 2; drawPlayer(); ROUND = 0; }
     }
     drawNight();

@@ -32,7 +32,7 @@
     { name: 'Kurt Geçidi',     name2: 'Avcı Vadisi',       pal: 2, cps: 20, minHalf: 44,  maxHalf: 88,  shift: 74,  islands: 0, gap: [140, 220], form: 0.30, mix: { hunter: 4, boat: 2, skim: 2, mine: 2 }, ventGap: 1050, drain: 1.05 },
     { name: 'Işık Çitleri',    name2: 'Kızıl Bariyer',     pal: 3, cps: 18, minHalf: 60,  maxHalf: 120, shift: 60,  islands: 2, gap: [150, 230], form: 0.30, mix: { beam: 4, mine: 2, boat: 3, skim: 2, turret: 1 }, ventGap: 1050, drain: 1.05 },
     { name: 'Aurora Düzlüğü',  name2: 'Yeşil Ova',         pal: 3, cps: 20, minHalf: 100, maxHalf: 160, shift: 40,  islands: 4, gap: [100, 170], form: 0.35, mix: { turret: 4, boat: 3, skim: 3, mine: 2, hunter: 2 }, ventGap: 1100, drain: 1.1 },
-    { name: 'Gözcünün Koyu',   name2: 'Gözcünün Pususu',   pal: 2, cps: 30, minHalf: 62,  maxHalf: 130, shift: 56,  islands: 1, gap: [130, 200], form: 0.30, mix: { mine: 3, boat: 2, skim: 2, turret: 1, hunter: 1, ice: 1 }, ventGap: 1000, drain: 1.1, boss: true },
+    { name: 'Gözcünün Koyu',   name2: 'Gözcünün Pususu',   pal: 2, cps: 42, minHalf: 62,  maxHalf: 130, shift: 56,  islands: 1, gap: [130, 200], form: 0.30, mix: { mine: 3, boat: 2, skim: 2, turret: 1, hunter: 1, ice: 1 }, ventGap: 1000, drain: 1.1, boss: true },
     { name: 'Hızlı Akıntı',    name2: 'Çağlayan Hattı',    pal: 4, cps: 20, minHalf: 80,  maxHalf: 140, shift: 44,  islands: 1, gap: [150, 230], form: 0.30, mix: { mine: 3, ice: 2, skim: 2, boat: 2, hunter: 1 }, ventGap: 1100, drain: 1.1, rapids: 3 },
     { name: 'Yılan Kanal',     name2: 'Kıvrım Boğazı',     pal: 0, cps: 20, minHalf: 46,  maxHalf: 78,  shift: 104, islands: 0, gap: [150, 230], form: 0.30, mix: { mine: 3, boat: 2, skim: 2, ice: 2 }, ventGap: 1100, drain: 1.1 },
     { name: 'Fener Adaları',   name2: 'Işıklı Takımada',   pal: 1, cps: 22, minHalf: 62,  maxHalf: 156, shift: 70,  islands: 6, gap: [120, 200], form: 0.35, mix: { boat: 4, turret: 3, mine: 2, skim: 2, hunter: 2, ice: 1 }, ventGap: 1150, drain: 1.15 },
@@ -42,10 +42,10 @@
     { name: 'Buz Labirenti',   name2: 'Kristal Dehliz',    pal: 0, cps: 22, minHalf: 60,  maxHalf: 156, shift: 70,  islands: 7, gap: [110, 180], form: 0.35, mix: { ice: 4, beam: 2, whirl: 2, mine: 2, boat: 2, turret: 2, hunter: 1 }, ventGap: 1150, drain: 1.2 },
     { name: 'Kuzey Kapısı',    name2: 'Son Boğaz',         pal: 1, cps: 24, minHalf: 50,  maxHalf: 156, shift: 90,  islands: 5, gap: [95, 170],  form: 0.45, mix: { mine: 3, boat: 3, skim: 3, turret: 3, hunter: 2, ice: 2, beam: 1 }, ventGap: 1200, drain: 1.25, wind: 40 },
     { name: 'Pusu Koyu',       name2: 'Tuzak Körfezi',     pal: 3, cps: 22, minHalf: 54,  maxHalf: 140, shift: 80,  islands: 4, gap: [100, 170], form: 0.45, mix: { hunter: 3, turret: 3, whirl: 2, beam: 2, mine: 2, skim: 2, boat: 2 }, ventGap: 1200, drain: 1.25 },
-    { name: 'Bekçinin Kapısı', name2: 'Bekçinin Dönüşü',   pal: 2, cps: 32, minHalf: 60,  maxHalf: 130, shift: 60,  islands: 1, gap: [110, 180], form: 0.40, mix: { mine: 3, boat: 2, skim: 2, turret: 2, hunter: 2, ice: 2, beam: 1 }, ventGap: 1000, drain: 1.2, boss: true }
+    { name: 'Bekçinin Kapısı', name2: 'Bekçinin Dönüşü',   pal: 2, cps: 44, minHalf: 60,  maxHalf: 130, shift: 60,  islands: 1, gap: [110, 180], form: 0.40, mix: { mine: 3, boat: 2, skim: 2, turret: 2, hunter: 2, ice: 2, beam: 1 }, ventGap: 1000, drain: 1.2, boss: true }
   ];
 
-  var NS = DEFS.length, LOOP_ROWS = 0, ARENA = 22;
+  var NS = DEFS.length, LOOP_ROWS = 0, ARENA = 34;      // bekçi alanı uzun: kaçmadan önce daha çok süre
   for (var d = 0; d < NS; d++) LOOP_ROWS += DEFS[d].cps * CP;
 
   // Tur planı: ilk tur tablo sırasıyla oynanır. Sonraki turlarda etapların sırası karışır
