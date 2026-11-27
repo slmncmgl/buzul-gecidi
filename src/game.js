@@ -2558,7 +2558,7 @@
 
     const lines = [
       'Yakıtın bitmeden buz kanyonunu geç.',
-      'Eski ısı istasyonlarının üstünden yavaş',
+      'Yakıt istasyonlarının üstünden yavaş',
       'geçersen daha çok yakıt alırsın. Altınla',
       'kaldığın etaptan devam edebilirsin.'
     ];
