@@ -154,7 +154,7 @@
   const pilotLevel = () => { let l = 1; for (let i = 1; i < LV_MIN.length; i++) if (G.fly / 60 >= LV_MIN[i]) l = i + 1; return l; };
   const lvProgress = () => { const l = pilotLevel(); if (l >= LV_MIN.length) return 1; return clamp((G.fly / 60 - LV_MIN[l - 1]) / (LV_MIN[l] - LV_MIN[l - 1]), 0, 1); };
   // Kullanıcı ayarları: müzik/efekt sesi, titreşim, ekran sarsıntısı, düğme tarafı
-  const MENU = { title: 1, store: 1, meta: 1, map: 1, settings: 1, lb: 1 };      // arka planda nehir akar, oyun nesneleri çizilmez
+  const MENU = { title: 1, store: 1, meta: 1, map: 1, settings: 1, lb: 1, codex: 1 };      // arka planda nehir akar, oyun nesneleri çizilmez
   const SET_DEF = { music: 0.8, sfx: 1, vib: 1, shake: 1, side: 0 };
   const loadSet = () => { try { return Object.assign({}, SET_DEF, JSON.parse(store('bg_set') || '{}')); } catch (_) { return Object.assign({}, SET_DEF); } };
   const vib = (ms) => { if (IS_TOUCH && G.set && G.set.vib && navigator.vibrate) { try { navigator.vibrate(ms); } catch (_) { } } };
@@ -280,7 +280,7 @@
       return;
     }
     if (G.mode === 'map') { if (hit[1]) closePage(); else if (hit[12]) mapResult(MAP.key('ArrowUp', mapSt())); else if (hit[13]) mapResult(MAP.key('ArrowDown', mapSt())); else if (hit[0]) mapResult(MAP.key('Enter', mapSt())); return; }
-    if (G.mode === 'meta' || G.mode === 'settings' || G.mode === 'lb') { if (hit[1]) closePage(); return; }
+    if (G.mode === 'meta' || G.mode === 'settings' || G.mode === 'lb' || G.mode === 'codex') { if (hit[1]) { if (G.mode === 'codex' && G.cdSel != null) G.cdSel = null; else closePage(); } return; }
     if (G.mode === 'title' && hit[2]) { openStore(); return; }
     if (G.mode === 'gameover' && G.overT > 0.8 && hit[1]) { toMenu(); return; }
     if (G.mode === 'paused' && hit[1]) { toMenu(); return; }
@@ -328,6 +328,8 @@
     if (G.mode === 'settings') { if (e.code === 'Escape' || e.code === 'Backspace' || e.code === 'KeyO') closePage(); e.preventDefault(); return; }
     if (G.mode === 'lb') { if (e.code === 'Escape' || e.code === 'Backspace' || e.code === 'KeyL') closePage(); else if (e.code === 'KeyQ' || e.code === 'KeyE') { LB.tab = (LB.tab + (e.code === 'KeyE' ? 1 : 2)) % 3; lbLoad(); } e.preventDefault(); return; }
     if (G.mode === 'title' && !e.repeat && e.code === 'KeyL') { openPage('lb'); e.preventDefault(); return; }
+    if (G.mode === 'codex') { if (G.cdSel != null && (e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space' || e.code === 'Backspace')) G.cdSel = null; else if (e.code === 'Escape' || e.code === 'Backspace' || e.code === 'KeyK') closePage(); else if (e.code === 'ArrowDown' || e.code === 'KeyS') G.cdScroll = clamp((G.cdScroll || 0) + 40, 0, cdxMax()); else if (e.code === 'ArrowUp' || e.code === 'KeyW') G.cdScroll = clamp((G.cdScroll || 0) - 40, 0, cdxMax()); e.preventDefault(); return; }
+    if (G.mode === 'title' && !e.repeat && e.code === 'KeyK') { openPage('codex'); e.preventDefault(); return; }
     if (G.mode === 'title' && !e.repeat && e.code === 'KeyV') { openPage('map'); e.preventDefault(); return; }
     if (G.mode === 'title' && !e.repeat && e.code === 'KeyD') { startDaily(); e.preventDefault(); return; }
     if (G.mode === 'title' && !e.repeat && e.code === 'KeyG') { openPage('meta'); e.preventDefault(); return; }
@@ -394,6 +396,7 @@
     }
     if (G.mode === 'settings') { settingsTap(p); return; }
     if (G.mode === 'lb') { lbTap(p); return; }
+    if (G.mode === 'codex') { if (G.cdSel != null || inBtn(p, BTN.storeBack)) { codexTap(p); return; } G.drag = { y: p.y, s: G.cdScroll || 0, moved: false, codex: true, p: p }; return; }
     if (G.mode === 'store') {
       for (let q = 0; q < 2; q++) if (inBtn(p, STORE_TAB[q])) { storeTab(q); return; }
       let ci = -1;
@@ -415,6 +418,7 @@
       if (act === 'meta') { openPage('meta'); return; }
       if (act === 'settings') { openPage('settings'); return; }
       if (act === 'lb') { openPage('lb'); return; }
+      if (act === 'codex') { openPage('codex'); return; }
       if (act === 'share') { shareScore(); return; }
       if (act === 'daily') { if (isMouse) mouse.active = true; startDaily(); if (isMouse) return; }
       if (isMouse) mouse.active = true;         // fareyle başlatan fareyle oynar
@@ -454,7 +458,7 @@
       if (d.map) { MAP.pointerMove(p); return; }
       if (e.buttons === 0 && e.pointerType === 'mouse') return;
       const dy = p.y - d.y; if (Math.abs(dy) > 6) d.moved = true;
-      if (d.store) G.stScroll = clamp(d.s - dy, 0, stMaxScroll()); else G.metaScroll = clamp(d.s - dy, 0, Math.max(0, META.panelHeight(G.metaTab || 0) - 460));
+      if (d.store) G.stScroll = clamp(d.s - dy, 0, stMaxScroll()); else if (d.codex) G.cdScroll = clamp(d.s - dy, 0, cdxMax()); else G.metaScroll = clamp(d.s - dy, 0, Math.max(0, META.panelHeight(G.metaTab || 0) - 460));
       return;
     }
     if (!touch.on || e.pointerId !== touch.id) return;
@@ -466,6 +470,7 @@
       const d = G.drag, p = toLogical(e); G.drag = null;
       if (d.map) { mapResult(MAP.pointerUp(p, mapSt())); return; }
       if (d.store && !d.moved && d.i >= 0) { G.stKb = false; storePick(d.i); }
+      if (d.codex && !d.moved) codexTap(p);
       return;
     }
     if (e.pointerType === 'mouse') { mouse.down = false; return; }
@@ -500,6 +505,7 @@
     if (G.mode === 'map') { MAP.wheel(e.deltaY); e.preventDefault(); }
     else if (G.mode === 'meta') { G.metaScroll = clamp((G.metaScroll || 0) + e.deltaY, 0, Math.max(0, META.panelHeight(G.metaTab || 0) - 460)); e.preventDefault(); }
     else if (G.mode === 'store') { G.stScroll = clamp((G.stScroll || 0) + e.deltaY, 0, stMaxScroll()); e.preventDefault(); }
+    else if (G.mode === 'codex') { G.cdScroll = clamp((G.cdScroll || 0) + e.deltaY, 0, cdxMax()); e.preventDefault(); }
   }, { passive: false });
 
   document.addEventListener('visibilitychange', function () {
@@ -547,14 +553,14 @@
 
   // Menü düğmeleri (mantıksal koordinat)
   const BTN = {
-    titleNew: { x: 40, y: 372, w: 280, h: 46 }, titleCont: { x: 40, y: 426, w: 280, h: 38 }, titleStore: { x: 40, y: 478, w: 64, h: 62 }, titleMap: { x: 112, y: 478, w: 64, h: 62 }, titleQuests: { x: 184, y: 478, w: 64, h: 62 }, titleLb: { x: 256, y: 478, w: 64, h: 62 }, titleHelp: { x: 54, y: 10, w: 38, h: 38 }, gear: { x: 10, y: 10, w: 38, h: 38 }, titleDaily: { x: 40, y: 554, w: 280, h: 34 }, overShare: { x: 40, y: 540, w: 280, h: 34 },
+    titleNew: { x: 40, y: 372, w: 280, h: 46 }, titleCont: { x: 40, y: 426, w: 280, h: 38 }, titleStore: { x: 40, y: 478, w: 52, h: 62 }, titleMap: { x: 97, y: 478, w: 52, h: 62 }, titleQuests: { x: 154, y: 478, w: 52, h: 62 }, titleLb: { x: 211, y: 478, w: 52, h: 62 }, titleCodex: { x: 268, y: 478, w: 52, h: 62 }, titleHelp: { x: 54, y: 10, w: 38, h: 38 }, gear: { x: 10, y: 10, w: 38, h: 38 }, titleDaily: { x: 40, y: 554, w: 280, h: 34 }, overShare: { x: 40, y: 540, w: 280, h: 34 },
     overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 }, overC: { x: 40, y: 494, w: 280, h: 36 }, pauseGo: { x: 40, y: 246, w: 280, h: 46 }, pauseMenu: { x: 40, y: 302, w: 280, h: 40 },
     mute: { x: W - 48, y: 10, w: 38, h: 38 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 }, storeBuy: { x: 24, y: 596, w: 196, h: 36 }, storeBack2: { x: 230, y: 596, w: 106, h: 36 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
   };
   const inBtn = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
   function menuAction(p) {
-    if (G.mode === 'title') return inBtn(p, BTN.titleNew) ? 'new' : (G.last > 0 && inBtn(p, BTN.titleCont)) ? 'cont-title' : inBtn(p, BTN.titleStore) ? 'store' : inBtn(p, BTN.titleHelp) ? 'help' : inBtn(p, BTN.titleMap) ? 'map' : inBtn(p, BTN.titleQuests) ? 'meta' : inBtn(p, BTN.gear) ? 'settings' : inBtn(p, BTN.titleDaily) ? 'daily' : inBtn(p, BTN.titleLb) ? 'lb' : null;
+    if (G.mode === 'title') return inBtn(p, BTN.titleNew) ? 'new' : (G.last > 0 && inBtn(p, BTN.titleCont)) ? 'cont-title' : inBtn(p, BTN.titleStore) ? 'store' : inBtn(p, BTN.titleHelp) ? 'help' : inBtn(p, BTN.titleMap) ? 'map' : inBtn(p, BTN.titleQuests) ? 'meta' : inBtn(p, BTN.gear) ? 'settings' : inBtn(p, BTN.titleDaily) ? 'daily' : inBtn(p, BTN.titleLb) ? 'lb' : inBtn(p, BTN.titleCodex) ? 'codex' : null;
     if (inBtn(p, BTN.overShare)) return 'share';
     if (G.daily) return inBtn(p, BTN.overA) ? 'daily' : inBtn(p, BTN.overB) ? 'menu' : null;
     if (G.sec > 0 && !G.won) return inBtn(p, BTN.overA) ? 'cont' : inBtn(p, BTN.overB) ? 'new' : inBtn(p, BTN.overC) ? 'menu' : null;
@@ -568,6 +574,7 @@
   function openPage(m) {
     if (m === 'map' && !window.MAP) return; if (m === 'meta' && !window.META) return;
     if (m === 'lb') { G.mode = 'lb'; lbLoad(); A.play('hit'); return; }
+    if (m === 'codex') { G.mode = 'codex'; G.cdSel = null; G.cdScroll = 0; G.drag = null; A.play('hit'); return; }
     G.mode = m; G.pageFrom = 'title'; G.metaScroll = 0; G.drag = null; A.play('hit');
     if (m === 'map') MAP.open(mapSt());
     if (m === 'lb') lbLoad();
@@ -713,6 +720,80 @@
     for (let q = 0; q < 3; q++) if (inBtn(p, LB_TAB[q])) { LB.tab = q; lbLoad(); A.play('hit'); return; }
     if (cloudOn() && inBtn(p, LB_BTN)) { if (CLOUD.user()) { CLOUD.signOut(); A.play('hit'); } else CLOUD.signIn(); return; }
     if (inBtn(p, BTN.storeBack)) closePage();
+  }
+  // ---- Koleksiyon sayfası
+  const cdxCard = (i) => ({ x: 24 + (i % 3) * 106, y: 110 + Math.floor(i / 3) * 124 - (G.cdScroll || 0), w: 98, h: 116 });
+  const cdxMax = () => Math.max(0, Math.ceil(CODEX.length / 3) * 124 - 470);
+  function codexPortrait(c, x, y, sc, t) {      // sentetik varlıkla gerçek çizim fonksiyonlarını kullan
+    ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+    try {
+      if (c.k === 'meteor') { if (window.FOES && FOES.drawMeteor) FOES.drawMeteor(ctx, { r: 13, rot: t, ph: 0 }, 0, 0, t); }
+      else if (c.k.indexOf('boss') === 0) drawBossKind({ type: 'boss', kind: +c.k.slice(4), hp: 10, maxHp: 10, flash: 0, spin: t, ph: 0, ulti: 0, lunge: 0, scr: 0, x: 0, wy: 0 }, 0, 0, false);
+      else if (c.k.indexOf('mini') === 0) { if (window.FOES && FOES.drawMini) FOES.drawMini(ctx, { type: 'mini', mk: +c.k.slice(4), hp: 10, maxHp: 10, flash: 0, spin: t, ph: 0, ulti: 0, lunge: 0 }, 0, 0, t); }
+      else {
+        const e = { type: c.k, x: 0, wy: P.wy, vx: 60, hw: (SIZE[c.k] || [8, 8])[0], hh: (SIZE[c.k] || [8, 8])[1], hp: 2, cd: 2, rate: 2, hard: 1, flash: 0, ph: 0, ang: Math.PI / 2, vol: 2, armed: true, up: true, sub: 0, charge: 0.6, dead: false, minX: -40, maxX: 40, on: true, warn: false, r: 30, spin: t };
+        drawEnt(e, 0, 0);
+      }
+    } catch (_) { }
+    ctx.restore();
+  }
+  function drawCodex() {
+    dim(0.88);
+    const seenN = CODEX.filter((c) => CDX.seen[c.k]).length;
+    text('KOLEKSİYON', W / 2, 44, 26, '#ffffff', 'center', 700);
+    text(seenN + ' / ' + CODEX.length + ' kart açıldı', W / 2, 68, 12.5, 'rgba(190,215,240,0.85)', 'center', 500);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(60, 78, 240, 4); ctx.fillStyle = '#7dffb0'; ctx.fillRect(60, 78, 240 * seenN / CODEX.length, 4);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 100, W, 486); ctx.clip();
+    for (let i = 0; i < CODEX.length; i++) {
+      const c = CODEX[i], b = cdxCard(i); if (b.y > 600 || b.y + b.h < 90) continue;
+      const seen = !!CDX.seen[c.k], boss = c.k.indexOf('boss') === 0, mini = c.k.indexOf('mini') === 0;
+      const bg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+      bg.addColorStop(0, seen ? (boss ? 'rgba(70,30,60,0.95)' : mini ? 'rgba(60,46,16,0.95)' : 'rgba(18,36,56,0.95)') : 'rgba(14,20,30,0.9)'); bg.addColorStop(1, 'rgba(6,14,24,0.96)');
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.fill();
+      ctx.strokeStyle = seen ? (boss ? 'rgba(255,122,209,0.6)' : mini ? 'rgba(255,207,138,0.6)' : 'rgba(190,215,240,0.4)') : 'rgba(190,215,240,0.15)'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.save(); ctx.beginPath(); ctx.roundRect(b.x + 2, b.y + 2, b.w - 4, 70, 9); ctx.clip();
+      if (seen) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(b.x + b.w / 2, b.y + 38, 34, boss ? '255,122,209' : mini ? '255,200,120' : '110,170,255', 0.18); ctx.restore(); codexPortrait(c, b.x + b.w / 2, b.y + 38, boss ? 0.62 : mini ? 1.0 : 1.7, G.t + i); }
+      else { ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.arc(b.x + b.w / 2, b.y + 36, 22, 0, 6.3); ctx.fill(); text('?', b.x + b.w / 2, b.y + 45, 26, 'rgba(190,215,240,0.4)', 'center', 700); }
+      ctx.restore();
+      fitText(seen ? c.n : '???', b.x + b.w / 2, b.y + 90, 11.5, b.w - 8, seen ? '#ffffff' : 'rgba(190,215,240,0.5)', 700);
+      text(seen ? c.c : 'ETAP ' + c.from + '+', b.x + b.w / 2, b.y + 106, 9.5, seen ? 'rgba(190,215,240,0.85)' : 'rgba(190,215,240,0.45)', 'center', 500);
+      if (seen && CDX.kills[c.k]) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.roundRect(b.x + b.w - 30, b.y + 4, 26, 14, 7); ctx.fill(); text('×' + CDX.kills[c.k], b.x + b.w - 17, b.y + 14.5, 9.5, '#ffd95a', 'center', 700); }
+    }
+    ctx.restore();
+    if (cdxMax() > 0) { const f = (G.cdScroll || 0) / cdxMax(); ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(W - 10, 110, 3, 470); ctx.fillStyle = '#ffd95a'; ctx.fillRect(W - 10, 110 + f * 410, 3, 60); }
+    button(BTN.storeBack, IS_TOUCH ? 'GERİ' : 'GERİ  ·  ESC', null, false, true);
+    if (G.cdSel != null) drawCodexDetail(CODEX[G.cdSel]);
+  }
+  function drawCodexDetail(c) {
+    dim(0.7);
+    const seen = !!CDX.seen[c.k], boss = c.k.indexOf('boss') === 0, mini = c.k.indexOf('mini') === 0, y0 = 90;
+    ctx.fillStyle = 'rgba(8,18,30,0.97)'; ctx.beginPath(); ctx.roundRect(22, y0, 316, 470, 16); ctx.fill();
+    ctx.strokeStyle = boss ? 'rgba(255,122,209,0.7)' : mini ? 'rgba(255,207,138,0.7)' : 'rgba(190,215,240,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.roundRect(34, y0 + 12, 292, 150, 12); ctx.clip();
+    ctx.fillStyle = 'rgba(2,10,20,0.6)'; ctx.fillRect(34, y0 + 12, 292, 150);
+    if (seen) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(W / 2, y0 + 88, 70, boss ? '255,122,209' : mini ? '255,200,120' : '110,170,255', 0.25); ctx.restore(); codexPortrait(c, W / 2, y0 + 88, boss ? 1.2 : mini ? 2.0 : 3.2, G.t); }
+    else text('?', W / 2, y0 + 104, 60, 'rgba(190,215,240,0.4)', 'center', 700);
+    ctx.restore();
+    text(seen ? c.n : '???', W / 2, y0 + 192, 22, '#ffffff', 'center', 700);
+    text(c.c + (seen ? '  ·  ' + (c.pts ? c.pts + ' PUAN' : 'PUAN YOK') : ''), W / 2, y0 + 212, 12, boss ? '#ff9fe0' : mini ? '#ffcf8a' : 'rgba(190,215,240,0.85)', 'center', 700);
+    if (seen) {
+      const words = c.d.split(' '); let line = '', ly = y0 + 240;
+      for (let i = 0; i < words.length; i++) { const tst = line ? line + ' ' + words[i] : words[i]; ctx.font = '500 13px ' + FONT; if (ctx.measureText(tst).width > 280 && line) { text(line, W / 2, ly, 13, 'rgba(225,238,250,0.92)', 'center', 500); line = words[i]; ly += 18; } else line = tst; }
+      if (line) text(line, W / 2, ly, 13, 'rgba(225,238,250,0.92)', 'center', 500);
+      const rows = [['SALDIRI', c.atk], ['HIZ', c.spd], ['TEHLİKE', c.dng]], by = y0 + 312;
+      for (let r = 0; r < rows.length; r++) {
+        text(rows[r][0], 60, by + r * 26, 11.5, '#ffe9b8', 'left', 700);
+        for (let q = 0; q < 5; q++) { ctx.fillStyle = q < rows[r][1] ? (r === 2 ? '#ff7a6a' : '#ffd95a') : 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.roundRect(150 + q * 30, by + r * 26 - 9, 24, 9, 3); ctx.fill(); }
+      }
+      text('CAN ' + (c.hp ? c.hp + (boss || mini ? ' (silahına göre artar)' : '') : '—'), 60, by + 82, 11.5, 'rgba(190,215,240,0.85)', 'left', 500);
+      text('İLK GÖRÜLDÜĞÜ ETAP: ' + CDX.seen[c.k] + '   ·   YENİLEN: ' + (CDX.kills[c.k] || 0), 60, by + 100, 11.5, 'rgba(190,215,240,0.85)', 'left', 500);
+    } else text('Bu kart ' + c.from + '. etaptan itibaren karşına çıkabilir.', W / 2, y0 + 250, 13, 'rgba(190,215,240,0.85)', 'center', 500);
+    button({ x: 110, y: y0 + 420, w: 140, h: 36 }, 'KAPAT', null, true, true);
+  }
+  function codexTap(p) {
+    if (G.cdSel != null) { G.cdSel = null; A.play('hit'); return; }
+    if (inBtn(p, BTN.storeBack)) { closePage(); return; }
+    for (let i = 0; i < CODEX.length; i++) if (inBtn(p, cdxCard(i)) && p.y > 100 && p.y < 586) { G.cdSel = i; A.play('hit'); return; }
   }
   function toMenu() {      // oyun bittikten sonra ana menüye dön
     G.mode = 'title'; G.boss = null; G.help = false; clearUltis(); shells.length = 0; orbs.length = 0; shots.length = 0;
@@ -1637,7 +1718,7 @@
         if (Math.abs(sh.x - m.x) < m.r + 4 && Math.abs(sh.wy - ay) < m.r + 8) {
           if (!(sh.pierce > 0)) shots.splice(j, 1); else sh.pierce--;
           if (--m.hp <= 0) {
-            boom(m.x, ay, 14 + m.r, ['#ffffff', '#cfeaff', '#ffb070'], 120); addScore(PTS.meteor); pop(m.x, ay + 10, '+' + PTS.meteor); A.play('shatter', { x: m.x });
+            boom(m.x, ay, 14 + m.r, ['#ffffff', '#cfeaff', '#ffb070'], 120); addScore(PTS.meteor); codexKill('meteor'); pop(m.x, ay + 10, '+' + PTS.meteor); A.play('shatter', { x: m.x });
             G.combo++; G.comboT = 1.6; if (window.META) metaNote(META.on('kill', { type: 'meteor', stage: G.sec, byShot: true }));
             meteors.splice(i, 1);
           } else boom(sh.x, sh.wy, 5, ['#ffffff', '#ffd27a'], 60);
@@ -1657,6 +1738,7 @@
     for (let i = 0; i < meteors.length; i++) {
       const m = meteors[i], y = sy(m.wy + m.h * 380);
       if (y < -60 || y > H + 40) continue;
+      if (G.mode === 'playing') codexSee('meteor');
       if (window.FOES && FOES.drawMeteor) FOES.drawMeteor(ctx, m, m.x, y, G.t);
       else { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(m.x, y, m.r * 2.4, '255,150,70', 0.6); ctx.restore(); ctx.fillStyle = '#6b5a4a'; ctx.beginPath(); ctx.arc(m.x, y, m.r, 0, 6.3); ctx.fill(); }
     }
@@ -1696,9 +1778,16 @@
       if (e.mk === 0) {      // kıyı kulesi: karada durur, nehre ateş eder; ulti sonrası karşı kıyıya sıçrar
         if (!e.side) e.side = Math.random() < 0.5 ? -1 : 1;
         e.land = true;
-        const tx = clamp(e.side < 0 ? t.L - 20 : t.R + 20, 16, W - 16);
-        if (e.hop !== undefined && e.hop < 1) { e.hop = Math.min(1, e.hop + dt * 1.6); e.lunge = Math.sin(e.hop * Math.PI) * 0.8; e.x = e.hopX0 === undefined ? (e.hopX0 = e.x) : e.hopX0 + (tx - e.hopX0) * e.hop; if (e.hop >= 1) { e.hopX0 = undefined; e.lunge = 0; } }
-        else e.x = approach(e.x, tx, 80 * dt);
+        // kıyıdaki yeri ekranda sabittir (kıyı çizgisiyle akmaz); yalnız sana doğru küçük bir eğilim yapar, lazer kilitlenirken hiç kıpırdamaz
+        if (e.baseX === undefined || (e.hop !== undefined && e.hop < 1)) {
+          const tx = clamp(e.side < 0 ? t.L - 20 : t.R + 20, 16, W - 16);
+          if (e.hop !== undefined && e.hop < 1) { e.hop = Math.min(1, e.hop + dt * 1.6); e.lunge = Math.sin(e.hop * Math.PI) * 0.8; e.x = e.hopX0 === undefined ? (e.hopX0 = e.x) : e.hopX0 + (tx - e.hopX0) * e.hop; if (e.hop >= 1) { e.hopX0 = undefined; e.lunge = 0; e.baseX = tx; } }
+          else { e.baseX = tx; e.x = tx; }
+        } else if (!e.ult) {
+          if (!solid(e.baseX, e.wy)) e.baseX += (e.side < 0 ? -1 : 1) * 30 * dt;      // kıyı çekildiyse yavaşça karaya çık
+          const lean = clamp((P.x - e.baseX) * 0.12, -14, 14);      // kısa takip: en çok 14 px
+          e.x = approach(e.x, e.baseX + lean, 40 * dt);
+        }
       } else if (!e.dash && !e.ult) e.x = clamp(W / 2 + Math.sin(G.t * (e.mk === 2 ? 1.9 : 1.1) + e.ph) * (e.mk === 2 ? 105 : 70), t.L + 28, t.R - 28);
       if (e.life <= 0 || e.scr < 60) continue;
       const base = Math.atan2(PSY - e.scr, P.x - e.x);
@@ -1734,6 +1823,42 @@
     G.tutSeen[k] = 1; G.tutMsg = TUT[k]; G.tutT = 4.2; A.play('blastReady');
     if (Object.keys(G.tutSeen).length >= 6) { G.tut = false; store('bg_tut', '1'); }
   }
+  // ---- Koleksiyon (bestiyer): karşılaşılan her düşman kart olarak açılır
+  const CODEX = [
+    { k: 'mine', n: 'BUZ MAYINI', c: 'SU', d: 'Suyun üstünde salınan donmuş patlayıcı. Ateşle ya da uzak dur.', hp: 1, atk: 1, spd: 1, dng: 1, pts: 30, from: 1 },
+    { k: 'boat', n: 'DEVRİYE BOTU', c: 'SU', d: 'Kıyıdan kıyıya gider; 5. etaptan sonra aşağı doğru ateş eder.', hp: 1, atk: 2, spd: 2, dng: 2, pts: 60, from: 1 },
+    { k: 'skim', n: 'SÜZÜLEN DRON', c: 'HAVA', d: 'Ekranı yanlamasına geçer; 25. etaptan sonra mermi bırakır.', hp: 1, atk: 2, spd: 4, dng: 2, pts: 100, from: 2 },
+    { k: 'hunter', n: 'AVCI', c: 'HAVA', d: 'Hizana kayıp üstüne gelir; 15. etaptan sonra nişan alır.', hp: 1, atk: 3, spd: 3, dng: 3, pts: 120, from: 5 },
+    { k: 'turret', n: 'GÖZCÜ KULESİ', c: 'YAPI', d: 'Nehir ortasındaki zırhlı kule; namlusu seni izler, yaylım atar.', hp: 2, atk: 3, spd: 1, dng: 3, pts: 150, from: 3 },
+    { k: 'ice', n: 'BUZ BARİYERİ', c: 'YAPI', d: 'Geçidi kapatan buz blokları. Ateşle kır, çarparsan dağılırsın.', hp: 1, atk: 0, spd: 0, dng: 2, pts: 10, from: 2 },
+    { k: 'beam', n: 'IŞIK ÇİTİ', c: 'YAPI', d: 'Aralıklarla yanan ışın. Söndüğünde geç ya da uçtaki kuleyi vur.', hp: 0, atk: 4, spd: 0, dng: 3, pts: 80, from: 8 },
+    { k: 'whirl', n: 'GİRDAP', c: 'DOĞA', d: 'Seni içine çeker. Kenarından güçlü dümenle sıyrıl.', hp: 0, atk: 3, spd: 0, dng: 3, pts: 0, from: 4 },
+    { k: 'wasp', n: 'BUZ EŞEKARISI', c: 'HAVA', d: 'Zikzak çizerek iner, üçlü yelpaze atar.', hp: 2, atk: 3, spd: 4, dng: 3, pts: 140, from: 51 },
+    { k: 'sub', n: 'DENİZALTI', c: 'SU', d: 'Dalınca vurulmaz; yüzeye çıkınca etrafına halka atar.', hp: 3, atk: 4, spd: 2, dng: 4, pts: 180, from: 54 },
+    { k: 'crystal', n: 'KRİSTAL ÇEKİRDEK', c: 'HAVA', d: 'Dönen artı ateşi; vurulunca üç parçaya bölünür.', hp: 3, atk: 3, spd: 1, dng: 3, pts: 160, from: 61 },
+    { k: 'shard', n: 'KIRIK KRİSTAL', c: 'HAVA', d: 'Çekirdekten kopan parça; kısa süre sonra sana yönelir.', hp: 1, atk: 2, spd: 4, dng: 2, pts: 25, from: 61 },
+    { k: 'mortar', n: 'HAVAN BOTU', c: 'SU', d: 'Gideceğin yere mermi yağdırır; kırmızı hedef işaretini izle.', hp: 4, atk: 5, spd: 1, dng: 4, pts: 200, from: 66 },
+    { k: 'meteor', n: 'METEOR', c: 'DOĞA', d: 'Meteor yağmurunda düşer; gölgesi büyüdükçe yaklaşır. Vurulabilir.', hp: 2, atk: 4, spd: 3, dng: 3, pts: 150, from: 4 },
+    { k: 'mini0', n: 'BUZ GÖZCÜSÜ', c: 'ARA BEKÇİ · KARA', d: 'Kıyıdaki kristal kule. Dönen namlular ve uzun kilitlenmeli lazer; sonra karşı kıyıya sıçrar.', hp: 70, atk: 4, spd: 1, dng: 4, pts: 800, from: 6 },
+    { k: 'mini1', n: 'KUTUP KALAMARI', c: 'ARA BEKÇİ · SU', d: 'Nişanlı üçlü ve mürekkep halkası; halkayla birlikte kristal parçaları salar.', hp: 88, atk: 4, spd: 2, dng: 4, pts: 800, from: 16 },
+    { k: 'mini2', n: 'KIRAĞI ŞAHİNİ', c: 'ARA BEKÇİ · HAVA', d: 'Hızlı salınır, tüy yaylımı atar ve üstüne dalış yapar.', hp: 106, atk: 4, spd: 5, dng: 4, pts: 800, from: 26 },
+    { k: 'boss0', n: 'GÖZCÜ', c: 'BEKÇİ', d: 'Zırhlı gözetleme gemisi. Yelpaze ateşi; özel: Radar Süpürmesi.', hp: 200, atk: 3, spd: 2, dng: 3, pts: 2500, from: 10 },
+    { k: 'boss1', n: 'BUZ ÖRÜMCEĞİ', c: 'BEKÇİ', d: 'Kristal karınlı dev örümcek. Çift spiral; özel: Örümcek Atılımı.', hp: 310, atk: 4, spd: 3, dng: 4, pts: 2500, from: 20 },
+    { k: 'boss2', n: 'FIRTINA KARTALI', c: 'BEKÇİ', d: 'Şimşek taşıyan kartal. Geniş yaylım; özel: Fırtına.', hp: 420, atk: 4, spd: 4, dng: 4, pts: 2500, from: 30 },
+    { k: 'boss3', n: 'BUZ KALESİ', c: 'BEKÇİ', d: 'Yüzen taş kale. Yarım halka dalgası; özel: Bombardıman.', hp: 530, atk: 5, spd: 1, dng: 4, pts: 2500, from: 40 },
+    { k: 'boss4', n: 'KUZEY KRALI', c: 'BEKÇİ', d: 'Rün halkalı hükümdar. Önceki desenleri sırayla; özel: Don Dalgası.', hp: 640, atk: 5, spd: 3, dng: 5, pts: 2500, from: 50 },
+    { k: 'boss5', n: 'BUZ YILANI', c: 'BEKÇİ', d: 'Sudan yükselen deniz yılanı. Dolanan akışlar; özel: Kuyruk Süpürmesi.', hp: 750, atk: 4, spd: 3, dng: 4, pts: 2500, from: 60 },
+    { k: 'boss6', n: 'KRİSTAL GÖZ', c: 'BEKÇİ', d: 'Kristal halkalı dev göz. Altı kollu sarmal; özel: Ölüm Bakışı.', hp: 860, atk: 5, spd: 2, dng: 5, pts: 2500, from: 70 },
+    { k: 'boss7', n: 'KAR DEVİ', c: 'BEKÇİ', d: 'Kaya fırlatan buz devi. Parçalanan kaya; özel: Yer Sarsıntısı.', hp: 970, atk: 5, spd: 2, dng: 5, pts: 2500, from: 80 },
+    { k: 'boss8', n: 'GÖLGE KUZGUN', c: 'BEKÇİ', d: 'Işınlanan gölge kuş. Nişanlı beşli ve halka; özel: Karanlık.', hp: 1080, atk: 5, spd: 5, dng: 5, pts: 2500, from: 90 },
+    { k: 'boss9', n: 'BUZULUN TANRISI', c: 'BEKÇİ', d: 'Buzulun efendisi. Bütün desenler sırayla; özel: Yargı.', hp: 1190, atk: 5, spd: 4, dng: 5, pts: 2500, from: 100 }
+  ];
+  const CDX = (function () { try { const v = JSON.parse(store('bg_codex') || '{}'); return { seen: v.seen || {}, kills: v.kills || {} }; } catch (_) { return { seen: {}, kills: {} }; } })();
+  let cdxDirty = 0;
+  function cdxSave() { store('bg_codex', JSON.stringify(CDX)); cdxDirty = 0; }
+  function codexSee(k) { if (CDX.seen[k]) return; CDX.seen[k] = G.sec + 1; cdxSave(); G.toasts.push({ title: 'YENİ KART · ' + ((CODEX.find((c) => c.k === k) || {}).n || k), sub: 'Koleksiyona eklendi', reward: 0, t: 0 }); A.play('blastReady'); }
+  function codexKill(k) { CDX.kills[k] = (CDX.kills[k] || 0) + 1; if (++cdxDirty >= 10) cdxSave(); }
+  const cdxKey = (e) => e.type === 'boss' ? 'boss' + (e.kind || 0) : e.type === 'mini' ? 'mini' + (e.mk || 0) : e.type;
   const ULTI_NAMES = ['RADAR SÜPÜRMESİ', 'ÖRÜMCEK ATILIMI', 'FIRTINA', 'BOMBARDIMAN', 'DON DALGASI', 'KUYRUK SÜPÜRMESİ', 'ÖLÜM BAKIŞI', 'YER SARSINTISI', 'KARANLIK', 'YARGI'];
   function clearUltis() { lasers.length = 0; novas.length = 0; walls.length = 0; G.gust = null; G.dark = 0; }
   function startLunge(e, ring) { e.lg = { t: 0, lx: P.x, ring: !!ring, shot: false }; A.play('bigExplode'); }
@@ -1959,6 +2084,7 @@
 
   function kill(e, byShot) {
     e.dead = true;
+    if (byShot) codexKill(cdxKey(e));
     if (e.type === 'boss') bossDown(e);
     if (e.type === 'mini') { const tm = terrain(e.wy, T2), mcx = (tm.L + tm.R) / 2; for (let q = 0; q < 8; q++) coinsL.push({ x: mcx + rand(-60, 60), wy: e.wy - rand(20, 160), v: q === 0 ? 5 : 1, ph: rand(0, 6), pullT: 0.6 + q * 0.05 }); G.bossMagT = 1.6; G.shake = Math.max(G.shake, 7); vib(80); }
     const c = e.type === 'mine' ? ['#ffffff', '#cfeaff', '#ff6a5a', '#9fd3e6']
@@ -2577,7 +2703,13 @@
     for (let i = 0; i < ents.length; i++) {
       const e = ents[i], y = sy(e.wy);
       if (y < -30 || y > H + 30 || e.dead) continue;
-      const x = e.x, fl = e.flash > 0;
+      if (G.mode === 'playing') codexSee(e.type === 'boss' ? 'boss' + (e.kind || 0) : e.type === 'mini' ? 'mini' + (e.mk || 0) : e.type);
+      drawEnt(e, e.x, y);
+    }
+  }
+  function drawEnt(e, x, y) {
+    {
+      const fl = e.flash > 0;
       const big = e.type === 'mine' || e.type === 'boat' || e.type === 'skim' || e.type === 'hunter' || e.type === 'turret' || !!NEWHP[e.type];
       if (big) { const sc = e.type === 'mine' ? ES * 1.15 : ES; ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.translate(-x, -y); }      // mayınlar %15 büyük
       if (e.type === 'mine') {
@@ -3642,7 +3774,7 @@
       button(BTN.titleCont, contLabel(ck), (IS_TOUCH ? '' : 'C  ·  ') + (cost ? cost + ' altın' : 'BEDAVA'), false, can, sh);
     }
     // dört kare: mağaza, harita, görevler, liderlik
-    const tiles = [[BTN.titleStore, 'MAĞAZA', 'T', 0], [BTN.titleMap, 'HARİTA', 'V', 1], [BTN.titleQuests, 'GÖREVLER', 'G', 2], [BTN.titleLb, 'LİDERLİK', 'L', 3]];
+    const tiles = [[BTN.titleStore, 'MAĞAZA', 'T', 0], [BTN.titleMap, 'HARİTA', 'V', 1], [BTN.titleQuests, 'GÖREVLER', 'G', 2], [BTN.titleLb, 'LİDERLİK', 'L', 3], [BTN.titleCodex, 'KARTLAR', 'K', 4]];
     for (let i = 0; i < tiles.length; i++) {
       const b = tiles[i][0], cx = b.x + b.w / 2, cy = b.y + 24;
       ctx.fillStyle = 'rgba(8,18,30,0.8)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.fill();
@@ -3657,13 +3789,17 @@
         ctx.beginPath(); ctx.arc(cx + 9, cy - 10, 3, 0, 6.3); ctx.fill(); ctx.beginPath(); ctx.arc(cx - 9, cy + 9, 2.5, 0, 6.3); ctx.fill();
       } else if (k === 2) {      // onay listesi
         for (let q = 0; q < 3; q++) { const yy = cy - 7 + q * 7; ctx.beginPath(); ctx.moveTo(cx - 9, yy); ctx.lineTo(cx - 5, yy + 3); ctx.lineTo(cx - 1, yy - 3); ctx.stroke(); ctx.fillRect(cx + 2, yy - 1, 8, 2); }
+      } else if (k === 4) {      // kartlar: üst üste iki kart
+        ctx.beginPath(); ctx.roundRect(cx - 4, cy - 10, 13, 17, 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(8,18,30,1)'; ctx.beginPath(); ctx.roundRect(cx - 10, cy - 6, 13, 17, 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#ffe9b8'; ctx.beginPath(); ctx.arc(cx - 3.5, cy + 1, 2.2, 0, 6.3); ctx.fill();
       } else {      // kupa
         ctx.beginPath(); ctx.moveTo(cx - 7, cy - 9); ctx.lineTo(cx + 7, cy - 9); ctx.lineTo(cx + 5, cy); ctx.quadraticCurveTo(cx, cy + 5, cx - 5, cy); ctx.closePath(); ctx.stroke();
         ctx.fillRect(cx - 1.5, cy + 4, 3, 4); ctx.fillRect(cx - 6, cy + 8, 12, 2);
         ctx.beginPath(); ctx.arc(cx - 9, cy - 6, 3, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + 9, cy - 6, 3, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
       }
       ctx.lineCap = 'butt';
-      text(tiles[i][1], cx, b.y + 52, 10.5, '#ffffff', 'center', 700);
+      fitText(tiles[i][1], cx, b.y + 52, 9.5, b.w - 4, '#ffffff', 700);
       if (!IS_TOUCH) text(tiles[i][2], b.x + b.w - 7, b.y + 11, 8.5, 'rgba(190,215,240,0.6)', 'right', 700);
     }
     if (window.META && META.quests().some((q) => !q.done)) { ctx.fillStyle = '#ff6a5a'; ctx.beginPath(); ctx.arc(BTN.titleQuests.x + BTN.titleQuests.w - 7, BTN.titleQuests.y + 7, 4.5, 0, 6.3); ctx.fill(); }
@@ -3773,6 +3909,7 @@
     else if (G.mode === 'meta') META.drawPanel(ctx, UI, G.t, G.metaTab || 0, G.metaScroll || 0);
     else if (G.mode === 'settings') drawSettings();
     else if (G.mode === 'lb') drawLb();
+    else if (G.mode === 'codex') drawCodex();
     else if (G.mode === 'title') { drawTitle(); drawMuteBtn(); }
     else {
       drawHud();
