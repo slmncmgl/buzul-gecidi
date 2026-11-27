@@ -3603,13 +3603,12 @@
     ctx.fillStyle = '#ffd95a'; ctx.fillRect(124, cy0 + 57, 130 * lvProgress(), 4);
     text(lv >= LV_MIN.length ? 'en üst seviye' : 'sonraki seviye ' + Math.max(0, Math.ceil(LV_MIN[lv] - G.fly / 60)) + ' dk uçuşta', 124, cy0 + 76, 10.5, 'rgba(190,215,240,0.75)', 'left', 500);
 
-    {      // yeni oyun: yazı sabit, çevresinde yavaşça nefes alan yumuşak ışık
-      const b = BTN.titleNew, k = 0.5 + 0.5 * Math.sin(G.t * 2.2);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      for (let q = 3; q >= 1; q--) { ctx.strokeStyle = 'rgba(255,170,90,' + ((0.05 + 0.1 * k) / q) + ')'; ctx.lineWidth = q * 5; ctx.beginPath(); ctx.roundRect(b.x - q * 1.5, b.y - q * 1.5, b.w + q * 3, b.h + q * 3, 11 + q); ctx.stroke(); }
-      ctx.restore();
-      button(b, IS_TOUCH ? 'YENİ OYUN' : 'YENİ OYUN  ·  ENTER', null, true, true);
-      ctx.strokeStyle = 'rgba(255,240,210,' + (0.25 + 0.45 * k) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1, 9); ctx.stroke();
+    {      // yeni oyun: sade düğme, yalnız yazı yumuşakça yanıp söner
+      const b = BTN.titleNew, k = 0.5 + 0.5 * Math.sin(G.t * 2.4);
+      button(b, '', null, true, true);
+      ctx.globalAlpha = 0.5 + 0.5 * k;
+      text('YENİ OYUN', b.x + b.w / 2, b.y + b.h / 2 + 7, 20, '#ffffff', 'center', 700);
+      ctx.globalAlpha = 1;
     }
     if (G.last > 0) {
       const ck = contK(G.last), cost = contCost(ck), can = G.coins >= cost;
