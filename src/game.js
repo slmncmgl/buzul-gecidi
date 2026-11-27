@@ -1268,7 +1268,7 @@
     const k = u.k;
     if (k === 0) {      // Gözcü: radar ışını arenayı bir uçtan öbürüne süpürür
       const dir = (e.sw = !e.sw) ? 1 : -1;
-      lasers.push({ e: e, ang: Math.PI / 2 + dir * 1.05, sweep: -dir * 2.1 / 1.9, warn: 0.6, dur: 1.9, len: 395, w: 7, t: 0, col: '255,90,90', tip: true });      // menzil sınırlı: senin hizana yalnız dikeye yakınken ulaşır, uzağında güvendesin
+      lasers.push({ e: e, ang: Math.PI / 2 + dir * 0.25, sweep: -dir * 0.5 / 1.5, warn: 0.7, dur: 1.5, len: 640, w: 7, t: 0, col: '255,90,90', wedge: 0.25 });      // dar bir dilimi süpürür: dilimin dışı güvenli, uyarıda dilim gösterilir
       u.dur = 2.4;
     } else if (k === 1) {      // Örümcek: atılım, dipte halka
       startLunge(e, true); u.dur = 1.4;
@@ -1349,14 +1349,24 @@
         ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.25 + 0.5 * k) + ')'; ctx.lineWidth = 1.5 + k; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -G.t * 60;
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
         glow(x0, y0, 16 + 14 * k, L.col, 0.5 + 0.4 * k);
-        if (L.tip) { ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.5 + 0.4 * k) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x0, y0, L.len, Math.PI / 2 - 1.1, Math.PI / 2 + 1.1); ctx.stroke(); }      // menzil yayı
+        if (L.wedge) {      // tehlike dilimi: ışının süpüreceği alan; dışında kal
+          const a0 = Math.PI / 2 - L.wedge, a1 = Math.PI / 2 + L.wedge;
+          ctx.fillStyle = 'rgba(' + L.col + ',' + (0.08 + 0.1 * k) + ')';
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a0) * L.len, y0 + Math.sin(a0) * L.len); ctx.lineTo(x0 + Math.cos(a1) * L.len, y0 + Math.sin(a1) * L.len); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.4 + 0.4 * k) + ')'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 6]);
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a0) * L.len, y0 + Math.sin(a0) * L.len); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a1) * L.len, y0 + Math.sin(a1) * L.len); ctx.stroke(); ctx.setLineDash([]);
+        }
       } else {
         const fl = 0.8 + 0.2 * Math.sin(G.t * 40);
         ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.35 * fl) + ')'; ctx.lineWidth = L.w * 3.2; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
         ctx.strokeStyle = 'rgba(' + L.col + ',' + (0.9 * fl) + ')'; ctx.lineWidth = L.w * 1.4; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
         ctx.strokeStyle = 'rgba(255,255,255,' + (0.95 * fl) + ')'; ctx.lineWidth = L.w * 0.5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
         glow(x0, y0, 34, L.col, 0.9);
-        if (L.tip) { glow(x1, y1, 22, L.col, 0.8); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x1, y1, 3.5, 0, 6.3); ctx.fill(); }      // menzil ucu
+        if (L.wedge) {      // atış sırasında dilim sınırları görünmeye devam eder
+          const a0 = Math.PI / 2 - L.wedge, a1 = Math.PI / 2 + L.wedge;
+          ctx.strokeStyle = 'rgba(' + L.col + ',0.35)'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a0) * L.len, y0 + Math.sin(a0) * L.len); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(a1) * L.len, y0 + Math.sin(a1) * L.len); ctx.stroke(); ctx.setLineDash([]);
+        }
       }
     }
     for (let i = 0; i < novas.length; i++) {
