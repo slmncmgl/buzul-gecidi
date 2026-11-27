@@ -1693,7 +1693,13 @@
       else e.scr += (150 - e.scr) * Math.min(1, dt * 1.6);
       e.wy = P.wy + PSY - e.scr;
       const t = terrain(e.wy, T2);
-      if (!e.dash && !e.ult) e.x = clamp(W / 2 + Math.sin(G.t * (e.mk === 2 ? 1.9 : 1.1) + e.ph) * (e.mk === 2 ? 105 : 70), t.L + 28, t.R - 28);
+      if (e.mk === 0) {      // kıyı kulesi: karada durur, nehre ateş eder; ulti sonrası karşı kıyıya sıçrar
+        if (!e.side) e.side = Math.random() < 0.5 ? -1 : 1;
+        e.land = true;
+        const tx = clamp(e.side < 0 ? t.L - 20 : t.R + 20, 16, W - 16);
+        if (e.hop !== undefined && e.hop < 1) { e.hop = Math.min(1, e.hop + dt * 1.6); e.lunge = Math.sin(e.hop * Math.PI) * 0.8; e.x = e.hopX0 === undefined ? (e.hopX0 = e.x) : e.hopX0 + (tx - e.hopX0) * e.hop; if (e.hop >= 1) { e.hopX0 = undefined; e.lunge = 0; } }
+        else e.x = approach(e.x, tx, 80 * dt);
+      } else if (!e.dash && !e.ult) e.x = clamp(W / 2 + Math.sin(G.t * (e.mk === 2 ? 1.9 : 1.1) + e.ph) * (e.mk === 2 ? 105 : 70), t.L + 28, t.R - 28);
       if (e.life <= 0 || e.scr < 60) continue;
       const base = Math.atan2(PSY - e.scr, P.x - e.x);
       const shoot = (a, v) => orbs.push({ x: e.x, wy: e.wy - 8, vx: Math.cos(a) * v, vy: P.speed - Math.sin(a) * v });
@@ -1702,11 +1708,11 @@
         e.ult.t += dt; e.ulti = clamp(e.ult.t / 0.8, 0, 1);
         if (e.ult.t >= 0.8 && !e.ult.f) {
           e.ult.f = true;
-          if (e.mk === 0) lasers.push({ e: e, ang: base, sweep: 0, warn: 0.6, dur: 0.5, len: 520, w: 6, t: 0, track: true, col: '120,190,255' });
+          if (e.mk === 0) { lasers.push({ e: e, ang: base, sweep: 0, warn: 1.2, dur: 0.45, len: 560, w: 6, t: 0, track: true, col: '120,190,255' }); }      // uzun kilitlenme; sonra karşı kıyıya sıçrar
           else if (e.mk === 1) { for (let q = 0; q < 10; q++) shoot(q * 0.628 + e.spin, 120 * e.hard); for (let q = 0; q < 2; q++) mkEnt('shard', e.x + (q ? 14 : -14), e.wy, e.hard, { vx: q ? 90 : -90 }); A.play('orb'); }
           else { e.dash = { t: 0, lx: P.x }; A.play('bigExplode'); }
         }
-        if (e.ult.t >= 1.6) { e.ult = null; e.ulti = 0; e.cd3 = 5.5; }
+        if (e.ult.t >= (e.mk === 0 ? 2.4 : 1.6)) { e.ult = null; e.ulti = 0; e.cd3 = 5.5; if (e.mk === 0) { e.side = -e.side; e.hop = 0; A.play('shatter'); } }      // kıyı kulesi karşı kıyıya atlar
         continue;
       }
       if (e.cd3 <= 0) { e.ult = { t: 0, f: false }; pop(e.x, e.wy + 30, e.mk === 0 ? 'KİLİTLENİYOR' : e.mk === 1 ? 'MÜREKKEP HALKASI' : 'DALIŞ', '#ff8f80'); continue; }
@@ -1954,7 +1960,7 @@
   function kill(e, byShot) {
     e.dead = true;
     if (e.type === 'boss') bossDown(e);
-    if (e.type === 'mini') { for (let q = 0; q < 8; q++) coinsL.push({ x: e.x + rand(-60, 60), wy: e.wy - rand(20, 160), v: q === 0 ? 5 : 1, ph: rand(0, 6), pullT: 0.6 + q * 0.05 }); G.bossMagT = 1.6; G.shake = Math.max(G.shake, 7); vib(80); }
+    if (e.type === 'mini') { const tm = terrain(e.wy, T2), mcx = (tm.L + tm.R) / 2; for (let q = 0; q < 8; q++) coinsL.push({ x: mcx + rand(-60, 60), wy: e.wy - rand(20, 160), v: q === 0 ? 5 : 1, ph: rand(0, 6), pullT: 0.6 + q * 0.05 }); G.bossMagT = 1.6; G.shake = Math.max(G.shake, 7); vib(80); }
     const c = e.type === 'mine' ? ['#ffffff', '#cfeaff', '#ff6a5a', '#9fd3e6']
       : e.type === 'ice' ? ['#ffffff', '#dff4ff', '#a8dcff', '#7fc8ff']
       : e.type === 'hunter' ? ['#ffffff', '#ffd27a', '#ff6a5a', '#ff3d55'] : ['#ffffff', '#ffd27a', '#d58bff', '#ff7ad1'];
@@ -2159,8 +2165,9 @@
       if (s.life !== undefined && (s.life -= dt) <= 0) { shots.splice(i, 1); continue; }
       if (sy(s.wy) < -14 || sy(s.wy) > H + 20 || s.x < -12 || s.x > W + 12) { shots.splice(i, 1); continue; }
       if (solid(s.x, s.wy)) {
-        boom(s.x, s.wy, 4, ['#ffffff', '#cfeaff'], 50);
-        shots.splice(i, 1);
+        let overLand = false;      // karadaki ara bekçinin üstünden geçen mermi silinmez
+        for (let q = 0; q < ents.length; q++) { const e = ents[q]; if (e.land && !e.dead && Math.abs(s.x - e.x) < e.hw + 14 && Math.abs(s.wy - e.wy) < e.hh + 20) { overLand = true; break; } }
+        if (!overLand) { boom(s.x, s.wy, 4, ['#ffffff', '#cfeaff'], 50); shots.splice(i, 1); }
       }
     }
   }
