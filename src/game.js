@@ -1619,34 +1619,32 @@
       for (let i = 0; i < vs.length; i++) {
         const v = vs[i];
         if (v.y < yLo || v.y > yHi) continue;
-        const x = v.x, y = sy(v.y), pulse = 0.5 + 0.5 * Math.sin(G.t * 3.2 + v.y);
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.translate(x, y); ctx.scale(1, 2.1);
-        glow(0, 0, 30, '255,160,70', 0.34 + pulse * 0.12);
+        // yakıt istasyonu: iniş pisti gibi koyu zemin, kenarlarda önden geriye sırayla yanan ledler
+        const x = v.x, y = sy(v.y), hw = v.hw, hl = v.hl, pulse = 0.5 + 0.5 * Math.sin(G.t * 2.4 + v.y);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.translate(x, y); ctx.scale(1, 2.1); glow(0, 0, hw + 14, '255,180,90', 0.16 + 0.08 * pulse);
         ctx.restore();
-        ctx.fillStyle = 'rgba(255,186,104,' + (0.42 + pulse * 0.14) + ')';
-        ctx.beginPath(); ctx.roundRect(x - v.hw, y - v.hl, v.hw * 2, v.hl * 2, v.hw); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,232,190,0.85)'; ctx.lineWidth = 1.2; ctx.stroke();
-        // eski ısı istasyonu: iki yanda paslı direkler, yanıp sönen ikaz ışıkları, ortada yakıt işareti
-        for (let s2 = -1; s2 <= 1; s2 += 2) {
-          const px = x + s2 * (v.hw + 5);
-          ctx.fillStyle = '#2b3442'; ctx.fillRect(px - 2.5, y - v.hl + 4, 5, v.hl * 2 - 8);
-          ctx.fillStyle = '#9a6a3c'; for (let q = 0; q < 3; q++) ctx.fillRect(px - 2.5, y - v.hl + 10 + q * (v.hl * 2 - 24) / 2, 5, 2);
-          const on = Math.floor(G.t * 2 + (s2 > 0 ? 0.5 : 0)) % 2 === 0;
-          ctx.fillStyle = on ? '#ffdf7a' : '#6b5a3a'; ctx.beginPath(); ctx.arc(px, y - v.hl + 4, 2.2, 0, 6.3); ctx.arc(px, y + v.hl - 4, 2.2, 0, 6.3); ctx.fill();
-          if (on) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(px, y - v.hl + 4, 8, '255,220,120', 0.6); glow(px, y + v.hl - 4, 8, '255,220,120', 0.6); ctx.restore(); }
+        const pg = ctx.createLinearGradient(x - hw, 0, x + hw, 0);
+        pg.addColorStop(0, 'rgba(18,26,38,0.82)'); pg.addColorStop(0.5, 'rgba(34,46,62,0.82)'); pg.addColorStop(1, 'rgba(18,26,38,0.82)');
+        ctx.fillStyle = pg; ctx.beginPath(); ctx.roundRect(x - hw, y - hl, hw * 2, hl * 2, 6); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,214,150,0.55)'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.roundRect(x - hw + 3, y - hl + 3, hw * 2 - 6, hl * 2 - 6, 4); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,236,200,0.45)'; ctx.lineWidth = 1.4; ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;      // orta çizgi
+        ctx.beginPath(); ctx.moveTo(x, y - hl + 12); ctx.lineTo(x, y - 11); ctx.moveTo(x, y + 9); ctx.lineTo(x, y + hl - 12); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255,236,200,0.5)';      // eşik çizgileri
+        for (let q = -2; q <= 2; q++) if (q) { ctx.fillRect(x + q * (hw / 3.2) - 1, y - hl + 4, 2, 5); ctx.fillRect(x + q * (hw / 3.2) - 1, y + hl - 9, 2, 5); }
+        const n = Math.max(5, Math.round(hl / 9)), step = (hl * 2 - 10) / (n - 1), head = (G.t * 9 + hash(v.y) * n) % (n + 3);
+        for (let i = 0; i < n; i++) {
+          const ly = y - hl + 5 + i * step, d = head - i, k = d >= 0 && d < 3 ? 1 - d / 3 : 0;      // önden geriye kayan ışık dalgası
+          for (let sd = -1; sd <= 1; sd += 2) {
+            const lx = x + sd * (hw - 2.5);
+            ctx.fillStyle = k > 0 ? 'rgba(255,' + Math.round(200 + 40 * k) + ',' + Math.round(120 + 100 * k) + ',1)' : 'rgba(150,120,80,0.7)';
+            ctx.beginPath(); ctx.arc(lx, ly, 1.3 + 0.5 * k, 0, 6.3); ctx.fill();
+            if (k > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(lx, ly, 7, '255,200,120', 0.75 * k); ctx.restore(); }
+          }
         }
-        ctx.fillStyle = 'rgba(70,40,10,0.55)';      // yakıt damlası
-        ctx.beginPath(); ctx.moveTo(x, y - 9); ctx.bezierCurveTo(x + 7, y - 1, x + 6, y + 7, x, y + 7); ctx.bezierCurveTo(x - 6, y + 7, x - 7, y - 1, x, y - 9); ctx.fill();
-        // yükselen sıcak kabarcıklar
-        ctx.fillStyle = 'rgba(255,244,214,0.9)';
-        for (let q = 0; q < 5; q++) {
-          const ph = (G.t * 0.55 + q * 0.2 + hash(v.y + q)) % 1;
-          const bx = x + (hash(v.y * 1.7 + q * 9.1) - 0.5) * (v.hw * 1.3), by = y + v.hl - 6 - ph * (v.hl * 2 - 12);
-          const r = 1.2 + 1.3 * Math.sin(ph * Math.PI);
-          ctx.beginPath(); ctx.arc(bx, by, r, 0, 6.3); ctx.fill();
-        }
+        ctx.strokeStyle = 'rgba(255,200,120,' + (0.55 + 0.35 * pulse) + ')'; ctx.lineWidth = 1.2;      // ortada ince yakıt simgesi
+        ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.bezierCurveTo(x + 5.5, y - 1, x + 5, y + 5, x, y + 5); ctx.bezierCurveTo(x - 5, y + 5, x - 5.5, y - 1, x, y - 7); ctx.stroke();
       }
     }
   }
