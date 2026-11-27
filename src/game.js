@@ -844,7 +844,8 @@
         const st = Math.min(d, c.pv * dt);
         c.x += dx / d * st; c.wy += dy / d * st + P.speed * dt;
       }
-      if (Math.abs(P.x - c.x) < 12 + c.v && Math.abs(P.wy - c.wy) < 14 + c.v) {
+      const pr = c.pw ? 9 : 0;      // güçlendirmeler yarım gemi uzaklıktan da toplanır
+      if (Math.abs(P.x - c.x) < 12 + c.v + pr && Math.abs(P.wy - c.wy) < 14 + c.v + pr) {
         coinsL.splice(i, 1);
         if (c.pw) { if (c.k === 'mag') magnetUp(); else if (c.k === 'wd') windUp(); else if (c.k === 'sk') skateUp(); else if (c.k === 'sh') shieldUp(); else if (c.k === 'wing') wingUp(); else powerUp(); continue; }
         G.coins += c.v; G.runCoins += c.v; store('bg_coins', String(G.coins));
