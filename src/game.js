@@ -1172,13 +1172,13 @@
     if (w0) {
       G.windT += dt;
       const c = G.windT % 6.5, dir = hash(Math.floor(G.windT / 6.5) + G.sec * 7.3) < 0.5 ? -1 : 1;
-      const env = c < 1.2 ? 0 : c < 1.6 ? (c - 1.2) / 0.4 : c < 2.8 ? 1 : c < 3.2 ? (3.2 - c) / 0.4 : 0;      // 1,2 sn uyarı, ~1,6 sn esinti
-      G.wind = G.windPf ? 0 : w0 * dir * env * (1 + 0.15 * s.loop);
-      G.windWarn = c > 0.2 && c < 3.2 ? dir : 0;
+      const env = c < 1.2 ? 0 : c < 1.45 ? (c - 1.2) / 0.25 : c < 2.25 ? 1 : c < 2.5 ? (2.5 - c) / 0.25 : 0;      // 1,2 sn uyarı, ~1,3 sn hafif esinti
+      G.wind = G.windPf ? 0 : w0 * 0.55 * dir * env * (1 + 0.08 * s.loop);
+      G.windWarn = c > 0.2 && c < 2.5 ? dir : 0;
     } else { G.wind = 0; G.windWarn = 0; G.windT = 0; }
     if (G.gust && G.gust.t > 0) {      // bekçi fırtınası: güçlü yan rüzgâr (Vega etkilenmez)
       G.gust.t -= dt;
-      if (!G.windPf) { G.wind += G.gust.dir * 125 * Math.min(1, G.gust.t * 2, (2.6 - G.gust.t) * 3); G.windWarn = G.gust.dir; }
+      if (!G.windPf) { G.wind += G.gust.dir * 55 * Math.min(1, G.gust.t * 4, (1.5 - G.gust.t) * 4); G.windWarn = G.gust.dir; }
     }
     A.setWind(Math.min(1, Math.abs(G.wind) / 60));
 
@@ -1701,7 +1701,7 @@
           const wy = P.wy + rand(130, 420), tt = terrain(wy, T2);
           if (tt.R - tt.L > 50) meteors.push({ x: rand(tt.L + 14, tt.R - 14), wy: wy, h: 1, r: rand(9, 16), rot: rand(0, 6), hp: 2, fall: 1 / rand(1.2, 1.6) });
         }
-        if (ev.k === 'storm' && (ev.gustT -= dt) <= 0) { ev.gustT = rand(2.5, 4); G.gust = { dir: Math.random() < 0.5 ? -1 : 1, t: 2.2 }; }
+        if (ev.k === 'storm' && (ev.gustT -= dt) <= 0) { ev.gustT = rand(3, 4.5); G.gust = { dir: Math.random() < 0.5 ? -1 : 1, t: 1.5 }; }
       }
     }
     for (let i = meteors.length - 1; i >= 0; i--) {
@@ -1877,7 +1877,7 @@
       startLunge(e, true); u.dur = 1.4;
     } else if (k === 2) {      // Kartal: fırtına + tüy yağmuru
       const dir = Math.random() < 0.5 ? -1 : 1;
-      G.gust = { dir: dir, t: 2.6 };
+      G.gust = { dir: dir, t: 1.5 };
       for (let q = 0; q < 9; q++) orbs.push({ x: rand(t.L + 10, t.R - 10), wy: P.wy + 540 + q * 2, vx: dir * 45, vy: P.speed - 150 - q * 16 });      // tüyler art arda iner
       u.dur = 2.8;
     } else if (k === 3) {      // Kale: bombardıman + buz duvarı
@@ -2390,7 +2390,7 @@
     G.edge = Math.max(0, G.edge - dt);
     if (G.comboT > 0 && (G.comboT -= dt) <= 0) { if (G.combo >= 4 && window.META) metaNote(META.on('combo', { n: G.combo })); G.combo = 0; }
     for (let i = G.toasts.length - 1; i >= 0; i--) if ((G.toasts[i].t += dt) > 3.2) G.toasts.splice(i, 1);
-    if (G.card && (G.card.t += dt) > 3.4) G.card = null;
+    if (G.card && (G.card.t += dt) > 2.2) G.card = null;
     if (G.tutT > 0) G.tutT -= dt;
     let scroll = 0;
 
@@ -3513,7 +3513,7 @@
       ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(W / 2 - 30, 70, 60, 2); ctx.fillStyle = '#ffe9b8'; ctx.fillRect(W / 2 - 30, 70, 60 * G.comboT / 1.6, 2);
     }
     if (G.card) {      // etap sonu puan kartı
-      const c = G.card, a = Math.min(1, c.t * 3, (3.4 - c.t) * 2), yy = 300;
+      const c = G.card, a = Math.min(1, c.t * 5, (2.2 - c.t) / 0.5), yy = 300;
       ctx.globalAlpha = Math.max(0, a);
       ctx.fillStyle = 'rgba(6,16,28,0.86)'; ctx.beginPath(); ctx.roundRect(50, yy, 260, 96, 14); ctx.fill();
       ctx.strokeStyle = 'rgba(255,217,90,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
@@ -3660,8 +3660,8 @@
     }
     // etap başlığı
     const bt = G.banner.t;
-    if (bt < 2.8 && G.mode !== 'gameover') {
-      const a = clamp(bt * 3, 0, 1) * clamp((2.8 - bt) * 2, 0, 1);
+    if (bt < 1.6 && G.mode !== 'gameover') {      // etap başlığı: hızlı gelir, 0,9 sn durur, 0,5 sn'de solar
+      const a = clamp(bt * 5, 0, 1) * clamp((1.6 - bt) / 0.5, 0, 1);
       ctx.globalAlpha = a;
       text(G.banner.a, W / 2, 196 - (1 - a) * 8, 15, '#ffe9b8', 'center', 500);
       text(G.banner.b.toLocaleUpperCase('tr'), W / 2, 230 - (1 - a) * 8, 34, '#ffffff', 'center', 700);
