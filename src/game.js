@@ -20,9 +20,9 @@
   const WING_DROP = 0.0225, WING_MAX = 3, SHIELD_MAX = 1, SHIELD_SHARE = 0.25;      // kanat yardımcıları: %5 (3 kademe); güçlendirmelerin dörtte biri kalkan
   const POWER_DROP = 0.09, POWER_MAX = 16, BOSS_EVERY = 10;      // silah 16 kademe
   const shotCount = () => G.power >= 9 ? 4 : G.power >= 6 ? 3 : G.power >= 4 ? 2 : 1;
-  const fireRate = () => Math.min(9.5, 3 + 1.5 * Math.min(G.power, 3) + 0.2 * Math.max(0, G.power - 3));      // atış/sn: 1-3. kademe hızlandırır
-  const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power));
-  const nukeCdMax = () => Math.max(30, NUKE_CD * (1 - 0.05 * G.power));
+  const fireRate = () => Math.min(9.5, 3 + 1.5 * Math.min(G.power, 3) + 0.2 * Math.max(0, G.power - 3)) * (G.sled === 2 ? 1.15 : 1);      // Kızıl Şimşek: +%15      // atış/sn: 1-3. kademe hızlandırır
+  const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power)) * (G.sled === 1 ? 0.75 : 1);      // Kutup Tilkisi: −%25
+  const nukeCdMax = () => Math.max(30, NUKE_CD * (1 - 0.05 * G.power)) * (G.av === 1 ? 0.7 : 1);      // Roket: −%30
   const NUKE_CD = 60, NUKE_BOSS_DMG = 8;       // nükleer patlama: ekranı temizler, dakikada bir
   const BLAST_CD = 10, BLAST_CHARGE = 1.2, BLAST_HOLD = 0.18, BLAST_MIN = 0.25;
   const FONT = '"Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif';
@@ -127,9 +127,30 @@
   }
 
   // ------------------------------------------------------------ durum
+  // Gemi ve pilot kartları: açılma seviyesi, rol etiketleri, özel yaylım ve artı
+  const SHIP_INFO = [
+    { req: 1, tags: ['DENGELİ'], sp: 'Klasik saçma: güçlendikçe 2-3-4 dalga', pa: 'Her işe yarar' },
+    { req: 2, tags: ['HIZLI', 'DELİCİ'], sp: 'Buz mızrağı: düz hatta her şeyi deler', pa: 'Yaylım %25 daha çabuk dolar' },
+    { req: 4, tags: ['SALDIRI', 'ZİNCİR'], sp: 'Zincir şimşek: düşmandan düşmana seker', pa: 'Atış hızı +%15' },
+    { req: 6, tags: ['SAVUNMA', 'KONTROL'], sp: 'Yıldız halkası: 360° patlama, mermileri siler', pa: 'Kalkan daha sık düşer' },
+    { req: 8, tags: ['ALAN', 'BEKÇİ AVCISI'], sp: 'Ejder nefesi: önüne alev püskürtür', pa: 'Bekçilere +%25 hasar' },
+    { req: 10, tags: ['ÖZEL', 'ZENGİN'], sp: 'Altın füze yağmuru: güdümlü füzeler', pa: 'Toplanan altın +%20' }
+  ];
+  const PILOT_INFO = [
+    { req: 1, tags: ['YAKIT'], pa: 'Yakıt istasyonlarından %25 fazla yakıt' },
+    { req: 2, tags: ['NÜKLEER'], pa: 'Nükleer bekleme süresi %30 kısa' },
+    { req: 3, tags: ['TANK', 'KALKAN'], pa: 'Her cana kalkanla başlar' },
+    { req: 5, tags: ['GÖZCÜ'], pa: 'Sis ve gece karanlığı çok azalır' },
+    { req: 7, tags: ['MIKNATIS'], pa: '1. kademe mıknatısla başlar' },
+    { req: 9, tags: ['DRON'], pa: '1. kademe dronlarla başlar' }
+  ];
+  const LV_MIN = [0, 10, 25, 45, 70, 100, 140, 190, 250, 320];      // pilot seviyesi: toplam uçuş dakikası
+  const pilotLevel = () => { let l = 1; for (let i = 1; i < LV_MIN.length; i++) if (G.fly / 60 >= LV_MIN[i]) l = i + 1; return l; };
+  const lvProgress = () => { const l = pilotLevel(); if (l >= LV_MIN.length) return 1; return clamp((G.fly / 60 - LV_MIN[l - 1]) / (LV_MIN[l] - LV_MIN[l - 1]), 0, 1); };
   const loadJ = (k, d) => { try { const v = JSON.parse(store(k) || 'null'); return Array.isArray(v) ? v : d; } catch (_) { return d; } };
   const G = {
     sled: parseInt(store('bg_sled') || '0', 10) || 0, av: parseInt(store('bg_av') || '0', 10) || 0,      // mağaza: seçili kızak ve avatar
+    fly: parseFloat(store('bg_fly') || '0') || 0, flySave: 5, lvSeen: 0, breath: 0, goldAcc: 0,      // toplam uçuş süresi (sn)
     ownS: loadJ('bg_sleds', [0]), ownA: loadJ('bg_avs', [0]), stTab: 0, stCur: 0, stKb: false, stDeny: -1, stBuyT: 9,
     mode: 'title', t: 0, score: 0, hi: parseInt(store('bg_hi') || '0', 10) || 0, newHi: false,
     lives: 3, sec: 0, heat: 100, nextLife: 10000, checkpoint: 40,
@@ -146,7 +167,7 @@
     stats: { deaths: [], gates: 0 }
   };
   const P = { x: W / 2, wy: 40, vx: 0, speed: SPEED_CRUISE, inv: 0, fireCd: 0, tilt: 0, holdT: 0, charge: 0 };
-  let shots = [], ents = [], orbs = [], parts = [], pops = [], coinsL = [], shells = [];
+  let shots = [], ents = [], orbs = [], parts = [], pops = [], coinsL = [], shells = [], bolts = [], rings = [];
   let armed = {};
   let muted = store('bg_muted') === '1';
 
@@ -493,8 +514,10 @@
   }
 
   // ---- Mağaza: altınla kızak ve avatar
-  const STORE_TAB = [{ x: 24, y: 98, w: 150, h: 34 }, { x: 186, y: 98, w: 150, h: 34 }];
-  const storeCard = (i) => ({ x: 24 + (i % 2) * 162, y: 142 + Math.floor(i / 2) * 149, w: 150, h: 141 });
+  const STORE_TAB = [{ x: 24, y: 76, w: 150, h: 30 }, { x: 186, y: 76, w: 150, h: 30 }];
+  const storeCard = (i) => ({ x: 24 + (i % 2) * 162, y: 114 + Math.floor(i / 2) * 134, w: 150, h: 126 });
+  const stInfo = (i) => (G.stTab ? PILOT_INFO : SHIP_INFO)[i] || { req: 1, tags: [], pa: '' };
+  const stLocked = (i, it) => !stOwned(it) && pilotLevel() < stInfo(i).req;
   const storeList = () => window.COS ? (G.stTab ? COS.AVATARS : COS.SLEDS) : [];
   const stOwned = (it) => (G.stTab ? G.ownA : G.ownS).indexOf(it.id) >= 0;
   const stEquipped = () => { const L = storeList(), c = G.stTab ? G.av : G.sled; for (let i = 0; i < L.length; i++) if (L[i].id === c) return i; return 0; };
@@ -512,7 +535,7 @@
   function storeBuy() {
     const it = stFocusBuy();
     if (!it) return;
-    if (G.coins < it.price) { G.deny = 0.5; G.stDeny = G.stCur; A.play('deny'); return; }
+    if (stLocked(G.stCur, it) || G.coins < it.price) { G.deny = 0.5; G.stDeny = G.stCur; A.play('deny'); return; }
     G.coins -= it.price; store('bg_coins', String(G.coins));
     const own = G.stTab ? G.ownA : G.ownS;
     own.push(it.id); store(G.stTab ? 'bg_avs' : 'bg_sleds', JSON.stringify(own));
@@ -537,25 +560,31 @@
   }
   function drawStore() {
     dim(0.86);
-    text('MAĞAZA', W / 2, 50, 30, '#ffffff', 'center', 700);
-    coinIcon(W / 2 - 42, 76, 5.5, 1); text(G.coins + ' altın', W / 2 - 32, 81, 15, '#ffd95a', 'left', 700);
+    text('MAĞAZA', W / 2, 36, 26, '#ffffff', 'center', 700);
+    coinIcon(24 + 6, 58, 5, 1); text(G.coins + ' altın', 24 + 14, 63, 14, '#ffd95a', 'left', 700);
+    {      // pilot seviyesi ve ilerleme
+      const lv = pilotLevel(), bx = 196, bw = 140;
+      text('PİLOT SV ' + lv + (lv >= LV_MIN.length ? ' · EN ÜST' : ''), bx + bw, 58, 12, '#ffe9b8', 'right', 700);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(bx, 63, bw, 4);
+      ctx.fillStyle = '#ffd95a'; ctx.fillRect(bx, 63, bw * lvProgress(), 4);
+    }
     for (let q = 0; q < 2; q++) {
       const b = STORE_TAB[q], on = G.stTab === q;
       ctx.fillStyle = on ? '#f26a1b' : 'rgba(8,18,30,0.8)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.fill();
       ctx.strokeStyle = on ? 'rgba(255,220,180,0.8)' : 'rgba(190,215,240,0.35)'; ctx.lineWidth = 1.4; ctx.stroke();
-      text((q ? 'PİLOTLAR' : 'GEMİLER') + (IS_TOUCH ? '' : q ? '  ·  E' : '  ·  Q'), b.x + b.w / 2, b.y + 23, 16, on ? '#ffffff' : 'rgba(225,238,250,0.75)', 'center', 700);
+      text((q ? 'PİLOTLAR' : 'GEMİLER') + (IS_TOUCH ? '' : q ? '  ·  E' : '  ·  Q'), b.x + b.w / 2, b.y + 21, 15, on ? '#ffffff' : 'rgba(225,238,250,0.75)', 'center', 700);
     }
     const L = storeList(), own = G.stTab ? G.ownA : G.ownS, cur = G.stTab ? G.av : G.sled;
     if (!L.length) text('Yükleniyor…', W / 2, 320, 15, '#ffffff', 'center', 500);
     for (let i = 0; i < L.length; i++) {
-      const it = L[i], c = storeCard(i), has = own.indexOf(it.id) >= 0, sel = cur === it.id, can = G.coins >= it.price;
-      const sh = G.deny > 0 && G.stDeny === i ? Math.sin(G.deny * 60) * 3 : 0, x = c.x + sh, px = x + c.w / 2, py = c.y + 50;
+      const it = L[i], c = storeCard(i), has = own.indexOf(it.id) >= 0, sel = cur === it.id, can = G.coins >= it.price, lock = stLocked(i, it);
+      const sh = G.deny > 0 && G.stDeny === i ? Math.sin(G.deny * 60) * 3 : 0, x = c.x + sh, px = x + c.w / 2, py = c.y + 48;
       const bg = ctx.createLinearGradient(0, c.y, 0, c.y + c.h);
       bg.addColorStop(0, sel ? 'rgba(70,46,16,0.96)' : 'rgba(18,36,56,0.94)'); bg.addColorStop(1, sel ? 'rgba(28,16,6,0.96)' : 'rgba(6,14,24,0.94)');
       ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(x, c.y, c.w, c.h, 12); ctx.fill();
       ctx.save(); ctx.beginPath(); ctx.roundRect(x + 2, c.y + 2, c.w - 4, c.h - 4, 10); ctx.clip();
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(px, py, 48, sel ? '255,200,90' : has ? '110,230,170' : '110,170,255', sel ? 0.28 : 0.16); ctx.restore();
-      if (G.stTab) COS.drawAvatar(ctx, it.id, px, py, 36, G.t + i * 0.7);
+      if (G.stTab) COS.drawAvatar(ctx, it.id, px, py, 38, G.t + i * 0.7);
       else {
         ctx.translate(px, py + 2); ctx.scale(2.1, 2.1);
         COS.drawSled(ctx, it.id, sel ? Math.floor(G.t / 1.3) % 4 : 0, G.t + i * 0.7);      // seçili kızak güç kademelerini sırayla gösterir
@@ -571,16 +600,34 @@
       ctx.strokeStyle = kb ? '#ffffff' : sel ? '#ffd95a' : has ? 'rgba(125,255,176,0.55)' : 'rgba(190,215,240,0.3)';
       ctx.lineWidth = sel || kb ? 2.4 : 1.3; ctx.beginPath(); ctx.roundRect(x, c.y, c.w, c.h, 12); ctx.stroke();
       if (kb && !has) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.roundRect(x, c.y, c.w, c.h, 12); ctx.fill(); }
-      fitText(it.name, px, c.y + 105, 14, c.w - 12, '#ffffff', 700);
-      fitText(it.desc || '', px, c.y + 120, 10.5, c.w - 12, 'rgba(190,215,240,0.82)', 500);
-      if (sel) text('SEÇİLİ', px, c.y + 135, 12.5, '#7dffb0', 'center', 700);
-      else if (has) text('SEÇ', px, c.y + 135, 12.5, '#ffe9b8', 'center', 700);
-      else { coinIcon(px - 20, c.y + 131, 4.5, 1); text(String(it.price), px - 12, c.y + 135.5, 13.5, can ? '#ffd95a' : '#ff8f80', 'left', 700); }
+      if (lock) {      // kilitli: karart, kilit simgesi
+        ctx.fillStyle = 'rgba(4,10,18,0.55)'; ctx.beginPath(); ctx.roundRect(x, c.y, c.w, c.h, 12); ctx.fill();
+        ctx.strokeStyle = '#c9d6e4'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, py - 4, 6, Math.PI, 0); ctx.stroke();
+        ctx.fillStyle = '#c9d6e4'; ctx.fillRect(px - 8, py - 4, 16, 12); ctx.fillStyle = '#26323f'; ctx.fillRect(px - 1, py, 2, 5);
+      }
+      fitText(it.name, px, c.y + 101, 14, c.w - 12, lock ? 'rgba(225,238,250,0.6)' : '#ffffff', 700);
+      if (sel) text('SEÇİLİ', px, c.y + 118, 12.5, '#7dffb0', 'center', 700);
+      else if (has) text('SEÇ', px, c.y + 118, 12.5, '#ffe9b8', 'center', 700);
+      else if (lock) text('PİLOT SV ' + stInfo(i).req + ' GEREKLİ', px, c.y + 118, 11.5, '#9fb2c8', 'center', 700);
+      else { coinIcon(px - 20, c.y + 114, 4.5, 1); text(String(it.price), px - 12, c.y + 118.5, 13.5, can ? '#ffd95a' : '#ff8f80', 'left', 700); }
+    }
+    if (L[G.stCur]) {      // ayrıntı paneli: rol etiketleri, özel yaylım, artı
+      const inf = stInfo(G.stCur), y0 = 520;
+      ctx.fillStyle = 'rgba(8,18,30,0.85)'; ctx.beginPath(); ctx.roundRect(24, y0, 312, 68, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(190,215,240,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+      let tx = 32;
+      for (let q = 0; q < inf.tags.length; q++) {
+        ctx.font = '700 10.5px ' + FONT; const tw = ctx.measureText(inf.tags[q]).width + 12;
+        ctx.fillStyle = G.stTab ? 'rgba(160,120,255,0.3)' : 'rgba(255,140,60,0.3)'; ctx.beginPath(); ctx.roundRect(tx, y0 + 7, tw, 16, 8); ctx.fill();
+        text(inf.tags[q], tx + tw / 2, y0 + 19, 10.5, '#ffffff', 'center', 700); tx += tw + 5;
+      }
+      if (!G.stTab) { fitText('ÖZEL: ' + inf.sp, W / 2, y0 + 40, 12, 300, '#ffe9b8', 700); fitText('ARTI: ' + inf.pa, W / 2, y0 + 58, 12, 300, 'rgba(190,215,240,0.9)', 500); }
+      else { fitText('YETENEK: ' + inf.pa, W / 2, y0 + 42, 12.5, 300, '#e6dcff', 700); fitText(L[G.stCur].desc || '', W / 2, y0 + 59, 11, 300, 'rgba(190,215,240,0.8)', 500); }
     }
     const fb = stFocusBuy();
     if (fb) {
-      const can = G.coins >= fb.price, sh = G.deny > 0 ? Math.sin(G.deny * 60) * 3 : 0;
-      button(BTN.storeBuy, IS_TOUCH ? 'SATIN AL' : 'SATIN AL · B', fb.price + ' altın', true, can, can ? 0 : sh);
+      const lk = stLocked(G.stCur, fb), can = !lk && G.coins >= fb.price, sh = G.deny > 0 ? Math.sin(G.deny * 60) * 3 : 0;
+      button(BTN.storeBuy, lk ? 'KİLİTLİ' : IS_TOUCH ? 'SATIN AL' : 'SATIN AL · B', lk ? 'SV ' + stInfo(G.stCur).req : fb.price + ' altın', true, can, can ? 0 : sh);
       button(BTN.storeBack2, 'GERİ', null, false, true);
     } else button(BTN.storeBack, IS_TOUCH ? 'GERİ' : 'GERİ  ·  ESC', null, false, true);
   }
@@ -590,6 +637,9 @@
     ctx.strokeStyle = 'rgba(255,217,90,' + pulse + ')'; ctx.lineWidth = 1.4; ctx.stroke();
     if (window.COS) COS.drawAvatar(ctx, G.av, b.x + 17, b.y + b.h / 2, 13, G.t);
     text(IS_TOUCH ? 'MAĞAZA' : 'MAĞAZA · T', b.x + 35, b.y + 23, 15, '#ffe9b8', 'left', 700);
+    text('PİLOT SV ' + pilotLevel(), b.x + 2, b.y + b.h + 15, 11, '#ffe9b8', 'left', 700);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(b.x + 2, b.y + b.h + 20, b.w - 4, 3);
+    ctx.fillStyle = '#ffd95a'; ctx.fillRect(b.x + 2, b.y + b.h + 20, (b.w - 4) * lvProgress(), 3);
   }
 
   function setBanner(k) {
@@ -609,7 +659,8 @@
     G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0; G.magOn = 0; G.windPf = 0; G.skate = 0; G.onLand = false;
     G.runCoins = 0; G.wind = 0; G.windWarn = 0; G.windT = 0; G.deny = 0;
     G.blastCd = 0; G.readyT = 0; P.holdT = 0; P.charge = 0; G.nukeCd = 0; G.nukeT = 0;
-    G.stats.deaths = []; G.stats.gates = 0;
+    G.stats.deaths = []; G.stats.gates = 0; G.breath = 0; bolts.length = 0; rings.length = 0;
+    pilotStart();
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.5; P.fireCd = 0.35; P.tilt = 0;
     shots.length = 0; orbs.length = 0; shells.length = 0; parts.length = 0; pops.length = 0;
     mouse.mx = 0; mouse.my = 0; mouse.down = false;      // farenin şu anki konumu sıfır noktası
@@ -643,6 +694,12 @@
     P.charge = 0; P.holdT = 0; G.windPf = 0; G.skate = 0; G.onLand = false; G.landT = 0;      // rüzgâr kalkanı ve paten ölünce gider
   }
 
+  function pilotStart() {      // pilot pasifleri: Ayaz kalkan, Pusula mıknatıs, Aurora dron
+    if (G.av === 2) G.shield = Math.max(G.shield, 1);
+    if (G.av === 4) G.mag = Math.max(G.mag, 1);
+    if (G.av === 5) G.wing = Math.max(G.wing, 1);
+  }
+
   function afterDeath() {
     G.lives--;
     if (G.lives <= 0) {
@@ -655,7 +712,8 @@
     P.x = W / 2; P.wy = G.checkpoint; P.vx = 0; P.speed = SPEED_CRUISE; P.inv = 1.8; P.fireCd = 0.3; P.tilt = 0;
     G.heat = 100; shots.length = 0; orbs.length = 0; shells.length = 0;
     mouse.mx = 0; mouse.my = 0;                          // yeniden doğunca sıfır noktası da yenilenir
-    G.blastCd = 0; P.holdT = 0; P.charge = 0;            // yeni kızak, yaylım hazır
+    G.blastCd = 0; P.holdT = 0; P.charge = 0; G.breath = 0;            // yeni kızak, yaylım hazır
+    pilotStart();
     rearm();
     G.mode = 'playing';
   }
@@ -779,7 +837,15 @@
       if (G.blastCd <= 0) { G.blastCd = 0; G.readyT = 1.2; A.play('blastReady'); }
     }
     G.readyT = Math.max(0, G.readyT - dt);
-    if (G.blastEcho) { G.blastEcho.t -= dt; if (G.blastEcho.t <= 0) { pellets(G.blastEcho.c); A.play('blast'); if (--G.blastEcho.n > 0) G.blastEcho.t = 0.16; else G.blastEcho = null; } }
+    if (G.breath > 0) {      // ejder nefesi: kısa ömürlü alev parçacıkları
+      G.breath -= dt; G.breathAcc = (G.breathAcc || 0) + dt * 42;
+      while (G.breathAcc >= 1) {
+        G.breathAcc--;
+        const a = rand(-0.38, 0.38), v = rand(250, 330);
+        shots.push({ x: P.x + rand(-3, 3), wy: P.wy + 14, v: Math.cos(a) * v + P.speed, vx: Math.sin(a) * v, dmg: 1 + Math.floor(G.power / 6), pellet: true, flame: true, life: 0.42, pierce: 1 });
+      }
+    }
+    if (G.blastEcho) { G.blastEcho.t -= dt; if (G.blastEcho.t <= 0) { blastFx(G.blastEcho.c); A.play('blast'); if (--G.blastEcho.n > 0) G.blastEcho.t = 0.16; else G.blastEcho = null; } }
     if (G.nukeCd > 0) { G.nukeCd -= dt; if (G.nukeCd <= 0) { G.nukeCd = 0; A.play('blastReady'); pop(P.x, P.wy + 40, 'NÜKLEER HAZIR', '#7dffb0'); } }
     if (G.wing) wingFire(dt);
     const autoRelease = cfg.auto;       // otomatik pilotta dolunca kendi ateşler
@@ -824,7 +890,7 @@
       }
     }
     if (charging) {
-      G.heat = Math.min(100, G.heat + HEAT_CHARGE * sm * dt);
+      G.heat = Math.min(100, G.heat + HEAT_CHARGE * sm * dt * (G.av === 0 ? 1.25 : 1));      // Nova: +%25 yakıt
       if (Math.random() < 0.6) part(P.x + rand(-9, 9), P.wy + rand(-8, 10), rand(-10, 10), rand(10, 50), rand(0.3, 0.7), rand(1.5, 3), '#ffd9a0', true);
     }
     if (charging && !G.charging) A.play('vent');
@@ -848,7 +914,8 @@
       if (Math.abs(P.x - c.x) < 12 + c.v + pr && Math.abs(P.wy - c.wy) < 14 + c.v + pr) {
         coinsL.splice(i, 1);
         if (c.pw) { if (c.k === 'mag') magnetUp(); else if (c.k === 'wd') windUp(); else if (c.k === 'sk') skateUp(); else if (c.k === 'sh') shieldUp(); else if (c.k === 'wing') wingUp(); else powerUp(); continue; }
-        G.coins += c.v; G.runCoins += c.v; store('bg_coins', String(G.coins));
+        let gv = c.v; if (G.sled === 5) { G.goldAcc += gv * 0.2; const ex = Math.floor(G.goldAcc); G.goldAcc -= ex; gv += ex; }      // Altın İmparator: +%20
+        G.coins += gv; G.runCoins += gv; store('bg_coins', String(G.coins));
         addScore(10 * c.v);
         A.play(c.v > 1 ? 'bigCoin' : 'coin');
         if (c.v > 1) pop(c.x, c.wy + 12, '+' + c.v + ' ALTIN', '#ffd95a');
@@ -983,9 +1050,46 @@
     }
     G.wingCd = G.wing >= 2 ? 0.9 : 1.4; A.play('orb');
   }
+  // Gemiye göre özel yaylım
+  function blastFx(c) {
+    const k = G.sled;
+    if (k === 1) {      // buz mızrağı: delici düz hatlar
+      const lanes = c >= 1 ? 5 : c > 0.4 ? 3 : 1, dm = 2 + Math.floor(G.power / 4) + (c >= 1 ? 1 : 0);
+      for (let i = 0; i < lanes; i++) for (let q = 0; q < 4; q++) shots.push({ x: P.x + (i - (lanes - 1) / 2) * 8, wy: P.wy + 14 + q * 14, v: 720 + P.speed, vx: 0, dmg: dm, pierce: 99, pellet: true, lance: true });
+    } else if (k === 2) {      // zincir şimşek
+      const n = 4 + Math.round(c * 2) + Math.floor(G.power / 6), dm = 3 + Math.floor(G.power / 4) + (c >= 1 ? 2 : 0), hit = [];
+      let fx = P.x, fw = P.wy + 14;
+      for (let q = 0; q < n; q++) {
+        let best = null, bd = 230;
+        for (let i = 0; i < ents.length; i++) {
+          const e = ents[i], y = sy(e.wy);
+          if (e.dead || e.type === 'beam' || e.type === 'whirl' || e.sub > 0.5 || (e.type === 'boss' && e.flee) || y < 0 || y > H || hit.indexOf(e) >= 0) continue;
+          const d = Math.hypot(e.x - fx, e.wy - fw);
+          if (d < bd) { bd = d; best = e; }
+        }
+        if (!best) break;
+        bolts.push({ x1: fx, w1: fw, x2: best.x, w2: best.wy, life: 0.3 });
+        hit.push(best); best.hp -= dm;
+        if (best.hp <= 0) kill(best, true); else best.flash = 0.14;
+        fx = best.x; fw = best.wy;
+      }
+      if (!hit.length) bolts.push({ x1: P.x, w1: P.wy + 14, x2: P.x + rand(-40, 40), w2: P.wy + 220, life: 0.25 });
+    } else if (k === 3) {      // yıldız halkası: her yöne fişek, yakındaki mermileri siler
+      const n = 18 + Math.round(c * 10), v = 420, dm = 1 + Math.floor(G.power / 5) + (c >= 1 ? 1 : 0), R = 110 + 60 * c;
+      for (let i = 0; i < n; i++) { const a = i / n * 6.2832; shots.push({ x: P.x, wy: P.wy, v: Math.cos(a) * v + P.speed, vx: Math.sin(a) * v, dmg: dm, pellet: true, star: true }); }
+      for (let i = orbs.length - 1; i >= 0; i--) if (Math.hypot(orbs[i].x - P.x, orbs[i].wy - P.wy) < R) { boom(orbs[i].x, orbs[i].wy, 6, ['#ffffff', '#ffb8f0'], 70); orbs.splice(i, 1); }
+      rings.push({ x: P.x, wy: P.wy, R: R, life: 0.45 });
+    } else if (k === 4) {      // ejder nefesi
+      G.breath = Math.max(G.breath, 1.1 + 0.6 * c);
+    } else if (k === 5) {      // altın füze yağmuru
+      const n = 6 + Math.round(c * 6) + Math.floor(G.power / 4), dm = 2 + Math.floor(G.power / 5), tg = [];
+      for (let i = 0; i < ents.length; i++) { const e = ents[i], y = sy(e.wy); if (!e.dead && e.type !== 'beam' && e.type !== 'whirl' && y > 0 && y < PSY - 20) tg.push(e); }
+      for (let i = 0; i < n; i++) { const a = -0.9 + 1.8 * i / Math.max(1, n - 1); shots.push({ x: P.x + Math.sin(a) * 10, wy: P.wy + 10, v: P.speed + 220, vx: Math.sin(a) * 260, dmg: dm, homing: true, gold: true, tgt: tg.length ? tg[i % tg.length] : null }); }
+    } else pellets(c);
+  }
   function fireBlast() {
     const c = P.charge;
-    pellets(c);
+    blastFx(c);
     if (G.power >= 5) G.blastEcho = { t: 0.16, c: c, n: G.power >= POWER_MAX ? 3 : G.power >= 10 ? 2 : 1 };      // yaylım 5'te çift, 10'da üçlü, 16'da dörtlü gider
     for (let i = 0; i < 16; i++) part(P.x + rand(-6, 6), P.wy + 14, rand(-110, 110), rand(40, 190), rand(0.2, 0.45), rand(1.5, 3), i % 2 ? '#fff6da' : '#ffcf8a', true);
     G.blastCd = blastCdMax(); G.shake = Math.max(G.shake, 3 + 3 * c);
@@ -1157,7 +1261,7 @@
       else if (r >= 0.34 && r < 0.359) k = 'sk';                                         // %4: buz pateni                                         // %4: rüzgâr kalkanı
       else if (r >= WING_DROP + POWER_DROP && r < WING_DROP + POWER_DROP + MAG_DROP) k = 'mag';           // %5: mıknatıs                        // %5: kanat yardımcıları
       else if (r < WING_DROP + POWER_DROP) {                                            // %20: silah ya da (dörtte bir) kalkan
-        const wantSh = Math.random() < SHIELD_SHARE || G.power >= POWER_MAX;
+        const wantSh = Math.random() < (G.sled === 3 ? 0.42 : SHIELD_SHARE) || G.power >= POWER_MAX;
         k = wantSh && G.shield < SHIELD_MAX ? 'sh' : G.power < POWER_MAX ? 'pw' : Math.random() < 0.5 ? 'sh' : 'pw';
       }
       if (k) coinsL.push({ x: e.x, wy: e.wy, v: 0, pw: true, k: k, ph: 0 });
@@ -1282,7 +1386,7 @@
         const s = shots[j];
         if (!(e.sub > 0.5) && s.last !== e && Math.abs(s.x - e.x) < e.hw + 2 && Math.abs(s.wy - e.wy) < e.hh + 6) {
           if (s.pierce > 0) { s.pierce--; s.last = e; } else shots.splice(j, 1);
-          e.hp -= s.dmg || 1;
+          e.hp -= (s.dmg || 1) * (e.type === 'boss' && G.sled === 4 ? 1.25 : 1);      // Zümrüt Ejder: bekçiye +%25
           if (e.hp <= 0) kill(e, true);
           else { e.flash = 0.14; A.play('hit'); boom(s.x, s.wy, 5, ['#ffffff', '#ffd27a'], 60); }
           break;
@@ -1297,6 +1401,8 @@
   }
 
   function updateShots(dt) {
+    for (let i = bolts.length - 1; i >= 0; i--) if ((bolts[i].life -= dt) <= 0) bolts.splice(i, 1);
+    for (let i = rings.length - 1; i >= 0; i--) if ((rings[i].life -= dt) <= 0) rings.splice(i, 1);
     for (let i = shots.length - 1; i >= 0; i--) {
       const s = shots[i];
       if (s.homing) {
@@ -1311,7 +1417,8 @@
       }
       s.wy += s.v * dt;
       if (s.vx) s.x += s.vx * dt;
-      if (sy(s.wy) < -14 || s.x < -12 || s.x > W + 12) { shots.splice(i, 1); continue; }
+      if (s.life !== undefined && (s.life -= dt) <= 0) { shots.splice(i, 1); continue; }
+      if (sy(s.wy) < -14 || sy(s.wy) > H + 20 || s.x < -12 || s.x > W + 12) { shots.splice(i, 1); continue; }
       if (solid(s.x, s.wy)) {
         boom(s.x, s.wy, 4, ['#ffffff', '#cfeaff'], 50);
         shots.splice(i, 1);
@@ -1409,6 +1516,12 @@
     let scroll = 0;
 
     G.stBuyT += dt;
+    if (G.mode === 'playing') {      // toplam uçuş süresi → pilot seviyesi
+      G.fly += dt;
+      if ((G.flySave -= dt) <= 0) { G.flySave = 5; store('bg_fly', String(Math.floor(G.fly))); }
+      const lv = pilotLevel();
+      if (lv > G.lvSeen) { if (G.lvSeen) { pop(P.x, P.wy + 70, 'PİLOT SEVİYESİ ' + lv, '#ffd95a'); A.play('extraLife'); } G.lvSeen = lv; }
+    }
     if (G.mode === 'title' || G.mode === 'store') {
       P.wy += 55 * dt; scroll = 55;
       setPal(dt, LV.info(LV.sectionAtRow(Math.floor(P.wy / ROW))).pal);
@@ -1419,7 +1532,7 @@
       updateShots(dt); updateEnts(dt); updateOrbs(dt); updateShells(dt);
       scroll = P.speed;
       setPal(dt, sec(G.sec).info.pal);
-      G.fog += ((sec(G.sec).info.fog || 0) - G.fog) * Math.min(1, dt * 0.9);
+      G.fog += ((sec(G.sec).info.fog || 0) * (G.av === 3 ? 0.35 : 1) - G.fog) * Math.min(1, dt * 0.9);
     } else if (G.mode === 'dying') {
       updateEnts(dt); updateOrbs(dt); shells.length = 0;
       G.deathT -= dt;
@@ -2065,7 +2178,7 @@
   }
 
   function drawNight() {
-    const n = G.night;
+    const n = G.night * (G.av === 3 ? 0.45 : 1);      // Vega: gece görüşü
     if (n < 0.03) return;
     const playing = G.mode !== 'title' && G.mode !== 'store';
     // kızağın çevresi ve önü aydınlık, uzaklar karanlık
@@ -2137,8 +2250,9 @@
     ctx.lineCap = 'round';
     for (let i = 0; i < shots.length; i++) {
       const s = shots[i], y = sy(s.wy);
+      if (s.flame) { const k = s.life / 0.42; glow(s.x, y, 5 + (1 - k) * 15, k > 0.6 ? '255,230,150' : '255,120,40', 0.6 * k); continue; }
       const ux = s.vx || 0, uy = -(s.v - P.speed), ul = Math.hypot(ux, uy) || 1, tx = -ux / ul * 18, ty = -uy / ul * 18;
-      glow(s.x, y, s.pellet ? 8 : 9, s.dmg > 1 ? '255,170,110' : '255,220,140', 0.7);
+      glow(s.x, y, s.pellet ? 8 : 9, s.lance ? '150,230,255' : s.star ? '255,160,240' : s.gold ? '255,210,90' : s.dmg > 1 ? '255,170,110' : '255,220,140', 0.7);
       const g = ctx.createLinearGradient(s.x, y, s.x + tx, y + ty);
       g.addColorStop(0, 'rgba(255,240,200,0.9)'); g.addColorStop(1, 'rgba(255,170,80,0)');
       ctx.strokeStyle = g; ctx.lineWidth = 3;
@@ -2149,14 +2263,17 @@
     ctx.fillStyle = '#fffbe8';
     for (let i = 0; i < shots.length; i++) {
       const s = shots[i];
+      if (s.flame) continue;
+      if (s.lance) { ctx.fillStyle = '#e6fbff'; ctx.fillRect(s.x - 1.2, sy(s.wy) - 9, 2.4, 16); ctx.fillStyle = '#fffbe8'; continue; }
+      if (s.star) { ctx.fillStyle = '#ffd6f6'; ctx.beginPath(); ctx.arc(s.x, sy(s.wy), 2.4, 0, 6.3); ctx.fill(); ctx.fillStyle = '#fffbe8'; continue; }
       if (s.homing) {      // güdümlü füze: gövde, burun, kanatçık, itici alevi
         const y = sy(s.wy), ux = s.vx || 0, uy = -(s.v - P.speed), a = Math.atan2(uy, ux) + Math.PI / 2;
         ctx.save(); ctx.translate(s.x, y); ctx.rotate(a);
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(0, 6, 8, '120,255,190', 0.7);
         ctx.fillStyle = '#fff6da'; poly([-1.6, 4, 1.6, 4, 0, 9 + Math.random() * 4]); ctx.restore();
-        ctx.fillStyle = '#e8f3ff'; ctx.fillRect(-1.6, -4, 3.2, 8);
-        ctx.fillStyle = '#3cc98d'; poly([-1.6, -4, 1.6, -4, 0, -7.5]);
-        ctx.fillStyle = '#1f6b52'; poly([-1.6, 1.5, -4, 4.5, -1.6, 4]); poly([1.6, 1.5, 4, 4.5, 1.6, 4]);
+        ctx.fillStyle = s.gold ? '#fff1b0' : '#e8f3ff'; ctx.fillRect(-1.6, -4, 3.2, 8);
+        ctx.fillStyle = s.gold ? '#e0a21b' : '#3cc98d'; poly([-1.6, -4, 1.6, -4, 0, -7.5]);
+        ctx.fillStyle = s.gold ? '#9a6a0c' : '#1f6b52'; poly([-1.6, 1.5, -4, 4.5, -1.6, 4]); poly([1.6, 1.5, 4, 4.5, 1.6, 4]);
         ctx.restore(); ctx.fillStyle = '#fffbe8';
       }
       else if (s.pellet) { ctx.beginPath(); ctx.arc(s.x, sy(s.wy), 2.2, 0, 6.3); ctx.fill(); }
@@ -2164,6 +2281,26 @@
     }
   }
 
+  function drawBlastFx() {      // zincir şimşek ve yıldız halkası
+    if (!bolts.length && !rings.length) return;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let i = 0; i < bolts.length; i++) {
+      const b = bolts[i], a = b.life / 0.3, y1 = sy(b.w1), y2 = sy(b.w2), pts = [b.x1, y1];
+      for (let q = 1; q < 6; q++) { const f = q / 6; pts.push(b.x1 + (b.x2 - b.x1) * f + rand(-7, 7), y1 + (y2 - y1) * f + rand(-5, 5)); }
+      pts.push(b.x2, y2);
+      for (let w = 0; w < 2; w++) {
+        ctx.strokeStyle = w ? 'rgba(255,255,255,' + a + ')' : 'rgba(255,230,90,' + (0.7 * a) + ')'; ctx.lineWidth = w ? 1.2 : 4;
+        ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let q = 2; q < pts.length; q += 2) ctx.lineTo(pts[q], pts[q + 1]); ctx.stroke();
+      }
+      glow(b.x2, y2, 14, '255,240,150', 0.7 * a);
+    }
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i], k = 1 - r.life / 0.45;
+      ctx.strokeStyle = 'rgba(255,170,240,' + (0.8 * (1 - k)) + ')'; ctx.lineWidth = 8 * (1 - k) + 1.5;
+      ctx.beginPath(); ctx.arc(r.x, sy(r.wy), r.R * (0.3 + 0.7 * k), 0, 6.3); ctx.stroke();
+    }
+    ctx.restore();
+  }
   function drawShells() {
     for (let i = 0; i < shells.length; i++) {
       const s = shells[i], p = 1 - s.t / s.T, ty = sy(s.wy);
@@ -2629,7 +2766,7 @@
     ROUND = 1.6; drawDeco(); ROUND = 0;
     drawGates();
     if (G.mode !== 'title' && G.mode !== 'store') {
-      drawCoins(); ROUND = 2.2; drawEnts(); ROUND = 0; drawShots(); drawOrbs(); drawShells();
+      drawCoins(); ROUND = 2.2; drawEnts(); ROUND = 0; drawShots(); drawBlastFx(); drawOrbs(); drawShells();
       if (G.mode === 'playing' || G.mode === 'paused') { ROUND = 2; drawPlayer(); ROUND = 0; }
     }
     drawNight();
