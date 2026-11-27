@@ -547,7 +547,7 @@
 
   // Menü düğmeleri (mantıksal koordinat)
   const BTN = {
-    titleNew: { x: 40, y: 392, w: 280, h: 46 }, titleCont: { x: 40, y: 448, w: 280, h: 40 }, titleStore: { x: 40, y: 498, w: 135, h: 40 }, titleHelp: { x: 185, y: 498, w: 135, h: 40 }, titleMap: { x: 40, y: 548, w: 90, h: 40 }, titleQuests: { x: 135, y: 548, w: 90, h: 40 }, titleLb: { x: 230, y: 548, w: 90, h: 40 }, gear: { x: 10, y: 10, w: 42, h: 34 }, titleDaily: { x: 40, y: 596, w: 280, h: 32 }, overShare: { x: 40, y: 540, w: 280, h: 34 },
+    titleNew: { x: 40, y: 372, w: 280, h: 46 }, titleCont: { x: 40, y: 426, w: 280, h: 38 }, titleStore: { x: 40, y: 478, w: 64, h: 62 }, titleMap: { x: 112, y: 478, w: 64, h: 62 }, titleQuests: { x: 184, y: 478, w: 64, h: 62 }, titleLb: { x: 256, y: 478, w: 64, h: 62 }, titleHelp: { x: 58, y: 10, w: 34, h: 34 }, gear: { x: 10, y: 10, w: 42, h: 34 }, titleDaily: { x: 40, y: 554, w: 280, h: 34 }, overShare: { x: 40, y: 540, w: 280, h: 34 },
     overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 }, overC: { x: 40, y: 494, w: 280, h: 36 }, pauseGo: { x: 40, y: 246, w: 280, h: 46 }, pauseMenu: { x: 40, y: 302, w: 280, h: 40 },
     mute: { x: W - 52, y: 10, w: 42, h: 34 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 }, storeBuy: { x: 24, y: 596, w: 196, h: 36 }, storeBack2: { x: 230, y: 596, w: 106, h: 36 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
@@ -903,7 +903,8 @@
   const dailySeed = () => { const k = dailyKey(); let h = 0; for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0; return h % 100000 + 1; };
   const dailyStage = () => { let k = 4 + dailySeed() % 36; if (k % BOSS_EVERY === BOSS_EVERY - 1) k++; return k; };
   const dailyBest = () => parseInt(store('bg_daily_' + dailyKey()) || '0', 10) || 0;
-  function startDaily() { startGame(dailyStage(), true); pop(P.x, P.wy + 60, 'GÜNÜN ETABI', '#ffd95a'); }
+  const DAILY_LEN = 10;      // günün etabı: art arda 10 etap
+  function startDaily() { startGame(dailyStage(), true); G.dailyGates = 0; pop(P.x, P.wy + 60, 'GÜNÜN ETABI · ' + DAILY_LEN + ' ETAP', '#ffd95a'); }
   function endDaily(done) {
     G.dailyDone = done; G.mode = 'gameover'; G.overT = 0; G.won = false;
     if (G.score > dailyBest()) { store('bg_daily_' + dailyKey(), String(G.score)); G.newHi = true; } else G.newHi = false;
@@ -1258,7 +1259,8 @@
         G.st = { t0: G.fly, shots: 0, hits: 0, coins: 0, deaths: 0 };
       }
       G.sec++; G.stats.gates++; G.flash = 0.35;
-      if (G.daily) { endDaily(true); return; }      // günün etabı tek etaptır
+      if (G.daily && ++G.dailyGates >= DAILY_LEN) { endDaily(true); return; }      // günün etabı: 10 fener geçilince biter
+      if (G.daily) { pop(W / 2, gy + 110, 'GÜNÜN ETABI ' + G.dailyGates + '/' + DAILY_LEN, '#ffd95a'); }
       if (G.sec > G.best && !G.cheated) { G.best = G.sec; store('bg_stage', String(G.best)); }
       if (!G.cheated) { G.last = G.sec; store('bg_last', String(G.last)); }      // menüdeki devam: son oyunda varılan etap
       if (G.sec >= MAXLV) {      // 50 etap bitti: oyun kazanıldı
@@ -3332,7 +3334,7 @@
       ctx.globalAlpha = 1;
     }
     const loop = Math.floor(G.sec / NSEC);
-    const stageLbl = G.daily ? 'GÜNÜN ETABI' : 'ETAP ' + (G.sec + 1) + '/' + MAXLV;
+    const stageLbl = G.daily ? 'GÜNÜN ETABI ' + ((G.dailyGates || 0) + 1) + '/' + DAILY_LEN : 'ETAP ' + (G.sec + 1) + '/' + MAXLV;
     text(stageLbl, W / 2, 15, 10, 'rgba(190,215,240,0.8)', 'center', 500);
     todIcon(W / 2 - ctx.measureText(stageLbl).width / 2 - 11, 11.5);
     text(LV.info(G.sec).name.toLocaleUpperCase('tr'), W / 2, 33, 15, '#ffe9b8', 'center', 700);
@@ -3510,23 +3512,21 @@
     text('GEÇİDİ', W / 2, 236, 68, '#ff9a4d', 'center', 700);
 
     // hangar kartı: seçili gemi, pilot, pilot seviyesi
-    const cy0 = 266, ch = 108;
+    const cy0 = 262, ch = 94;
     ctx.fillStyle = 'rgba(8,18,30,0.82)'; ctx.beginPath(); ctx.roundRect(24, cy0, 312, ch, 14); ctx.fill();
     ctx.strokeStyle = 'rgba(190,215,240,0.28)'; ctx.lineWidth = 1.2; ctx.stroke();
     const sName = window.COS ? COS.SLEDS[G.sled].name : 'KEŞİF', pName = window.COS ? COS.AVATARS[G.av].name : '';
     if (window.COS) {
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(78, cy0 + 44, 36, '255,170,90', 0.22); ctx.restore();
-      ctx.save(); ctx.translate(78, cy0 + 46 + Math.sin(G.t * 2) * 2); ctx.scale(1.9, 1.9); COS.drawSled(ctx, G.sled, 0, G.t); ctx.restore();
-      COS.drawAvatar(ctx, G.av, 290, cy0 + 40, 26, G.t);
-    } else miniShip(78, cy0 + 46);
-    text(sName, 134, cy0 + 36, 15, '#ffffff', 'left', 700);
-    text('GEMİ', 134, cy0 + 20, 10, 'rgba(190,215,240,0.75)', 'left', 500);
-    text(pName, 290, cy0 + 84, 11.5, '#ffe9b8', 'center', 700);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(74, cy0 + 46, 34, '255,170,90', 0.22); ctx.restore();
+      ctx.save(); ctx.translate(74, cy0 + 48 + Math.sin(G.t * 2) * 2); ctx.scale(1.8, 1.8); COS.drawSled(ctx, G.sled, 0, G.t); ctx.restore();
+      COS.drawAvatar(ctx, G.av, 294, cy0 + 38, 24, G.t);
+    } else miniShip(74, cy0 + 48);
+    text(sName, 124, cy0 + 30, 15, '#ffffff', 'left', 700);
     const lv = pilotLevel();
-    text('PİLOT SV ' + lv, 134, cy0 + 62, 11.5, '#ffe9b8', 'left', 700);
-    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(134, cy0 + 68, 110, 4);
-    ctx.fillStyle = '#ffd95a'; ctx.fillRect(134, cy0 + 68, 110 * lvProgress(), 4);
-    text(lv >= LV_MIN.length ? 'en üst seviye' : 'sonraki seviye ' + Math.max(0, Math.ceil(LV_MIN[lv] - G.fly / 60)) + ' dk uçuşta', 134, cy0 + 88, 10.5, 'rgba(190,215,240,0.75)', 'left', 500);
+    text('PİLOT SV ' + lv + '  ·  ' + pName, 124, cy0 + 50, 11.5, '#ffe9b8', 'left', 700);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(124, cy0 + 57, 130, 4);
+    ctx.fillStyle = '#ffd95a'; ctx.fillRect(124, cy0 + 57, 130 * lvProgress(), 4);
+    text(lv >= LV_MIN.length ? 'en üst seviye' : 'sonraki seviye ' + Math.max(0, Math.ceil(LV_MIN[lv] - G.fly / 60)) + ' dk uçuşta', 124, cy0 + 76, 10.5, 'rgba(190,215,240,0.75)', 'left', 500);
 
     const blink = Math.floor(G.t * 1.6) % 2 === 0;
     button(BTN.titleNew, IS_TOUCH ? 'YENİ OYUN' : (blink ? 'YENİ OYUN  ·  ENTER' : 'YENİ OYUN'), null, true, true);
@@ -3534,31 +3534,50 @@
       const ck = contK(G.last), cost = contCost(ck), can = G.coins >= cost;
       const sh = G.deny > 0 ? Math.sin(G.deny * 60) * 4 : 0;
       button(BTN.titleCont, contLabel(ck), (IS_TOUCH ? '' : 'C  ·  ') + (cost ? cost + ' altın' : 'BEDAVA'), false, can, sh);
-    } else text('İlk fenere ulaşınca buradan devam edebilirsin.', W / 2, BTN.titleCont.y + 25, 12.5, 'rgba(190,215,240,0.75)', 'center', 500);
-    button(BTN.titleStore, IS_TOUCH ? 'MAĞAZA' : 'MAĞAZA  ·  T', null, false, true);
-    button(BTN.titleHelp, IS_TOUCH ? 'NASIL OYNANIR' : 'NASIL OYNANIR  ·  H', null, false, true);
-    button(BTN.titleMap, 'HARİTA', null, false, !!window.MAP);
-    button(BTN.titleQuests, 'GÖREVLER', null, false, !!window.META);
-    if (window.META && META.quests().some((q) => !q.done)) { ctx.fillStyle = '#ff6a5a'; ctx.beginPath(); ctx.arc(BTN.titleQuests.x + BTN.titleQuests.w - 6, BTN.titleQuests.y + 6, 5, 0, 6.3); ctx.fill(); }
-    button(BTN.titleLb, 'LİDERLİK', null, false, true);
-    {      // ayarlar dişlisi (sol üst)
-      const b = BTN.gear, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-      ctx.fillStyle = 'rgba(8,18,30,0.75)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 8); ctx.fill();
-      ctx.strokeStyle = 'rgba(190,215,240,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 6.3); ctx.stroke();
-      for (let q = 0; q < 8; q++) { const a = q * Math.PI / 4; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * 7.5, cy + Math.sin(a) * 7.5); ctx.lineTo(cx + Math.cos(a) * 10.5, cy + Math.sin(a) * 10.5); ctx.stroke(); }
     }
-
-    coinIcon(66, 26, 5.5, 1);
-    text(String(G.coins) + ' altın', 76, 31, 14, '#ffd95a', 'left', 700);
-    if (G.hi > 0) text('EN İYİ  ' + String(G.hi).padStart(6, '0'), W - 62, 31, 13, '#ffcf8a', 'right', 500);
+    // dört kare: mağaza, harita, görevler, liderlik
+    const tiles = [[BTN.titleStore, 'MAĞAZA', 'T', 0], [BTN.titleMap, 'HARİTA', 'V', 1], [BTN.titleQuests, 'GÖREVLER', 'G', 2], [BTN.titleLb, 'LİDERLİK', 'L', 3]];
+    for (let i = 0; i < tiles.length; i++) {
+      const b = tiles[i][0], cx = b.x + b.w / 2, cy = b.y + 24;
+      ctx.fillStyle = 'rgba(8,18,30,0.8)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(190,215,240,0.35)'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.strokeStyle = '#ffe9b8'; ctx.fillStyle = '#ffe9b8'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const k = tiles[i][3];
+      if (k === 0) {      // çanta
+        ctx.beginPath(); ctx.roundRect(cx - 9, cy - 5, 18, 14, 3); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy - 6, 5, Math.PI, 0); ctx.stroke();
+      } else if (k === 1) {      // yol ve işaret
+        ctx.beginPath(); ctx.moveTo(cx - 9, cy + 9); ctx.quadraticCurveTo(cx - 10, cy - 2, cx, cy - 1); ctx.quadraticCurveTo(cx + 10, cy, cx + 9, cy - 9); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx + 9, cy - 10, 3, 0, 6.3); ctx.fill(); ctx.beginPath(); ctx.arc(cx - 9, cy + 9, 2.5, 0, 6.3); ctx.fill();
+      } else if (k === 2) {      // onay listesi
+        for (let q = 0; q < 3; q++) { const yy = cy - 7 + q * 7; ctx.beginPath(); ctx.moveTo(cx - 9, yy); ctx.lineTo(cx - 5, yy + 3); ctx.lineTo(cx - 1, yy - 3); ctx.stroke(); ctx.fillRect(cx + 2, yy - 1, 8, 2); }
+      } else {      // kupa
+        ctx.beginPath(); ctx.moveTo(cx - 7, cy - 9); ctx.lineTo(cx + 7, cy - 9); ctx.lineTo(cx + 5, cy); ctx.quadraticCurveTo(cx, cy + 5, cx - 5, cy); ctx.closePath(); ctx.stroke();
+        ctx.fillRect(cx - 1.5, cy + 4, 3, 4); ctx.fillRect(cx - 6, cy + 8, 12, 2);
+        ctx.beginPath(); ctx.arc(cx - 9, cy - 6, 3, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + 9, cy - 6, 3, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+      text(tiles[i][1], cx, b.y + 52, 10.5, '#ffffff', 'center', 700);
+      if (!IS_TOUCH) text(tiles[i][2], b.x + b.w - 7, b.y + 11, 8.5, 'rgba(190,215,240,0.6)', 'right', 700);
+    }
+    if (window.META && META.quests().some((q) => !q.done)) { ctx.fillStyle = '#ff6a5a'; ctx.beginPath(); ctx.arc(BTN.titleQuests.x + BTN.titleQuests.w - 7, BTN.titleQuests.y + 7, 4.5, 0, 6.3); ctx.fill(); }
     {      // günün etabı
-      const b = BTN.titleDaily, db = dailyBest(), nm = LV.info(dailyStage()).name;
+      const b = BTN.titleDaily, db = dailyBest();
       ctx.fillStyle = 'rgba(40,30,8,0.85)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 9); ctx.fill();
       ctx.strokeStyle = 'rgba(255,217,90,' + (0.6 + 0.3 * Math.sin(G.t * 3)) + ')'; ctx.lineWidth = 1.4; ctx.stroke();
-      fitText('GÜNÜN ETABI' + (IS_TOUCH ? '' : ' · D') + '  ·  ' + nm.toLocaleUpperCase('tr') + (db ? '  ·  EN İYİ ' + db : ''), W / 2, b.y + 21, 13.5, 268, '#ffe9b8', 700);
+      text('GÜNÜN ETABI' + (IS_TOUCH ? '' : '  ·  D'), b.x + 14, b.y + 22, 14, '#ffe9b8', 'left', 700);
+      text(db ? 'EN İYİ ' + db : DAILY_LEN + ' ETAP · HERKESE AYNI', b.x + b.w - 14, b.y + 22, 12, '#ffd95a', 'right', 700);
     }
-
+    // üst bar: yardım, altın, en iyi
+    {
+      const b = BTN.titleHelp;
+      ctx.fillStyle = 'rgba(8,18,30,0.75)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 8); ctx.fill();
+      ctx.strokeStyle = 'rgba(190,215,240,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
+      text('?', b.x + b.w / 2, b.y + 24, 20, '#ffffff', 'center', 700);
+    }
+    coinIcon(108, 26, 5.5, 1);
+    text(String(G.coins), 118, 31, 14, '#ffd95a', 'left', 700);
+    if (G.hi > 0) text('EN İYİ ' + String(G.hi).padStart(6, '0'), W - 62, 31, 12.5, '#ffcf8a', 'right', 500);
     if (G.help) drawHelp();
   }
   function drawHelp() {      // NASIL OYNANIR: kontroller ve kısa açıklama
