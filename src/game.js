@@ -935,7 +935,12 @@
         c.x += dx / d * st; c.wy += dy / d * st + P.speed * dt;
       }
       const pr = c.pw ? 9 : 0;      // güçlendirmeler yarım gemi uzaklıktan da toplanır
-      if (Math.abs(P.x - c.x) < 12 + c.v + pr && Math.abs(P.wy - c.wy) < 14 + c.v + pr) {
+      let got = Math.abs(P.x - c.x) < 12 + c.v + pr && Math.abs(P.wy - c.wy) < 14 + c.v + pr;
+      if (!got && G.wing) {      // yardımcı dronlar da değdiklerini toplar
+        const wo = 17 + 2 * G.wing;
+        got = Math.abs(P.wy - 3 - c.wy) < 12 + pr && (Math.abs(P.x - wo - c.x) < 11 + pr || Math.abs(P.x + wo - c.x) < 11 + pr);
+      }
+      if (got) {
         coinsL.splice(i, 1);
         if (c.pw) { if (c.k === 'mag') magnetUp(); else if (c.k === 'wd') windUp(); else if (c.k === 'sk') skateUp(); else if (c.k === 'sh') shieldUp(); else if (c.k === 'wing') wingUp(); else powerUp(); continue; }
         let gv = c.v; if (G.sled === 5) { G.goldAcc += gv * 0.2; const ex = Math.floor(G.goldAcc); G.goldAcc -= ex; gv += ex; }      // Altın İmparator: +%20
