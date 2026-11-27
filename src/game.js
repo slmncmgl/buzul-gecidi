@@ -553,7 +553,7 @@
 
   // Menü düğmeleri (mantıksal koordinat)
   const BTN = {
-    titleNew: { x: 40, y: 372, w: 280, h: 46 }, titleCont: { x: 40, y: 426, w: 280, h: 38 }, titleStore: { x: 40, y: 478, w: 52, h: 62 }, titleMap: { x: 97, y: 478, w: 52, h: 62 }, titleQuests: { x: 154, y: 478, w: 52, h: 62 }, titleLb: { x: 211, y: 478, w: 52, h: 62 }, titleCodex: { x: 268, y: 478, w: 52, h: 62 }, titleHelp: { x: 54, y: 10, w: 38, h: 38 }, gear: { x: 10, y: 10, w: 38, h: 38 }, titleDaily: { x: 40, y: 554, w: 280, h: 34 }, overShare: { x: 40, y: 540, w: 280, h: 34 },
+    titleNew: { x: 24, y: 372, w: 312, h: 48 }, titleCont: { x: 24, y: 428, w: 312, h: 40 }, titleStore: { x: 24, y: 478, w: 58, h: 64 }, titleMap: { x: 87.5, y: 478, w: 58, h: 64 }, titleQuests: { x: 151, y: 478, w: 58, h: 64 }, titleLb: { x: 214.5, y: 478, w: 58, h: 64 }, titleCodex: { x: 278, y: 478, w: 58, h: 64 }, titleHelp: { x: 54, y: 10, w: 38, h: 38 }, gear: { x: 10, y: 10, w: 38, h: 38 }, titleDaily: { x: 24, y: 552, w: 312, h: 36 }, overShare: { x: 40, y: 540, w: 280, h: 34 },
     overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 }, overC: { x: 40, y: 494, w: 280, h: 36 }, pauseGo: { x: 40, y: 246, w: 280, h: 46 }, pauseMenu: { x: 40, y: 302, w: 280, h: 40 },
     mute: { x: W - 48, y: 10, w: 38, h: 38 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 }, storeBuy: { x: 24, y: 596, w: 196, h: 36 }, storeBack2: { x: 230, y: 596, w: 106, h: 36 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
@@ -3776,11 +3776,23 @@
     // dört kare: mağaza, harita, görevler, liderlik
     const tiles = [[BTN.titleStore, 'MAĞAZA', 'T', 0], [BTN.titleMap, 'HARİTA', 'V', 1], [BTN.titleQuests, 'GÖREVLER', 'G', 2], [BTN.titleLb, 'LİDERLİK', 'L', 3], [BTN.titleCodex, 'KARTLAR', 'K', 4]];
     for (let i = 0; i < tiles.length; i++) {
-      const b = tiles[i][0], cx = b.x + b.w / 2, cy = b.y + 24;
-      ctx.fillStyle = 'rgba(8,18,30,0.8)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.fill();
-      ctx.strokeStyle = 'rgba(190,215,240,0.35)'; ctx.lineWidth = 1.2; ctx.stroke();
-      ctx.strokeStyle = '#ffe9b8'; ctx.fillStyle = '#ffe9b8'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      const k = tiles[i][3];
+      const b = tiles[i][0], cx = b.x + b.w / 2, cy = b.y + 24, k = tiles[i][3];
+      if (k === 0) {      // mağaza: altın degrade, parıltı, kayan ışık şeridi
+        const pk = 0.5 + 0.5 * Math.sin(G.t * 2.6);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(cx, b.y + b.h / 2, 46, '255,190,80', 0.18 + 0.14 * pk); ctx.restore();
+        const sg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h); sg.addColorStop(0, '#ffcf5a'); sg.addColorStop(0.55, '#f39a1e'); sg.addColorStop(1, '#c7650c');
+        ctx.fillStyle = sg; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.fill();
+        ctx.save(); ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.clip();
+        const sx = b.x - 30 + ((G.t * 50) % (b.w + 80)); ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.beginPath(); ctx.moveTo(sx, b.y); ctx.lineTo(sx + 14, b.y); ctx.lineTo(sx - 6, b.y + b.h); ctx.lineTo(sx - 20, b.y + b.h); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = 'rgba(255,245,200,' + (0.6 + 0.4 * pk) + ')'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.stroke();
+        ctx.strokeStyle = '#3a1e04'; ctx.fillStyle = '#3a1e04';
+      } else {
+        ctx.fillStyle = 'rgba(8,18,30,0.8)'; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 10); ctx.fill();
+        ctx.strokeStyle = 'rgba(190,215,240,0.35)'; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.strokeStyle = '#ffe9b8'; ctx.fillStyle = '#ffe9b8';
+      }
+      ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       if (k === 0) {      // çanta
         ctx.beginPath(); ctx.roundRect(cx - 9, cy - 5, 18, 14, 3); ctx.stroke();
         ctx.beginPath(); ctx.arc(cx, cy - 6, 5, Math.PI, 0); ctx.stroke();
@@ -3799,8 +3811,8 @@
         ctx.beginPath(); ctx.arc(cx - 9, cy - 6, 3, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke(); ctx.beginPath(); ctx.arc(cx + 9, cy - 6, 3, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
       }
       ctx.lineCap = 'butt';
-      fitText(tiles[i][1], cx, b.y + 52, 9.5, b.w - 4, '#ffffff', 700);
-      if (!IS_TOUCH) text(tiles[i][2], b.x + b.w - 7, b.y + 11, 8.5, 'rgba(190,215,240,0.6)', 'right', 700);
+      fitText(tiles[i][1], cx, b.y + 54, 10, b.w - 4, k === 0 ? '#3a1e04' : '#ffffff', 700);
+      if (!IS_TOUCH) text(tiles[i][2], b.x + b.w - 7, b.y + 11, 8.5, k === 0 ? 'rgba(58,30,4,0.7)' : 'rgba(190,215,240,0.6)', 'right', 700);
     }
     if (window.META && META.quests().some((q) => !q.done)) { ctx.fillStyle = '#ff6a5a'; ctx.beginPath(); ctx.arc(BTN.titleQuests.x + BTN.titleQuests.w - 7, BTN.titleQuests.y + 7, 4.5, 0, 6.3); ctx.fill(); }
     {      // günün etabı
