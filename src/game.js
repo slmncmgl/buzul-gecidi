@@ -267,6 +267,7 @@
     }
     if (G.mode === 'title' && hit[2]) { openStore(); return; }
     if (G.mode === 'gameover' && G.overT > 0.8 && hit[1]) { toMenu(); return; }
+    if (G.mode === 'paused' && hit[1]) { toMenu(); return; }
     if (hit[0] || hit[9]) {
       firstGesture();
       if (G.mode === 'title' || (G.mode === 'gameover' && G.overT > 0.8)) startGame(0);
@@ -327,6 +328,8 @@
       else if (G.mode === 'gameover' && G.overT > 0.8) tryContinue(G.sec);
     } else if (e.code === 'KeyP') {
       togglePause();
+    } else if (e.code === 'KeyQ' && G.mode === 'paused') {
+      toMenu();
     } else if (e.code === 'Escape') {
       if (G.mode === 'playing') togglePause();
     } else if (e.code === 'KeyM') {
@@ -375,6 +378,8 @@
     } else if (G.mode === 'paused') {
       if (inBtn(p, BTN.sensMinus)) { setSens(-1); return; }
       if (inBtn(p, BTN.sensPlus)) { setSens(1); return; }
+      if (inBtn(p, BTN.pauseMenu)) { toMenu(); return; }
+      if (IS_TOUCH && !isMouse && !inBtn(p, BTN.pauseGo)) return;      // dokunmatikte yalnız DEVAM ET düğmesi devam ettirir
       if (isMouse && !mouse.active) { mouse.active = true; mouse.mx = P.x - W / 2; mouse.my = 0; }
       togglePause();
       return;
@@ -476,7 +481,7 @@
   // Menü düğmeleri (mantıksal koordinat)
   const BTN = {
     titleNew: { x: 40, y: 392, w: 280, h: 46 }, titleCont: { x: 40, y: 448, w: 280, h: 40 }, titleStore: { x: 40, y: 498, w: 135, h: 40 }, titleHelp: { x: 185, y: 498, w: 135, h: 40 },
-    overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 }, overC: { x: 40, y: 494, w: 280, h: 36 },
+    overA: { x: 40, y: 398, w: 280, h: 38 }, overB: { x: 40, y: 446, w: 280, h: 38 }, overC: { x: 40, y: 494, w: 280, h: 36 }, pauseGo: { x: 40, y: 246, w: 280, h: 46 }, pauseMenu: { x: 40, y: 302, w: 280, h: 40 },
     mute: { x: W - 52, y: 10, w: 42, h: 34 }, store: { x: 10, y: 10, w: 112, h: 34 }, storeBack: { x: 110, y: 596, w: 140, h: 36 }, storeBuy: { x: 24, y: 596, w: 196, h: 36 }, storeBack2: { x: 230, y: 596, w: 106, h: 36 },
     sensMinus: { x: 76, y: 418, w: 46, h: 36 }, sensPlus: { x: 238, y: 418, w: 46, h: 36 }
   };
@@ -488,7 +493,8 @@
   }
   function toMenu() {      // oyun bittikten sonra ana menüye dön
     G.mode = 'title'; G.boss = null; G.help = false; clearUltis(); shells.length = 0; orbs.length = 0; shots.length = 0;
-    mouse.down = false; unlockPointer(); A.stopMusic(); A.stopEngine(); A.play('hit');
+    mouse.down = false; unlockPointer(); A.stopMusic(); A.stopEngine(); A.setCharging(false); A.setLowHeat(false); A.setWind(0); A.setWeaponCharge(0); A.play('hit');
+    if (G.sec > 0) { G.last = G.sec; store('bg_last', String(G.sec)); }      // çıkılan etap devam noktası olur
   }
   // Altın harcayıp k. etabın başından devam et (puan sıfırlanır)
   // altın yetmezse son yenilen bekçinin ardından bedava başla
@@ -3047,10 +3053,12 @@
       drawHud();
       if (G.mode === 'gameover') { drawGameOver(); drawMuteBtn(); }
       else if (G.mode === 'paused') {
-        dim(0.55); drawMuteBtn();
-        text('DURAKLADI', W / 2, 300, 40, '#ffffff', 'center', 700);
-        text(IS_TOUCH ? 'devam etmek için dokun' : mouse.active ? 'devam etmek için tıkla' : 'devam etmek için P ya da ENTER', W / 2, 330, 15, '#ffcf8a', 'center', 500);
-        text(muted ? 'ses kapalı (M)' : 'ses açık (M)', W / 2, 354, 13, 'rgba(190,215,240,0.85)', 'center', 500);
+        dim(0.62); drawMuteBtn();
+        text('DURAKLADI', W / 2, 186, 40, '#ffffff', 'center', 700);
+        text('ETAP ' + (G.sec + 1) + ' · ' + LV.info(G.sec).name, W / 2, 212, 14, '#ffcf8a', 'center', 500);
+        button(BTN.pauseGo, IS_TOUCH ? 'DEVAM ET' : 'DEVAM ET  ·  P / ENTER', null, true, true);
+        button(BTN.pauseMenu, IS_TOUCH ? 'OYUNDAN ÇIK' : 'OYUNDAN ÇIK  ·  Q', null, false, true);
+        text('Çıkınca bu etaptan altınla devam edebilirsin.', W / 2, BTN.pauseMenu.y + BTN.pauseMenu.h + 20, 12, 'rgba(190,215,240,0.8)', 'center', 500);
         // fare hassasiyeti ayarı
         text('HAREKET HASSASİYETİ', W / 2, 406, 13, '#ffcf8a', 'center', 500);
         button(BTN.sensMinus, '−', null, false, mouse.level > 1);
