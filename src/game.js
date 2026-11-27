@@ -270,8 +270,8 @@
     pad.fire = b(0);
     if (G.mode === 'playing' && mouse.active && (x || pad.up || pad.down || pad.fire)) mouse.active = false;   // kolu tutan kolla oynar
     if (G.mode === 'shop') {      // kol: A silahsız, Y alınabilen en iyisi
-      if (hit[0]) shopPick(0);
-      else if (hit[3]) { let b = 0; for (let i = 0; i < SHOP.length; i++) if (G.coins >= SHOP[i].c) b = i; shopPick(b); }
+      if (hit[0]) shopPick(shopBest());
+      else if (hit[1] || hit[3]) shopPick(SHOP.length - 1);
       return;
     }
     if (G.mode === 'store') {      // kol: yön tuşları gezinir, A al/seç, LB/RB sekme, B geri
@@ -307,7 +307,7 @@
     const dg = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
     if (G.mode === 'shop') {
       if (dg && !e.repeat && +dg[1] <= SHOP.length) shopPick(+dg[1] - 1);
-      else if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) shopPick(0);
+      else if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) shopPick(shopBest());
       e.preventDefault(); return;
     }
     if (G.mode === 'store') {
@@ -721,25 +721,51 @@
   }
   // Altın harcayıp k. etabın başından devam et (puan sıfırlanır)
   // altın yetmezse son yenilen bekçinin ardından bedava başla
-  const SHOP = [{ lv: 0, c: 0 }, { lv: 3, c: 40 }, { lv: 5, c: 80 }, { lv: 7, c: 130 }, { lv: 10, c: 200 }];
-  const shopBtn = (i) => ({ x: 40, y: 236 + i * 48, w: 280, h: 40 });
+  // Devam ekranı: iki seçenek — öldüğün andaki silahla (altın karşılığı) ya da silahsız (bedava)
+  const PW_NAMES = { 1: 'HIZLI ATIŞ', 2: 'HIZLI ATIŞ II', 3: 'HIZLI ATIŞ III', 4: 'ÇİFT ATIŞ', 5: 'ÇİFT YAYLIM', 6: 'ÜÇLÜ ATIŞ', 9: 'DÖRTLÜ ATIŞ', 10: 'ÜÇLÜ YAYLIM', 11: 'ÇAPRAZ ATIŞ', 13: 'DELİCİ MERMİ', 15: 'YELPAZE ATIŞ', 16: 'TAM GÜÇ' };
+  const pwName = (p) => { let n = ''; for (const k in PW_NAMES) if (+k <= p) n = PW_NAMES[k]; return n; };
+  const shopOpts = () => {
+    const pw = G.shopPw | 0, o = [];
+    if (pw > 0) o.push({ lv: pw, c: 15 * pw, label: 'SİLAHLI DEVAM ET', sub: 15 * pw + ' altın' });
+    o.push({ lv: 0, c: 0, label: 'SİLAHSIZ DEVAM ET', sub: 'BEDAVA' });
+    return o;
+  };
+  const SHOP = { get length() { return shopOpts().length; } };      // eski çağrılar için
+  const shopBtn = (i) => ({ x: 40, y: 392 + i * 54, w: 280, h: 44 });
   function shopPick(i) {
-    const o = SHOP[i];
+    const o = shopOpts()[i];
     if (!o || G.coins < o.c) { G.deny = 0.5; A.play('deny'); return; }
     G.coins -= o.c; store('bg_coins', String(G.coins));
     startGame(G.shopK);
     if (o.lv) { G.power = G.powerBase = o.lv; A.play('powerUp'); pop(P.x, P.wy + 40, 'SİLAH KUŞANDIN', '#ff9a4d'); }
   }
+  function shopBest() { const o = shopOpts(); return G.coins >= o[0].c ? 0 : o.length - 1; }      // Enter: alınabiliyorsa silahlı
   function drawShop() {
-    dim(0.78);
-    text('SİLAH KUŞAN', W / 2, 150, 32, '#ffffff', 'center', 700);
-    text('Etap ' + (G.shopK + 1) + ' başlamadan altınla silah seç', W / 2, 178, 13, 'rgba(190,215,240,0.85)', 'center', 500);
-    coinIcon(W / 2 - 40, 206, 5.5, 1); text(G.coins + ' altın', W / 2 - 30, 211, 15, '#ffd95a', 'left', 700);
-    const NM = { 0: 'SİLAHSIZ BAŞLA', 3: 'HIZLI ATIŞ III', 5: 'ÇİFT YAYLIM', 7: 'ÜÇLÜ ATIŞ+', 10: 'ÜÇLÜ YAYLIM' };
-    for (let i = 0; i < SHOP.length; i++) {
-      const o = SHOP[i], can = G.coins >= o.c, sh = G.deny > 0 ? Math.sin(G.deny * 60) * 2 : 0;
-      button(shopBtn(i), (IS_TOUCH ? '' : (i + 1) + '  ·  ') + (o.lv ? 'SEVİYE ' + o.lv + '  ' + NM[o.lv] : NM[0]), o.c ? o.c + ' altın' : 'BEDAVA', i === 0, can, can ? 0 : sh);
+    dim(0.8);
+    text('DEVAM ET', W / 2, 150, 32, '#ffffff', 'center', 700);
+    text('ETAP ' + (G.shopK + 1) + '  ·  ' + LV.info(G.shopK).name.toLocaleUpperCase('tr'), W / 2, 178, 13, '#ffcf8a', 'center', 700);
+    const pw = G.shopPw | 0, o = shopOpts();
+    // gemi önizlemesi: silahlı halin ne görüneceği
+    ctx.fillStyle = 'rgba(8,18,30,0.82)'; ctx.beginPath(); ctx.roundRect(60, 204, 240, 164, 14); ctx.fill();
+    ctx.strokeStyle = 'rgba(190,215,240,0.28)'; ctx.lineWidth = 1.2; ctx.stroke();
+    if (window.COS) {
+      const tier = pw >= 13 ? 3 : pw >= 9 ? 2 : pw >= 4 ? 1 : 0;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(W / 2, 262, 44, pw ? '255,170,90' : '120,170,255', 0.25); ctx.restore();
+      ctx.save(); ctx.translate(W / 2, 266 + Math.sin(G.t * 2) * 2); ctx.scale(2.4, 2.4); COS.drawSled(ctx, G.sled, tier, G.t); ctx.restore();
     }
+    if (pw > 0) {
+      text('SİLAH KADEMESİ ' + pw + '  ·  ' + pwName(pw), W / 2, 332, 13.5, '#ffe9b8', 'center', 700);
+      text('öldüğün andaki silahınla devam edersin', W / 2, 352, 11.5, 'rgba(190,215,240,0.8)', 'center', 500);
+    } else {
+      text('Silahsız başlıyorsun', W / 2, 332, 13.5, '#ffe9b8', 'center', 700);
+      text('güçlendirmeleri yolda toplarsın', W / 2, 352, 11.5, 'rgba(190,215,240,0.8)', 'center', 500);
+    }
+    coinIcon(W / 2 - 34, 383, 5, 1); text(G.coins + ' altın', W / 2 - 24, 388, 13, '#ffd95a', 'left', 700);
+    for (let i = 0; i < o.length; i++) {
+      const can = G.coins >= o[i].c, sh = G.deny > 0 && !can ? Math.sin(G.deny * 60) * 2 : 0;
+      button(shopBtn(i), (IS_TOUCH ? '' : (i + 1) + '  ·  ') + o[i].label, o[i].sub, i === 0 && o.length > 1, can, sh);
+    }
+    text(IS_TOUCH ? '' : 'ENTER: ' + (shopBest() === 0 && o.length > 1 ? 'silahlı' : 'silahsız') + ' devam', W / 2, shopBtn(o.length).y + 6, 11, 'rgba(190,215,240,0.7)', 'center', 500);
   }
   function contK(k) { return G.coins >= contCost(k) || G.bossCp < 1 ? k : Math.min(k, G.bossCp); }
   function tryContinue(k) {
@@ -748,7 +774,8 @@
     if (k < 1 || G.coins < cost) { G.deny = 0.5; A.play('deny'); return false; }
     G.coins -= cost; store('bg_coins', String(G.coins));
     A.play('buy');
-    G.shopK = k; G.shopFrom = G.mode; G.mode = 'shop';      // devam öncesi: altınla silah kuşan
+    G.shopK = k; G.shopFrom = G.mode; G.mode = 'shop';      // devam öncesi: silahlı mı silahsız mı
+    G.shopPw = Math.min(POWER_MAX, G.mode === 'gameover' || G.shopFrom === 'gameover' ? (G.lastPw | 0) : parseInt(store('bg_lastpw') || '0', 10) || 0);
     mouse.down = false;
     return true;
   }
@@ -963,6 +990,7 @@
       return;
     }
     G.mode = 'dying'; G.deathT = 1.5; G.shake = 9; padRumble(450, 1);
+    G.lastPw = G.power; store('bg_lastpw', String(G.power));
     G.deathMsg = why.indexOf('ulti:') === 0 ? why.slice(5) : why === 'freeze' ? (G.heat <= 0 ? 'YAKIT BİTTİ — DÜŞTÜN' : 'BUZA SAPLANDIN') : why === 'beam' ? 'IŞIK ÇİTİNE ÇARPTIN' : why === 'whirl' ? 'GİRDABA KAPILDIN' : 'GEMİ PARÇALANDI';
     G.stats.deaths.push({ why: why, sec: G.sec, wy: Math.round(P.wy), x: Math.round(P.x) }); G.st.deaths++; G.combo = 0; G.comboT = 0; vib(140);
     if (window.META) metaNote(META.on('death', { why: why, stage: G.sec }));
