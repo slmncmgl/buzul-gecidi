@@ -22,7 +22,7 @@
   const shotCount = () => G.power >= 9 ? 4 : G.power >= 6 ? 3 : G.power >= 4 ? 2 : 1;
   const fireRate = () => Math.min(9.5, 3 + 1.5 * Math.min(G.power, 3) + 0.2 * Math.max(0, G.power - 3)) * (G.sled === 2 ? 1.15 : 1);      // Kızıl Şimşek: +%15      // atış/sn: 1-3. kademe hızlandırır
   const blastCdMax = () => Math.max(5, BLAST_CD * (1 - 0.04 * G.power)) * (G.sled === 1 ? 0.75 : 1);      // Kutup Tilkisi: −%25
-  const nukeCdMax = () => Math.max(30, NUKE_CD * (1 - 0.05 * G.power)) * (G.av === 1 ? 0.7 : 1);      // Roket: −%30
+  const nukeCdMax = () => Math.max(30, NUKE_CD * (1 - 0.05 * G.power)) * (G.av === 1 ? 0.6 : 1);      // Roket: −%40
   const NUKE_CD = 60, NUKE_BOSS_DMG = 8;       // nükleer patlama: ekranı temizler, dakikada bir
   const BLAST_CD = 10, BLAST_CHARGE = 1.2, BLAST_HOLD = 0.18, BLAST_MIN = 0.25;
   const FONT = '"Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif';
@@ -137,12 +137,12 @@
     { req: 10, tags: ['ÖZEL', 'ZENGİN'], sp: 'Altın füze yağmuru: güdümlü füzeler', pa: 'Toplanan altın +%20' }
   ];
   const PILOT_INFO = [
-    { req: 1, tags: ['YAKIT'], pa: 'Yakıt istasyonlarından %25 fazla yakıt' },
-    { req: 2, tags: ['NÜKLEER'], pa: 'Nükleer bekleme süresi %30 kısa' },
-    { req: 3, tags: ['TANK', 'KALKAN'], pa: 'Her cana kalkanla başlar' },
-    { req: 5, tags: ['GÖZCÜ'], pa: 'Sis ve gece karanlığı çok azalır' },
-    { req: 7, tags: ['MIKNATIS'], pa: '1. kademe mıknatısla başlar' },
-    { req: 9, tags: ['DRON'], pa: '1. kademe dronlarla başlar' }
+    { req: 1, tags: ['YAKIT'], pa: 'İstasyonlardan %40 fazla yakıt alır', pa2: 'Yakıtı %15 daha yavaş biter' },
+    { req: 2, tags: ['NÜKLEER'], pa: 'Nükleer bekleme süresi %40 kısa', pa2: 'Nükleer bekçilere 2 kat hasar verir' },
+    { req: 3, tags: ['TANK', 'KALKAN'], pa: 'Her cana kalkanla başlar', pa2: 'Oyuna 4 gemiyle başlar' },
+    { req: 5, tags: ['GÖZCÜ', 'HAVA'], pa: 'Rüzgârdan hiç etkilenmez', pa2: 'Sis ve gece karanlığı çok azalır' },
+    { req: 7, tags: ['MIKNATIS'], pa: '2. kademe mıknatısla başlar', pa2: 'Her cana mıknatısla döner' },
+    { req: 9, tags: ['DRON'], pa: '2. kademe dronlarla başlar', pa2: 'Her cana dronlarla döner' }
   ];
   const LV_MIN = [0, 10, 25, 45, 70, 100, 140, 190, 250, 320];      // pilot seviyesi: toplam uçuş dakikası
   const pilotLevel = () => { let l = 1; for (let i = 1; i < LV_MIN.length; i++) if (G.fly / 60 >= LV_MIN[i]) l = i + 1; return l; };
@@ -622,7 +622,7 @@
         text(inf.tags[q], tx + tw / 2, y0 + 19, 10.5, '#ffffff', 'center', 700); tx += tw + 5;
       }
       if (!G.stTab) { fitText('ÖZEL: ' + inf.sp, W / 2, y0 + 40, 12, 300, '#ffe9b8', 700); fitText('ARTI: ' + inf.pa, W / 2, y0 + 58, 12, 300, 'rgba(190,215,240,0.9)', 500); }
-      else { fitText('YETENEK: ' + inf.pa, W / 2, y0 + 42, 12.5, 300, '#e6dcff', 700); fitText(L[G.stCur].desc || '', W / 2, y0 + 59, 11, 300, 'rgba(190,215,240,0.8)', 500); }
+      else { fitText('YETENEK: ' + inf.pa, W / 2, y0 + 40, 12, 300, '#e6dcff', 700); fitText('+ ' + (inf.pa2 || ''), W / 2, y0 + 58, 12, 300, '#e6dcff', 700); }
     }
     const fb = stFocusBuy();
     if (fb) {
@@ -653,7 +653,8 @@
     k = k > 0 ? k : 0;
     G.won = false;
     G.last = k; store('bg_last', String(k));
-    G.mode = 'playing'; G.score = 0; G.lives = 3; G.sec = k; G.heat = 100; G.nextLife = 10000;
+    G.mode = 'playing'; G.score = 0; G.lives = G.av === 2 ? 4 : 3;      // Ayaz: 4 gemi
+    G.sec = k; G.heat = 100; G.nextLife = 10000;
     G.checkpoint = k ? sec(k - 1).gateY + 24 : 40; G.newHi = false; G.shake = 0; G.flash = 0;
     G.cheated = false;
     G.power = 0; G.powerBase = 0; G.blastEcho = null; G.shield = 0; G.wing = 0; G.wingCd = 0; G.mag = 0; G.magOn = 0; G.windPf = 0; G.skate = 0; G.onLand = false;
@@ -696,8 +697,9 @@
 
   function pilotStart() {      // pilot pasifleri: Ayaz kalkan, Pusula mıknatıs, Aurora dron
     if (G.av === 2) G.shield = Math.max(G.shield, 1);
-    if (G.av === 4) G.mag = Math.max(G.mag, 1);
-    if (G.av === 5) G.wing = Math.max(G.wing, 1);
+    if (G.av === 3) G.windPf = 1;      // Vega: rüzgâr işlemez
+    if (G.av === 4) G.mag = Math.max(G.mag, 2);
+    if (G.av === 5) G.wing = Math.max(G.wing, 2);
   }
 
   function afterDeath() {
@@ -880,7 +882,7 @@
     A.setWeaponCharge(P.charge);
 
     // ısı
-    G.heat -= HEAT_DRAIN * s.def.drain * (1 + 0.1 * s.loop) * dt;
+    G.heat -= HEAT_DRAIN * s.def.drain * (1 + 0.1 * s.loop) * dt * (G.av === 0 ? 0.85 : 1);      // Nova: yakıt yavaş biter
     let charging = false;
     for (let k = G.sec; k <= G.sec + 1 && !charging; k++) {
       const vs = sec(k).vents;
@@ -890,7 +892,7 @@
       }
     }
     if (charging) {
-      G.heat = Math.min(100, G.heat + HEAT_CHARGE * sm * dt * (G.av === 0 ? 1.25 : 1));      // Nova: +%25 yakıt
+      G.heat = Math.min(100, G.heat + HEAT_CHARGE * sm * dt * (G.av === 0 ? 1.4 : 1));      // Nova: +%40 yakıt
       if (Math.random() < 0.6) part(P.x + rand(-9, 9), P.wy + rand(-8, 10), rand(-10, 10), rand(10, 50), rand(0.3, 0.7), rand(1.5, 3), '#ffd9a0', true);
     }
     if (charging && !G.charging) A.play('vent');
@@ -1227,7 +1229,7 @@
       }
       if (e.type === 'boss') {
         if (e.flee) continue;
-        e.hp -= NUKE_BOSS_DMG + 2 * G.power; e.flash = 0.3;
+        e.hp -= (NUKE_BOSS_DMG + 2 * G.power) * (G.av === 1 ? 2 : 1); e.flash = 0.3;      // Roket: bekçiye 2 kat
         if (e.hp <= 0) kill(e, true);
       } else kill(e, true);
     }
