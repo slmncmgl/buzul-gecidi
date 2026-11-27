@@ -125,32 +125,31 @@
   }
 
   /* ---------- 0 KEŞİF ---------- */
-  function sled0(ctx, tier, t) {
-    runners(ctx, { x: 9, y0: -6, y1: 11, metal: lin(ctx, 0, -6, 0, 11, [0, '#f6faff', 1, '#a9bccf']), hi: 'rgba(255,255,255,0.9)', strut: '#8fa3ba', struts: [-2, 3], sx: 4.5, tip: '#ff8a3d' });
-    if (tier >= 1) for (let q = -1; q <= 1; q += 2) {
-      pathM(ctx, [6, 0, 13 + tier, 7, 12 + tier, 10.5, 6, 7.5], q);
-      fo(ctx, lin(ctx, 6 * q, 0, (13 + tier) * q, 9, [0, '#f77d2a', 1, '#a8400b']), 1.8);
-      line(ctx, [q * 7.4, 2.4, q * (11.6 + tier), 7.8], '#fff1dc', 0.8);
+  function sled0(ctx, tier, t) {      // turuncu delta mekik: geniş ok kanatlar, çift motor
+    for (let q = -1; q <= 1; q += 2) {      // kanatlar
+      pathM(ctx, [0, -4, 6, 2, 14, 8, 13, 11, 5, 9, 3, 10], q);
+      fo(ctx, lin(ctx, 0, -4, 0, 11, [0, '#ff9a4d', 1, '#b8430e']), 1.6);
+      line(ctx, [q * 5.5, 3.2, q * 12.4, 8.6], '#fff1dc', 0.7);
+      if (tier >= 1) {      // kanat ucu dikmeleri
+        pathM(ctx, [12.2, 4.6, 14.4, 6.8 - tier * 0.6, 14.6, 11, 12.4, 10.6], q);
+        fo(ctx, lin(ctx, 0, 4, 0, 11, [0, '#ffc590', 1, '#a8400b']), 1.3);
+      }
     }
     if (tier >= 2) pods(ctx, '#3d4a5e', '#141c28', '#ff9a4d', '255,160,80', t);
-    if (tier >= 3) crownSpike(ctx, -14, t, '#ffe58a', '255,215,120');
-    const H = [0, -14, 6, -2, 6.5, 8, 3, 11, -3, 11, -6.5, 8, -6, -2];
-    path(ctx, H); fo(ctx, lin(ctx, -7, 0, 7, 0, [0, '#ffb470', 0.42, '#f6782a', 1, '#b3440c']), 2.2);
-    path(ctx, [0, -12.6, -5, -2, -5.4, 7.2, -4, 7.2, -3.6, -2]); fill(ctx, 'rgba(255,232,205,0.45)');
-    path(ctx, [0, -14, 1.9, -10.2, 0, -9.3, -1.9, -10.2]); fo(ctx, '#fff1dc', 1);
-    ctx.fillStyle = '#fff1dc'; ctx.fillRect(-5.4, 4.9, 10.8, 2);
-    ctx.beginPath(); ctx.moveTo(-3.6, 5.2); ctx.lineTo(-2.2, 6.5); ctx.lineTo(-0.8, 5.2); ctx.moveTo(0.8, 5.2); ctx.lineTo(2.2, 6.5); ctx.lineTo(3.6, 5.2);
-    ctx.strokeStyle = '#f26a1b'; ctx.lineWidth = 0.7; ctx.stroke();
-    rrect(ctx, -3.4, 9, 6.8, 2.3, 0.8); fo(ctx, '#2a3546', 1.2);
-    ctx.fillStyle = '#7a2c06';
-    circ(ctx, -4.3, -0.4, 0.45); ctx.fill(); circ(ctx, 4.3, -0.4, 0.45); ctx.fill();
-    circ(ctx, -4.6, 3.2, 0.45); ctx.fill(); circ(ctx, 4.6, 3.2, 0.45); ctx.fill();
-    const b = 0.5 + 0.5 * Math.sin(t * 5);
-    for (let q = -1; q <= 1; q += 2) {
-      circ(ctx, q * 5.1, 9, 0.8); fill(ctx, '#ff4b3a');
-      glow(ctx, q * 5.1, 9, 2.8, '255,70,50', 0.55 * b);
-    }
-    cockpit(ctx, 0, -2, 3.1, 4.8, [0, '#d8f7ff', 0.45, '#59c3ef', 1, '#0f3a5c'], t, '#16212f');
+    if (tier >= 3) crownSpike(ctx, -18, t, '#ffe58a', '255,215,120');
+    path(ctx, [0, -18, 4, -8, 5, 4, 4, 10, -4, 10, -5, 4, -4, -8]);      // gövde
+    fo(ctx, lin(ctx, -5, 0, 5, 0, [0, '#ffc590', 0.45, '#f6782a', 1, '#b3440c']), 1.8);
+    path(ctx, [0, -16.5, -3.3, -8, -4.2, 3.6, -3.2, 3.6, -2.4, -8]); fill(ctx, 'rgba(255,232,205,0.42)');
+    rrect(ctx, -5.2, 7, 3.6, 3.6, 0.8); fo(ctx, '#2b3646', 1);      // motor ağızları
+    rrect(ctx, 1.6, 7, 3.6, 3.6, 0.8); fo(ctx, '#2b3646', 1);
+    const fl = 0.55 + 0.45 * Math.sin(t * 22);
+    for (let q = -1; q <= 1; q += 2) { glow(ctx, q * 3.4, 10, 3.6, '255,170,70', 0.6 * fl); circ(ctx, q * 3.4, 9.6, 0.9); fill(ctx, '#ffd9a0'); }
+    ctx.fillStyle = '#fff1dc'; ctx.fillRect(-3.5, 2, 7, 1.2);
+    ctx.fillStyle = '#7a2c06'; circ(ctx, -3.6, 5, 0.45); ctx.fill(); circ(ctx, 3.6, 5, 0.45); ctx.fill();
+    const b = 0.5 + 0.5 * Math.sin(t * 5);      // seyir ışıkları: sol kırmızı, sağ yeşil
+    circ(ctx, -13, 9, 0.8); fill(ctx, '#ff4b3a'); glow(ctx, -13, 9, 3, '255,70,50', 0.6 * b);
+    circ(ctx, 13, 9, 0.8); fill(ctx, '#7dffa0'); glow(ctx, 13, 9, 3, '120,255,160', 0.6 * (1 - b));
+    cockpit(ctx, 0, -7, 2.6, 4.2, [0, '#d8f7ff', 0.45, '#59c3ef', 1, '#0f3a5c'], t, '#16212f');
   }
 
   /* ---------- 1 KUTUP TİLKİSİ ---------- */
