@@ -1426,7 +1426,7 @@
       : e.type === 'hunter' ? ['#ffffff', '#ffd27a', '#ff6a5a', '#ff3d55'] : ['#ffffff', '#ffd27a', '#d58bff', '#ff7ad1'];
     boom(e.x, e.wy, e.type === 'turret' ? 26 : e.type === 'ice' ? 9 : 16, c, e.type === 'turret' ? 130 : 100);
     G.shake = Math.max(G.shake, e.type === 'turret' ? 5 : 3);
-    A.play(e.type === 'ice' ? 'shatter' : e.type === 'turret' || e.type === 'boss' ? 'bigExplode' : 'explode');
+    A.play(e.type === 'ice' ? 'shatter' : e.type === 'turret' || e.type === 'boss' ? 'bigExplode' : 'explode', { x: e.x });
     if (e.type === 'crystal' && byShot) for (let q = 0; q < 3; q++) mkEnt('shard', e.x + (q - 1) * 6, e.wy, e.hard, { vx: (q - 1) * 130 });
     if (byShot && e.type !== 'ice' && e.type !== 'boss' && e.type !== 'shard' && !solid(e.x, e.wy)) {
       const r = Math.random();
@@ -1563,7 +1563,7 @@
           if (s.pierce > 0) { s.pierce--; s.last = e; } else shots.splice(j, 1);
           e.hp -= (s.dmg || 1) * (e.type === 'boss' && G.sled === 4 ? 1.25 : 1);      // Zümrüt Ejder: bekçiye +%25
           if (e.hp <= 0) kill(e, true);
-          else { e.flash = 0.14; A.play('hit'); boom(s.x, s.wy, 5, ['#ffffff', '#ffd27a'], 60); }
+          else { e.flash = 0.14; A.play('hit', { x: e.x }); boom(s.x, s.wy, 5, ['#ffffff', '#ffd27a'], 60); }
           break;
         }
       }
@@ -1725,6 +1725,11 @@
     } else if (G.mode === 'playing') {
       updatePlayer(dt);
       updateShots(dt); updateEnts(dt); updateOrbs(dt); updateShells(dt); updateUltis(dt);
+      if (A.setIntensity) {      // müzik: etap ilerledikçe ve yakıt azaldıkça yoğunlaşır; bekçide ayrı mod
+        const danger = G.heat < 25 ? 0.15 : 0;
+        A.setIntensity(clamp(0.4 + 0.45 * (G.sec % BOSS_EVERY) / BOSS_EVERY + 0.15 * Math.min(1, G.sec / 50) + danger, 0, 1));
+      }
+      if (A.setBossMode) A.setBossMode(!!(G.boss && G.boss.on && !G.boss.flee));
       scroll = P.speed;
       setPal(dt, sec(G.sec).info.pal);
       G.fog += ((sec(G.sec).info.fog || 0) * (G.av === 3 ? 0.35 : 1) - G.fog) * Math.min(1, dt * 0.9);
