@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Buzul Geçidi</title>
-<meta name="description" content="Buzul Geçidi: donmuş bir fiyortta ısı kuryeliği. Tarayıcıda oynanan özgün bir arcade oyunu.">
+<meta name="description" content="Buzul Geçidi: Kriyo-7 buz gezegeninde yakıt kuryeliği. Tarayıcıda oynanan özgün bir arcade oyunu.">
 <meta name="theme-color" content="#060d16">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c2236'/%3E%3Cpath d='M16 5l8 20H8z' fill='%23f26a1b'/%3E%3Cpath d='M16 5L8 25h8z' fill='%23ff9a4d'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -69,8 +69,8 @@
   <aside class="side">
     <h2>KUZEY HATTI ISI KURYESİ</h2>
     <h1>BUZUL <span>GEÇİDİ</span></h1>
-    <p>Kasabalar donmak üzere. Kızağınla fiyordu geç, ısın bitmeden bir sonraki fenere ulaş.</p>
-    <p>Sıcak kaynakların üstünden ne kadar yavaş geçersen o kadar çok ısı toplarsın. Her etapta akış hızlanır; sis, rüzgâr ve buz bariyerleri yolunu keser.</p>
+    <p>Kriyo-7 adlı buz gezegenindeki üsler donmak üzere. Gemini buz kanyonundan geçir, yakıtın bitmeden bir sonraki işaret fenerine ulaş.</p>
+    <p>Yol üstündeki eski ısı istasyonları artık yakıt ikmal noktası: üstlerinden ne kadar yavaş geçersen o kadar çok yakıt alırsın. Her etapta akış hızlanır; sis, rüzgâr ve buz bariyerleri yolunu keser.</p>
     <p>Topladığın altınlar bu tarayıcıda saklanır. Yolculuk bitince altınla kaldığın etaptan devam edebilirsin.</p>
   </aside>
 
@@ -83,14 +83,14 @@
       <summary aria-label="Nesneler ve puanlar" title="Nesneler ve puanlar">i</summary>
       <h2>NESNELER VE PUANLAR</h2>
     <ul class="legend">
-      <li><span class="dot" style="background:#ffba68"></span><b>Sıcak kaynak</b> ısı verir</li>
+      <li><span class="dot" style="background:#ffba68"></span><b>Eski ısı istasyonu</b> yakıt verir</li>
       <li><span class="dot" style="background:#ffcf3d"></span><b>Altın</b> devam etmek için biriktir</li>
       <li><span class="dot" style="background:#ff7a1f"></span><b>Güçlendirme</b> silahı bir kademe güçlendirir</li>
       <li><span class="dot" style="background:#2f8fe8"></span><b>Kalkan</b> rastgele düşer, bir darbeyi emer</li>
-      <li><span class="dot" style="background:#5a6f8c"></span><b>Buz pateni</b> %4 şans, kıyıdan bir kez kayarak geçirir; karada 5 sn kalırsan donarsın</li>
+      <li><span class="dot" style="background:#5a6f8c"></span><b>Süzülme motoru</b> %4 şans, kanyon kenarından bir kez süzülerek geçirir; karada 5 sn kalırsan buza saplanırsın</li>
       <li><span class="dot" style="background:#17a594"></span><b>Rüzgâr kalkanı</b> %4 şans, ölene kadar rüzgârdan etkilenmezsin</li>
       <li><span class="dot" style="background:#d0369a"></span><b>Mıknatıs</b> %5 şans, yakındaki altın ve güçlendirmeleri kalıcı çeker</li>
-      <li><span class="dot" style="background:#1fae6a"></span><b>Kanat yardımcıları</b> %5 şans, güdümlü misil atar, 3 kademe</li>
+      <li><span class="dot" style="background:#1fae6a"></span><b>Yardımcı dronlar</b> %5 şans, güdümlü füze atar, 3 kademe</li>
       <li><span class="dot" style="background:#bfe6ff"></span><b>Buz bariyeri</b> ateşle kır</li>
       <li><span class="dot" style="background:#b9d6ea"></span><b>Buz mayını</b> 30 puan</li>
       <li><span class="dot" style="background:#8a4fd6"></span><b>Devriye botu</b> 60 puan</li>
@@ -104,8 +104,8 @@
       <li><span class="dot" style="background:#ff5a7d"></span><b>Işık çiti</b> sönünce geç</li>
       <li><span class="dot" style="background:#d2f0ff"></span><b>Girdap</b> içine çeker</li>
       <li><span class="dot" style="background:#4a5873"></span><b>Bekçi</b> her 10. etapta, 10 farklı bekçi, 2500 puan</li>
-      <li><span class="dot" style="background:#ffd95a"></span><b>Mağaza</b> menüde sol üstte: altınla 6 kızak ve 6 avatar</li>
-      <li><span class="dot" style="background:#ffd682"></span><b>Fener</b> kayıt noktası</li>
+      <li><span class="dot" style="background:#ffd95a"></span><b>Mağaza</b> menüde sol üstte: altınla 6 gemi ve 6 pilot</li>
+      <li><span class="dot" style="background:#ffd682"></span><b>İşaret feneri</b> kayıt noktası</li>
     </ul>
     </details>
     <h2>KONTROLLER</h2>
@@ -126,10 +126,10 @@
 </main>
 <noscript>Bu oyun için JavaScript gerekli.</noscript>
 <!-- Her yayında üç betikteki ?v= sayısını birlikte artır: oyun bu sayıyı ekranda sürüm olarak gösterir -->
-<script src="src/level.js?v=50"></script>
-<script src="src/audio.js?v=50"></script>
-<script src="src/cosmetics.js?v=50"></script>
-<script src="src/foes.js?v=50"></script>
-<script src="src/game.js?v=50"></script>
+<script src="src/level.js?v=51"></script>
+<script src="src/audio.js?v=51"></script>
+<script src="src/cosmetics.js?v=51"></script>
+<script src="src/foes.js?v=51"></script>
+<script src="src/game.js?v=51"></script>
 </body>
 </html>

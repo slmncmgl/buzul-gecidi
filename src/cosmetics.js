@@ -831,11 +831,11 @@
 
   const COS = {
     SLEDS: [
-      { id: 0, name: 'KEŞİF', price: 0, desc: 'Fiyortların sadık turuncu kızağı.' },
+      { id: 0, name: 'KEŞİF', price: 0, desc: 'Üslerin sadık turuncu kurye gemisi.' },
       { id: 1, name: 'KUTUP TİLKİSİ', price: 300, desc: 'İnce burunlu, buz kadar hafif yarışçı.' },
       { id: 2, name: 'KIZIL ŞİMŞEK', price: 600, desc: 'Kırmızı kama, sarı şimşek çizgisi.' },
       { id: 3, name: 'MOR KUYRUKLU YILDIZ', price: 1000, desc: 'Kalbinde parlayan bir yıldız taşır.' },
-      { id: 4, name: 'ZÜMRÜT EJDER', price: 1600, desc: 'Pullu gövde, kanat gibi açılan paten.' },
+      { id: 4, name: 'ZÜMRÜT EJDER', price: 1600, desc: 'Pullu gövde, kanat gibi açılan motorlar.' },
       { id: 5, name: 'ALTIN İMPARATOR', price: 2500, desc: 'Altın ve fildişi; buzun hükümdarı.' },
     ],
     AVATARS: [
