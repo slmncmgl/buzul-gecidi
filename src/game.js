@@ -993,10 +993,9 @@
       if (e.dead || e.type === 'beam' || e.type === 'whirl' || y < 0 || y > PSY - 10) continue;
       c.push(e);
     }
-    const n = Math.max(8, Math.min(16, c.length * 2));
-    for (let i = 0; i < n; i++) {
-      const q = i % 2 ? 1 : -1, tg = c.length ? c[i % c.length] : null;
-      shots.push({ x: P.x + q * 17, wy: P.wy + 4 - Math.floor(i / 2) * 5, v: P.speed + 200, vx: q * (60 + (i >> 1) * 18), dmg: 3, homing: true, tgt: tg });
+    for (let i = 0; i < 7; i++) {      // 7 misil: 6 sn gemi çevresinde döner, düşman çıktıkça dalar
+      const q = i % 2 ? 1 : -1;
+      shots.push({ x: P.x + q * 17, wy: P.wy + 4, v: P.speed + 120, vx: q * (80 + i * 14), dmg: 3, homing: true, tgt: c.length > i ? c[i] : null, loiter: 6, orbA: i * 0.8976 });
     }
     pop(P.x, P.wy + 34, 'MİSİL YAĞMURU', '#7dffb0'); A.play('orb');
   }
@@ -1413,6 +1412,23 @@
     for (let i = rings.length - 1; i >= 0; i--) if ((rings[i].life -= dt) <= 0) rings.splice(i, 1);
     for (let i = shots.length - 1; i >= 0; i--) {
       const s = shots[i];
+      if (s.homing && s.loiter > 0) {      // bekleyen misil: hedef yoksa gemi çevresinde tur atar
+        s.loiter -= dt; s.orbA += 3.2 * dt;
+        if (!s.tgt || s.tgt.dead) {
+          s.tgt = null;
+          const cand = [];
+          for (let k = 0; k < ents.length; k++) { const e = ents[k], y = sy(e.wy); if (!e.dead && e.type !== 'beam' && e.type !== 'whirl' && !(e.sub > 0.5) && y > 0 && y < PSY - 10) cand.push(e); }
+          if (cand.length) s.tgt = cand[Math.floor(Math.random() * cand.length)];
+        }
+        if (!s.tgt) {
+          const tx = P.x + Math.cos(s.orbA) * 44, tw = P.wy + 36 + Math.sin(s.orbA) * 34;
+          s.vx = approach(s.vx, (tx - s.x) * 7, 1600 * dt);
+          s.v = approach(s.v, P.speed + (tw - s.wy) * 7, 1600 * dt);
+          if (Math.random() < 0.5) part(s.x, s.wy - 4, rand(-8, 8), P.speed * 0.7, rand(0.2, 0.4), rand(1, 2), '#b8ffd8', true);
+          s.wy += s.v * dt; s.x += s.vx * dt;
+          continue;
+        }
+      }
       if (s.homing) {
         const tg = s.tgt;
         if (tg && !tg.dead) {
