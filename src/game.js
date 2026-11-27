@@ -2659,18 +2659,37 @@
           ctx.fillStyle = e.on ? '#ff5a7d' : e.warn && flick ? '#ffb0c0' : '#6b4a58';
           ctx.fillRect(px0 - 2, y - 3, 4, 6);
         }
-      } else if (e.type === 'whirl') {
-        ctx.fillStyle = 'rgba(2,10,20,0.35)';
-        ctx.beginPath(); ctx.arc(x, y, e.r * 0.42, 0, 6.3); ctx.fill();
-        ctx.lineCap = 'round';
-        for (let q = 0; q < 4; q++) {
-          const rr = e.r * (0.22 + q * 0.24), a0 = -G.t * (3.2 - q * 0.6) + q * 1.7 + e.ph;
-          ctx.strokeStyle = 'rgba(210,240,255,' + (0.62 - q * 0.12) + ')'; ctx.lineWidth = 2.2 - q * 0.3;
-          ctx.beginPath(); ctx.arc(x, y, rr, a0, a0 + 2.3); ctx.stroke();
-          ctx.beginPath(); ctx.arc(x, y, rr, a0 + 3.14, a0 + 5.0); ctx.stroke();
+      } else if (e.type === 'whirl') {      // girdap: huni, dönen köpük kolları, kenar köpüğü, karanlık göz
+        const R = e.r, t = G.t, rot = -t * 2.2 + e.ph;
+        const fg = ctx.createRadialGradient(x, y, 2, x, y, R);
+        fg.addColorStop(0, 'rgba(2,8,18,0.96)'); fg.addColorStop(0.3, 'rgba(8,36,64,0.78)'); fg.addColorStop(0.72, 'rgba(50,120,170,0.3)'); fg.addColorStop(1, 'rgba(120,190,230,0)');
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(x, y, R, 0, 6.3); ctx.fill();
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (let arm = 0; arm < 3; arm++) {      // üç köpük kolu: dışarıdan içeri sarılan spiraller
+          const a0 = rot + arm * 2.094;
+          for (let pass = 0; pass < 2; pass++) {
+            ctx.beginPath();
+            for (let i = 0; i <= 22; i++) {
+              const f = i / 22, rr = R * (0.98 - f * 0.9), a = a0 + f * 5.2 + Math.sin(t * 3 + f * 6 + arm) * 0.05;
+              const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * 0.92;
+              if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+            }
+            ctx.strokeStyle = pass ? 'rgba(235,250,255,0.75)' : 'rgba(150,215,245,0.28)'; ctx.lineWidth = pass ? 1.6 : 5;
+            ctx.stroke();
+          }
+        }
+        ctx.strokeStyle = 'rgba(225,245,255,0.3)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 7]); ctx.lineDashOffset = -t * 40;      // kenar köpüğü
+        ctx.beginPath(); ctx.ellipse(x, y, R * 0.96, R * 0.9, 0, 0, 6.3); ctx.stroke(); ctx.setLineDash([]);
+        for (let q = 0; q < 7; q++) {      // dönen küçük köpük parçaları
+          const a = rot * 1.4 + q * 0.9, rr = R * (0.55 + 0.35 * hash(q * 3.3 + e.ph));
+          ctx.fillStyle = 'rgba(255,255,255,' + (0.35 + 0.3 * Math.sin(t * 5 + q)) + ')';
+          ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.92, 2.2, 1.2, a, 0, 6.3); ctx.fill();
         }
         ctx.lineCap = 'butt';
-        ctx.fillStyle = '#04101c'; ctx.beginPath(); ctx.arc(x, y, 5, 0, 6.3); ctx.fill();
+        const eg = ctx.createRadialGradient(x - 1.5, y - 1.5, 0.5, x, y, 7);      // karanlık göz
+        eg.addColorStop(0, '#0b2238'); eg.addColorStop(1, '#02070f');
+        ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.3); ctx.fill();
+        ctx.strokeStyle = 'rgba(200,235,255,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 7.5, Math.PI * 1.1, Math.PI * 1.7); ctx.stroke();
       } else if (e.type === 'boss') {
         drawBossKind(e, x, y, fl);
       } else if (e.type === 'boss') {
