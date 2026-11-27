@@ -844,11 +844,11 @@
     }
     G.readyT = Math.max(0, G.readyT - dt);
     if (G.breath > 0) {      // ejder nefesi: kısa ömürlü alev parçacıkları
-      G.breath -= dt; G.breathAcc = (G.breathAcc || 0) + dt * 42;
+      G.breath -= dt; G.breathAcc = (G.breathAcc || 0) + dt * 70;
       while (G.breathAcc >= 1) {
         G.breathAcc--;
-        const a = rand(-0.38, 0.38), v = rand(250, 330);
-        shots.push({ x: P.x + rand(-3, 3), wy: P.wy + 14, v: Math.cos(a) * v + P.speed, vx: Math.sin(a) * v, dmg: 1 + Math.floor(G.power / 6), pellet: true, flame: true, life: 0.42, pierce: 1 });
+        const a = rand(-0.62, 0.62), v = rand(240, 360);
+        shots.push({ x: P.x + rand(-5, 5), wy: P.wy + 14, v: Math.cos(a) * v + P.speed, vx: Math.sin(a) * v, dmg: 1 + Math.floor(G.power / 6), pellet: true, flame: true, life: 0.5, pierce: 1 });
       }
     }
     if (G.blastEcho) { G.blastEcho.t -= dt; if (G.blastEcho.t <= 0) { blastFx(G.blastEcho.c); A.play('blast'); if (--G.blastEcho.n > 0) G.blastEcho.t = 0.16; else G.blastEcho = null; } }
@@ -1060,14 +1060,14 @@
   function blastFx(c) {
     const k = G.sled;
     if (k === 1) {      // buz mızrağı: delici düz hatlar
-      const lanes = c >= 1 ? 5 : c > 0.4 ? 3 : 1, dm = 2 + Math.floor(G.power / 4) + (c >= 1 ? 1 : 0);
-      G.fxFlash = 0.14; G.fxCol = '160,230,255';
-      for (let i = 0; i < lanes; i++) for (let q = 0; q < 4; q++) shots.push({ x: P.x + (i - (lanes - 1) / 2) * 8, wy: P.wy + 14 + q * 14, v: 720 + P.speed, vx: 0, dmg: dm, pierce: 99, pellet: true, lance: true });
+      const lanes = c >= 1 ? 7 : c > 0.4 ? 5 : 3, dm = 2 + Math.floor(G.power / 4) + (c >= 1 ? 1 : 0);
+      G.fxFlash = 0.24; G.fxCol = '160,230,255'; G.shake = Math.max(G.shake, 3);
+      for (let i = 0; i < lanes; i++) for (let q = 0; q < 4; q++) shots.push({ x: P.x + (i - (lanes - 1) / 2) * 13, wy: P.wy + 14 + q * 14, v: 720 + P.speed, vx: (i - (lanes - 1) / 2) * 9, dmg: dm, pierce: 99, pellet: true, lance: true });
     } else if (k === 2) {      // zincir şimşek
-      const n = 4 + Math.round(c * 2) + Math.floor(G.power / 6), dm = 3 + Math.floor(G.power / 4) + (c >= 1 ? 2 : 0), hit = [];
+      const n = 6 + Math.round(c * 3) + Math.floor(G.power / 5), dm = 3 + Math.floor(G.power / 4) + (c >= 1 ? 2 : 0), hit = [];
       let fx = P.x, fw = P.wy + 14;
       for (let q = 0; q < n; q++) {
-        let best = null, bd = 230;
+        let best = null, bd = 340;
         for (let i = 0; i < ents.length; i++) {
           const e = ents[i], y = sy(e.wy);
           if (e.dead || e.type === 'beam' || e.type === 'whirl' || e.sub > 0.5 || (e.type === 'boss' && e.flee) || y < 0 || y > H || hit.indexOf(e) >= 0) continue;
@@ -1076,26 +1076,26 @@
         }
         if (!best) break;
         bolts.push({ x1: fx, w1: fw, x2: best.x, w2: best.wy, life: 0.5 });
-        boom(best.x, best.wy, 10, ['#ffffff', '#fff3a0', '#ffd23a'], 110);
+        boom(best.x, best.wy, 16, ['#ffffff', '#fff3a0', '#ffd23a'], 150);
         hit.push(best); best.hp -= dm;
         if (best.hp <= 0) kill(best, true); else best.flash = 0.14;
         fx = best.x; fw = best.wy;
       }
       if (!hit.length) bolts.push({ x1: P.x, w1: P.wy + 14, x2: P.x + rand(-40, 40), w2: P.wy + 220, life: 0.4 });
-      G.fxFlash = 0.18; G.fxCol = '255,240,150'; G.shake = Math.max(G.shake, 4);
+      G.fxFlash = 0.3; G.fxCol = '255,240,150'; G.shake = Math.max(G.shake, 6);
     } else if (k === 3) {      // yıldız halkası: her yöne fişek, yakındaki mermileri siler
-      const n = 18 + Math.round(c * 10), v = 420, dm = 1 + Math.floor(G.power / 5) + (c >= 1 ? 1 : 0), R = 110 + 60 * c;
+      const n = 28 + Math.round(c * 14), v = 460, dm = 1 + Math.floor(G.power / 5) + (c >= 1 ? 1 : 0), R = 170 + 90 * c;
       for (let i = 0; i < n; i++) { const a = i / n * 6.2832; shots.push({ x: P.x, wy: P.wy, v: Math.cos(a) * v + P.speed, vx: Math.sin(a) * v, dmg: dm, pellet: true, star: true }); }
       for (let i = orbs.length - 1; i >= 0; i--) if (Math.hypot(orbs[i].x - P.x, orbs[i].wy - P.wy) < R) { boom(orbs[i].x, orbs[i].wy, 6, ['#ffffff', '#ffb8f0'], 70); orbs.splice(i, 1); }
-      rings.push({ x: P.x, wy: P.wy, R: R, life: 0.6 }); rings.push({ x: P.x, wy: P.wy, R: R * 1.5, life: 0.75 });
-      G.fxFlash = 0.2; G.fxCol = '255,170,240'; G.shake = Math.max(G.shake, 5);
+      rings.push({ x: P.x, wy: P.wy, R: R, life: 0.6 }); rings.push({ x: P.x, wy: P.wy, R: R * 1.5, life: 0.75 }); rings.push({ x: P.x, wy: P.wy, R: R * 2.1, life: 0.9 });
+      G.fxFlash = 0.3; G.fxCol = '255,170,240'; G.shake = Math.max(G.shake, 5);
     } else if (k === 4) {      // ejder nefesi
-      G.breath = Math.max(G.breath, 1.1 + 0.6 * c); G.fxFlash = 0.12; G.fxCol = '255,150,60';
+      G.breath = Math.max(G.breath, 1.3 + 0.7 * c); G.fxFlash = 0.22; G.fxCol = '255,150,60'; G.shake = Math.max(G.shake, 3);
     } else if (k === 5) {      // altın füze yağmuru
-      const n = 6 + Math.round(c * 6) + Math.floor(G.power / 4), dm = 2 + Math.floor(G.power / 5), tg = [];
+      const n = 9 + Math.round(c * 7) + Math.floor(G.power / 4), dm = 2 + Math.floor(G.power / 5), tg = [];
       for (let i = 0; i < ents.length; i++) { const e = ents[i], y = sy(e.wy); if (!e.dead && e.type !== 'beam' && e.type !== 'whirl' && y > 0 && y < PSY - 20) tg.push(e); }
-      G.fxFlash = 0.15; G.fxCol = '255,215,100';
-      for (let i = 0; i < n; i++) { const a = -0.9 + 1.8 * i / Math.max(1, n - 1); shots.push({ x: P.x + Math.sin(a) * 10, wy: P.wy + 10, v: P.speed + 220, vx: Math.sin(a) * 260, dmg: dm, homing: true, gold: true, tgt: tg.length ? tg[i % tg.length] : null }); }
+      G.fxFlash = 0.26; G.fxCol = '255,215,100'; G.shake = Math.max(G.shake, 3);
+      for (let i = 0; i < n; i++) { const a = -1.25 + 2.5 * i / Math.max(1, n - 1); shots.push({ x: P.x + Math.sin(a) * 14, wy: P.wy + 10, v: P.speed + 220, vx: Math.sin(a) * 320, dmg: dm, homing: true, gold: true, tgt: tg.length ? tg[i % tg.length] : null }); }
     } else pellets(c);
   }
   function fireBlast() {
@@ -2450,9 +2450,9 @@
     ctx.lineCap = 'round';
     for (let i = 0; i < shots.length; i++) {
       const s = shots[i], y = sy(s.wy);
-      if (s.flame) { const k = s.life / 0.42; glow(s.x, y, 8 + (1 - k) * 22, k > 0.6 ? '255,235,160' : k > 0.3 ? '255,140,40' : '230,70,30', 0.85 * k); continue; }
+      if (s.flame) { const k = s.life / 0.5; glow(s.x, y, 12 + (1 - k) * 34, k > 0.6 ? '255,235,160' : k > 0.3 ? '255,140,40' : '230,70,30', 0.9 * k); continue; }
       const ux = s.vx || 0, uy = -(s.v - P.speed), ul = Math.hypot(ux, uy) || 1, tx = -ux / ul * 18, ty = -uy / ul * 18;
-      glow(s.x, y, s.lance ? 16 : s.star ? 12 : s.gold ? 13 : s.pellet ? 8 : 9, s.lance ? '150,230,255' : s.star ? '255,160,240' : s.gold ? '255,210,90' : s.dmg > 1 ? '255,170,110' : '255,220,140', 0.7);
+      glow(s.x, y, s.lance ? 24 : s.star ? 18 : s.gold ? 18 : s.pellet ? 8 : 9, s.lance ? '150,230,255' : s.star ? '255,160,240' : s.gold ? '255,210,90' : s.dmg > 1 ? '255,170,110' : '255,220,140', 0.7);
       const g = ctx.createLinearGradient(s.x, y, s.x + tx, y + ty);
       g.addColorStop(0, 'rgba(255,240,200,0.9)'); g.addColorStop(1, 'rgba(255,170,80,0)');
       ctx.strokeStyle = g; ctx.lineWidth = 3;
@@ -2464,11 +2464,11 @@
     for (let i = 0; i < shots.length; i++) {
       const s = shots[i];
       if (s.flame) continue;
-      if (s.lance) { ctx.fillStyle = '#7fe3ff'; ctx.fillRect(s.x - 2.6, sy(s.wy) - 14, 5.2, 26); ctx.fillStyle = '#ffffff'; ctx.fillRect(s.x - 1.2, sy(s.wy) - 13, 2.4, 24); ctx.fillStyle = '#fffbe8'; continue; }
-      if (s.star) { ctx.fillStyle = '#ffd6f6'; ctx.beginPath(); ctx.arc(s.x, sy(s.wy), 3.4, 0, 6.3); ctx.fill(); ctx.fillStyle = '#fffbe8'; continue; }
+      if (s.lance) { ctx.fillStyle = 'rgba(127,227,255,0.45)'; ctx.fillRect(s.x - 5, sy(s.wy) - 18, 10, 34); ctx.fillStyle = '#7fe3ff'; ctx.fillRect(s.x - 3, sy(s.wy) - 17, 6, 32); ctx.fillStyle = '#ffffff'; ctx.fillRect(s.x - 1.4, sy(s.wy) - 16, 2.8, 30); ctx.fillStyle = '#fffbe8'; continue; }
+      if (s.star) { ctx.fillStyle = '#ffd6f6'; ctx.beginPath(); ctx.arc(s.x, sy(s.wy), 4.6, 0, 6.3); ctx.fill(); ctx.fillStyle = '#fffbe8'; continue; }
       if (s.homing) {      // güdümlü füze: gövde, burun, kanatçık, itici alevi
         const y = sy(s.wy), ux = s.vx || 0, uy = -(s.v - P.speed), a = Math.atan2(uy, ux) + Math.PI / 2;
-        ctx.save(); ctx.translate(s.x, y); ctx.rotate(a); if (s.gold) ctx.scale(1.45, 1.45);
+        ctx.save(); ctx.translate(s.x, y); ctx.rotate(a); if (s.gold) ctx.scale(1.8, 1.8);
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; glow(0, 6, 8, '120,255,190', 0.7);
         ctx.fillStyle = '#fff6da'; poly([-1.6, 4, 1.6, 4, 0, 9 + Math.random() * 4]); ctx.restore();
         ctx.fillStyle = s.gold ? '#fff1b0' : '#e8f3ff'; ctx.fillRect(-1.6, -4, 3.2, 8);
@@ -2490,16 +2490,16 @@
       pts.push(b.x2, y2);
       for (let w = 0; w < 3; w++) {      // dış hale, sarı gövde, beyaz çekirdek
         ctx.strokeStyle = w === 2 ? 'rgba(255,255,255,' + a + ')' : w ? 'rgba(255,230,90,' + (0.9 * a) + ')' : 'rgba(255,200,60,' + (0.3 * a) + ')';
-        ctx.lineWidth = w === 2 ? 2 : w ? 5 : 12;
+        ctx.lineWidth = w === 2 ? 3 : w ? 8 : 22;
         ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let q = 2; q < pts.length; q += 2) ctx.lineTo(pts[q], pts[q + 1]); ctx.stroke();
       }
       ctx.strokeStyle = 'rgba(255,245,170,' + (0.7 * a) + ')'; ctx.lineWidth = 1.5;      // yan dallar
-      for (let q = 4; q < pts.length - 2; q += 4) { ctx.beginPath(); ctx.moveTo(pts[q], pts[q + 1]); ctx.lineTo(pts[q] + rand(-22, 22), pts[q + 1] + rand(-18, 18)); ctx.stroke(); }
-      glow(b.x2, y2, 26, '255,240,150', 0.9 * a); glow(b.x1, y1, 16, '255,240,150', 0.6 * a);
+      for (let q = 4; q < pts.length - 2; q += 4) { ctx.beginPath(); ctx.moveTo(pts[q], pts[q + 1]); ctx.lineTo(pts[q] + rand(-34, 34), pts[q + 1] + rand(-26, 26)); ctx.stroke(); }
+      glow(b.x2, y2, 40, '255,240,150', 0.95 * a); glow(b.x1, y1, 24, '255,240,150', 0.7 * a);
     }
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i], k = 1 - Math.min(1, r.life / 0.6), rr = r.R * (0.2 + 0.8 * k), ry = sy(r.wy);
-      ctx.strokeStyle = 'rgba(255,170,240,' + (0.95 * (1 - k)) + ')'; ctx.lineWidth = 14 * (1 - k) + 2;
+      ctx.strokeStyle = 'rgba(255,170,240,' + (0.95 * (1 - k)) + ')'; ctx.lineWidth = 22 * (1 - k) + 3;
       ctx.beginPath(); ctx.arc(r.x, ry, rr, 0, 6.3); ctx.stroke();
       ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)) + ')'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(r.x, ry, rr, 0, 6.3); ctx.stroke();
